@@ -15,12 +15,14 @@ export class SupabaseAuthGuard implements CanActivate {
     if (!authHeader) throw new UnauthorizedException('No token');
 
     const token = authHeader.split(' ')[1];
+    const jwtSecret = process.env.SUPABASE_JWT_SECRET;
+
+    if (!jwtSecret) {
+      throw new UnauthorizedException('JWT secret not configured');
+    }
 
     try {
-      const decoded: any = jwt.verify(
-        token,
-        process.env.SUPABASE_JWT_SECRET,
-      );
+      const decoded: any = jwt.verify(token, jwtSecret);
 
       request.user = decoded; // contains sub (user id)
       return true;
