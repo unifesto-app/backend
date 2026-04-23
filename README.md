@@ -1,99 +1,390 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Unifesto Backend API
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+Production-ready NestJS backend with Supabase authentication.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## Features
 
-## Description
+- ✅ Supabase JWT authentication
+- ✅ User profile management
+- ✅ Role-based access control (RBAC)
+- ✅ Input validation with class-validator
+- ✅ Clean architecture (modules, services, guards)
+- ✅ Comprehensive error handling
+- ✅ Logging with NestJS Logger
+- ✅ TypeScript strict mode
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+## Tech Stack
 
-## Project setup
+- **Framework**: NestJS 11
+- **Database**: PostgreSQL (via Supabase)
+- **Authentication**: Supabase Auth (JWT)
+- **Validation**: class-validator, class-transformer
+- **Runtime**: Node.js 20+
 
-```bash
-$ npm install
+## Project Structure
+
+```
+src/
+├── auth/
+│   ├── decorators/
+│   │   ├── current-user.decorator.ts    # Extract user from request
+│   │   └── roles.decorator.ts           # Role-based access decorator
+│   ├── dto/
+│   │   └── update-profile.dto.ts        # Profile update validation
+│   ├── guards/
+│   │   ├── supabase-auth.guard.ts       # JWT verification
+│   │   └── roles.guard.ts               # Role-based authorization
+│   ├── interfaces/
+│   │   └── user.interface.ts            # User types & enums
+│   ├── auth.controller.ts               # Auth endpoints
+│   ├── auth.service.ts                  # Auth business logic
+│   └── auth.module.ts                   # Auth module
+├── common/
+│   └── database/
+│       ├── supabase.service.ts          # Supabase client
+│       └── database.module.ts           # Database module
+├── app.module.ts                        # Root module
+└── main.ts                              # Application entry point
 ```
 
-## Compile and run the project
+## Environment Variables
 
-```bash
-# development
-$ npm run start
+Create a `.env` file in the root directory:
 
-# watch mode
-$ npm run start:dev
+```env
+# Server Configuration
+PORT=3000
+NODE_ENV=development
 
-# production mode
-$ npm run start:prod
+# Supabase Configuration
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+SUPABASE_JWT_SECRET=your-jwt-secret
+
+# CORS Configuration
+CORS_ORIGIN=http://localhost:3001
 ```
 
-## Run tests
+### Getting Supabase Credentials
+
+1. Go to your Supabase project dashboard
+2. Navigate to **Settings** → **API**
+3. Copy:
+   - **Project URL** → `SUPABASE_URL`
+   - **service_role key** → `SUPABASE_SERVICE_ROLE_KEY`
+   - **JWT Secret** → `SUPABASE_JWT_SECRET`
+
+## Installation
 
 ```bash
-# unit tests
-$ npm run test
+# Install dependencies
+npm install
 
-# e2e tests
-$ npm run test:e2e
+# Copy environment variables
+cp .env.example .env
+# Edit .env with your Supabase credentials
+```
 
-# test coverage
-$ npm run test:cov
+## Database Schema
+
+The backend expects a `profiles` table in your Supabase database:
+
+```sql
+CREATE TABLE profiles (
+  id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  name TEXT,
+  username TEXT UNIQUE,
+  avatar_url TEXT,
+  bio TEXT,
+  email TEXT,
+  phone TEXT,
+  role TEXT NOT NULL DEFAULT 'attendee' CHECK (role IN ('attendee', 'super_admin', 'support')),
+  is_verified BOOLEAN DEFAULT FALSE,
+  is_active BOOLEAN DEFAULT TRUE,
+  is_banned BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Create index on username for faster lookups
+CREATE INDEX idx_profiles_username ON profiles(username);
+
+-- Create index on email for faster lookups
+CREATE INDEX idx_profiles_email ON profiles(email);
+
+-- Enable Row Level Security
+ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+
+-- Policy: Users can read their own profile
+CREATE POLICY "Users can read own profile"
+  ON profiles FOR SELECT
+  USING (auth.uid() = id);
+
+-- Policy: Users can update their own profile
+CREATE POLICY "Users can update own profile"
+  ON profiles FOR UPDATE
+  USING (auth.uid() = id);
+
+-- Policy: Service role can do everything
+CREATE POLICY "Service role has full access"
+  ON profiles
+  USING (auth.jwt()->>'role' = 'service_role');
+```
+
+## Running the Application
+
+```bash
+# Development mode
+npm run start:dev
+
+# Production mode
+npm run build
+npm run start:prod
+
+# Debug mode
+npm run start:debug
+```
+
+## API Endpoints
+
+### Authentication
+
+All protected endpoints require a Bearer token in the Authorization header:
+
+```
+Authorization: Bearer <supabase_jwt_token>
+```
+
+#### GET /auth/me
+
+Get current user profile.
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Response:**
+```json
+{
+  "id": "uuid",
+  "email": "user@example.com",
+  "profile": {
+    "name": "John Doe",
+    "username": "johndoe",
+    "avatar_url": "https://...",
+    "bio": "Software developer",
+    "phone": "+1234567890",
+    "role": "attendee",
+    "is_verified": false,
+    "is_active": true,
+    "created_at": "2024-01-01T00:00:00Z",
+    "updated_at": "2024-01-01T00:00:00Z"
+  }
+}
+```
+
+#### POST /auth/sync
+
+Sync user profile (creates profile if it doesn't exist).
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Response:**
+```json
+{
+  "message": "Profile synced successfully",
+  "profile": {
+    "id": "uuid",
+    "email": "user@example.com",
+    "role": "attendee",
+    ...
+  }
+}
+```
+
+#### PATCH /auth/profile
+
+Update user profile.
+
+**Headers:**
+```
+Authorization: Bearer <token>
+Content-Type: application/json
+```
+
+**Body:**
+```json
+{
+  "name": "John Doe",
+  "username": "johndoe",
+  "avatar_url": "https://example.com/avatar.jpg",
+  "bio": "Software developer",
+  "phone": "+1234567890"
+}
+```
+
+**Validation Rules:**
+- `name`: 2-100 characters
+- `username`: 3-30 characters, alphanumeric + underscore/hyphen only
+- `avatar_url`: Valid URL, max 500 characters
+- `bio`: Max 500 characters
+- `phone`: Valid phone number format
+
+**Response:**
+```json
+{
+  "message": "Profile updated successfully",
+  "profile": {
+    "id": "uuid",
+    "email": "user@example.com",
+    "name": "John Doe",
+    "username": "johndoe",
+    ...
+  }
+}
+```
+
+## Guards & Decorators
+
+### SupabaseAuthGuard
+
+Verifies Supabase JWT tokens and attaches user to request.
+
+```typescript
+@Get('protected')
+@UseGuards(SupabaseAuthGuard)
+async protectedRoute(@CurrentUser() user: RequestUser) {
+  return { userId: user.sub };
+}
+```
+
+### RolesGuard
+
+Checks user roles from database (requires SupabaseAuthGuard).
+
+```typescript
+@Get('admin-only')
+@UseGuards(SupabaseAuthGuard, RolesGuard)
+@Roles(UserRole.SUPER_ADMIN)
+async adminRoute() {
+  return { message: 'Admin access granted' };
+}
+```
+
+### @CurrentUser() Decorator
+
+Extracts authenticated user from request.
+
+```typescript
+@Get('me')
+@UseGuards(SupabaseAuthGuard)
+async getMe(@CurrentUser() user: RequestUser) {
+  // user.sub = user ID
+  // user.email = user email
+  // user.role = user role (from JWT)
+}
+```
+
+## Error Handling
+
+The API returns consistent error responses:
+
+```json
+{
+  "statusCode": 401,
+  "message": "Invalid token",
+  "error": "Unauthorized"
+}
+```
+
+Common status codes:
+- `400` - Bad Request (validation errors)
+- `401` - Unauthorized (invalid/missing token)
+- `403` - Forbidden (insufficient permissions)
+- `404` - Not Found (resource doesn't exist)
+- `409` - Conflict (e.g., username already taken)
+- `500` - Internal Server Error
+
+## User Roles
+
+```typescript
+enum UserRole {
+  ATTENDEE = 'attendee',      // Default role for new users
+  SUPER_ADMIN = 'super_admin', // Full system access
+  SUPPORT = 'support',         // Customer support access
+}
+```
+
+## Development
+
+```bash
+# Format code
+npm run format
+
+# Lint code
+npm run lint
+
+# Run tests (when added)
+npm run test
 ```
 
 ## Deployment
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+### Railway
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+1. Create a new project on Railway
+2. Connect your GitHub repository
+3. Add environment variables in Railway dashboard
+4. Railway will automatically detect and deploy using `npm run start:prod`
 
-```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+### Docker (Optional)
+
+```dockerfile
+FROM node:20-alpine
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --only=production
+COPY . .
+RUN npm run build
+CMD ["npm", "run", "start:prod"]
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+## Security Best Practices
 
-## Resources
+✅ JWT tokens are verified on every request  
+✅ Service role key is never exposed to clients  
+✅ Input validation on all endpoints  
+✅ CORS configured for specific origins  
+✅ Row Level Security enabled on database  
+✅ User status checks (banned/inactive)  
+✅ Comprehensive logging for security events  
 
-Check out a few resources that may come in handy when working with NestJS:
+## Troubleshooting
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+### "JWT secret not configured"
 
-## Support
+Make sure `SUPABASE_JWT_SECRET` is set in your `.env` file.
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+### "Profile not found"
 
-## Stay in touch
+User needs to call `POST /auth/sync` after first login to create their profile.
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+### "Username already taken"
+
+The username must be unique across all users. Try a different username.
+
+### Port already in use
+
+Change the `PORT` in your `.env` file or kill the process using the port:
+
+```bash
+lsof -ti:3000 | xargs kill -9
+```
 
 ## License
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
-# backend
+UNLICENSED - Private project
