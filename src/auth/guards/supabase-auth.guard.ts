@@ -38,6 +38,9 @@ export class SupabaseAuthGuard implements CanActivate {
     }
 
     try {
+      // Log token prefix for debugging (first 20 chars only)
+      this.logger.debug(`Verifying token: ${token.substring(0, 20)}...`);
+      
       const decoded = jwt.verify(token, jwtSecret) as JwtPayload;
 
       if (!decoded.sub) {
@@ -54,7 +57,7 @@ export class SupabaseAuthGuard implements CanActivate {
 
       request.user = user;
 
-      this.logger.debug(`User authenticated: ${decoded.sub}`);
+      this.logger.log(`User authenticated: ${decoded.sub}`);
       return true;
     } catch (error) {
       if (error instanceof jwt.TokenExpiredError) {
@@ -63,8 +66,10 @@ export class SupabaseAuthGuard implements CanActivate {
       }
       if (error instanceof jwt.JsonWebTokenError) {
         this.logger.warn(`Invalid token: ${error.message}`);
+        this.logger.debug(`JWT Secret length: ${jwtSecret.length} chars`);
         throw new UnauthorizedException('Invalid token');
       }
+      this.logger.error(`Authentication error: ${error.message}`);
       throw new UnauthorizedException('Authentication failed');
     }
   }
