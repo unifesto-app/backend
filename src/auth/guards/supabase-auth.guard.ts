@@ -5,14 +5,16 @@ import {
   UnauthorizedException,
   Logger,
 } from '@nestjs/common';
-import * as jwt from 'jsonwebtoken';
-import type { JwtPayload, RequestUser } from '../interfaces/user.interface';
+import { SupabaseService } from '../../common/database/supabase.service';
+import type { RequestUser } from '../interfaces/user.interface';
 
 @Injectable()
 export class SupabaseAuthGuard implements CanActivate {
   private readonly logger = new Logger(SupabaseAuthGuard.name);
 
-  canActivate(context: ExecutionContext): boolean {
+  constructor(private readonly supabaseService: SupabaseService) {}
+
+  async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
 
     const authHeader = request.headers.authorization;
@@ -31,43 +33,35 @@ export class SupabaseAuthGuard implements CanActivate {
       throw new UnauthorizedException('No token provided');
     }
 
-    const jwtSecret = process.env.SUPABASE_JWT_SECRET;
-    if (!jwtSecret) {
-      this.logger.error('SUPABASE_JWT_SECRET is not configured');
-      throw new UnauthorizedException('Authentication service misconfigured');
-    }
-
     try {
       // Log token prefix for debugging (first 20 chars only)
       this.logger.debug(`Verifying token: ${token.substring(0, 20)}...`);
-      
-      const decoded = jwt.verify(token, jwtSecret) as JwtPayload;
 
-      if (!decoded.sub) {
-        this.logger.warn('Token missing user ID (sub)');
-        throw new UnauthorizedException('Invalid token payload');
+      // Use Supabase client to verify the JWT token (handles ES256)
+      const {
+        data: { user },
+        error,
+      } = await this.supabaseService.getClient().auth.getUser(token);
+
+      if (error || !user) {
+        this.logger.warn(`Token verification failed: ${error?.message || 'No user found'}`);
+        throw new UnauthorizedException('Invalid token');
       }
 
       // Attach user info to request
-      const user: RequestUser = {
-        sub: decoded.sub,
-        email: decoded.email,
-        role: decoded.role,
+      const requestUser: RequestUser = {
+        sub: user.id,
+        email: user.email,
+        role: user.role,
       };
 
-      request.user = user;
+      request.user = requestUser;
 
-      this.logger.log(`User authenticated: ${decoded.sub}`);
+      this.logger.log(`User authenticated: ${user.id}`);
       return true;
     } catch (error) {
-      if (error instanceof jwt.TokenExpiredError) {
-        this.logger.warn('Token expired');
-        throw new UnauthorizedException('Token has expired');
-      }
-      if (error instanceof jwt.JsonWebTokenError) {
-        this.logger.warn(`Invalid token: ${error.message}`);
-        this.logger.debug(`JWT Secret length: ${jwtSecret.length} chars`);
-        throw new UnauthorizedException('Invalid token');
+      if (error instanceof UnauthorizedException) {
+        throw error;
       }
       this.logger.error(`Authentication error: ${error.message}`);
       throw new UnauthorizedException('Authentication failed');
