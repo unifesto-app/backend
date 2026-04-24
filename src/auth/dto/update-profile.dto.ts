@@ -6,6 +6,7 @@ import {
   Matches,
   IsUrl,
   IsPhoneNumber,
+  ValidateIf,
 } from 'class-validator';
 
 export class UpdateProfileDto {
@@ -35,6 +36,10 @@ export class UpdateProfileDto {
   bio?: string;
 
   @IsOptional()
-  @IsPhoneNumber()
-  phone?: string;
+  @ValidateIf((o) => o.phone !== '' && o.phone !== null && o.phone !== undefined)
+  @IsPhoneNumber(undefined, {
+    message: 'Phone must be a valid phone number (e.g., +1234567890 or +911234567890)',
+  })
+  phone?: string | null;
+}
 }
