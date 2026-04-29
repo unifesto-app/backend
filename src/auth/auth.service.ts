@@ -543,60 +543,54 @@ export class AuthService {
           subject: 'Your Wallet Passcode OTP - Unifesto',
           html: `
             <!DOCTYPE html>
-            <html>
+            <html lang="en">
               <head>
-                <meta charset="utf-8">
+                <meta charset="UTF-8">
                 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <title>Wallet Passcode OTP</title>
+                <title>Wallet Passcode OTP - Unifesto</title>
               </head>
-              <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f5f5f5;">
-                <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5; padding: 40px 20px;">
+              <body style="margin:0; padding:0; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;">
+                <table width="100%" cellpadding="0" cellspacing="0" style="padding:40px 20px;">
                   <tr>
                     <td align="center">
-                      <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                      <table width="600" cellpadding="0" cellspacing="0" style="border-radius:16px; border:1px solid #e5e7eb; overflow:hidden; background:#ffffff;">
                         <!-- Header -->
                         <tr>
-                          <td style="padding: 40px 40px 20px 40px; text-align: center;">
-                            <h1 style="margin: 0; color: #3491ff; font-size: 28px; font-weight: 700;">Pocket by Unifesto</h1>
+                          <td style="background:linear-gradient(135deg,#3491ff 0%,#0062ff 100%); padding:40px; text-align:center;">
+                            <h1 style="margin:0; font-size:32px; font-weight:800; color:#000000;">Pocket</h1>
+                            <p style="margin:8px 0 0 0; font-size:14px; color:#000000; opacity:0.8;">by Unifesto</p>
                           </td>
                         </tr>
-                        
                         <!-- Content -->
                         <tr>
-                          <td style="padding: 20px 40px;">
-                            <h2 style="margin: 0 0 20px 0; color: #1a1a1a; font-size: 24px; font-weight: 600;">Wallet Passcode Verification</h2>
-                            <p style="margin: 0 0 20px 0; color: #4a4a4a; font-size: 16px; line-height: 1.5;">
-                              You requested to change your wallet passcode. Use the verification code below to continue:
+                          <td style="padding:40px; color:#111111;">
+                            <h2 style="margin:0 0 16px 0; font-size:24px; font-weight:700;">Wallet Passcode Verification</h2>
+                            <p style="margin:0 0 24px 0; font-size:15px; line-height:1.6; color:#555555;">
+                              Enter this code to verify your wallet passcode change:
                             </p>
-                            
-                            <!-- OTP Box -->
-                            <table width="100%" cellpadding="0" cellspacing="0" style="margin: 30px 0;">
+                            <!-- OTP Display -->
+                            <table width="100%" cellpadding="0" cellspacing="0">
                               <tr>
-                                <td align="center" style="background: linear-gradient(135deg, #3491ff 0%, #0062ff 100%); border-radius: 12px; padding: 30px;">
-                                  <div style="font-size: 48px; font-weight: 700; color: #ffffff; letter-spacing: 8px; font-family: 'Courier New', monospace;">
+                                <td align="center" style="padding:0 0 24px 0;">
+                                  <div style="display:inline-block; background:linear-gradient(135deg,#3491ff 0%,#0062ff 100%); color:#000000; padding:20px 40px; border-radius:12px; font-size:36px; font-weight:800; letter-spacing:8px; font-family:'Courier New', monospace;">
                                     ${otp}
                                   </div>
                                 </td>
                               </tr>
                             </table>
-                            
-                            <p style="margin: 20px 0; color: #4a4a4a; font-size: 14px; line-height: 1.5;">
-                              <strong>This code will expire in 10 minutes.</strong>
+                            <p style="margin:0 0 12px 0; font-size:13px; color:#777777;">
+                              <strong>This code expires in 10 minutes.</strong>
                             </p>
-                            
-                            <p style="margin: 20px 0; color: #666666; font-size: 14px; line-height: 1.5;">
-                              If you didn't request this code, please ignore this email or contact support if you have concerns.
+                            <p style="margin:0; font-size:12px; color:#777777;">
+                              If you didn't request this, ignore this email.
                             </p>
                           </td>
                         </tr>
-                        
                         <!-- Footer -->
                         <tr>
-                          <td style="padding: 30px 40px; background-color: #f8f9fa; border-radius: 0 0 12px 12px;">
-                            <p style="margin: 0; color: #999999; font-size: 12px; text-align: center; line-height: 1.5;">
-                              © ${new Date().getFullYear()} Unifesto. All rights reserved.<br/>
-                              This is an automated message, please do not reply.
-                            </p>
+                          <td style="padding:24px; text-align:center; border-top:1px solid #eeeeee;">
+                            <p style="margin:0 0 8px 0; font-size:12px; color:#777777;">support@unifesto.app</p>
+                            <p style="margin:0; font-size:12px; color:#777777;">© ${new Date().getFullYear()} Unifesto Private Limited</p>
                           </td>
                         </tr>
                       </table>
