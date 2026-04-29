@@ -16,7 +16,7 @@ import {
   Req,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { Request } from 'express';
+import type { Request } from 'express';
 import { AuthService } from './auth.service';
 import { AvatarService } from './avatar.service';
 import { SupabaseAuthGuard } from './guards/supabase-auth.guard';

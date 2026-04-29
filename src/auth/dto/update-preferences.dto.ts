@@ -1,4 +1,4 @@
-import { IsBoolean, IsOptional, IsObject } from 'class-validator';
+import { IsBoolean, IsOptional } from 'class-validator';
 
 export class UpdatePreferencesDto {
   @IsOptional()
@@ -16,9 +16,4 @@ export class UpdatePreferencesDto {
   @IsOptional()
   @IsBoolean()
   marketing_emails?: boolean;
-
-  // Allow additional custom preferences
-  @IsOptional()
-  @IsObject()
-  [key: string]: any;
 }
