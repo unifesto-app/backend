@@ -44,22 +44,3 @@ export interface Profile {
   created_at: Date;
   updated_at: Date;
 }
-
-export interface UserDevice {
-  id: string;
-  user_id: string;
-  device_name: string;
-  device_type: 'ios' | 'android' | 'web' | 'desktop' | 'unknown';
-  device_model?: string;
-  os_version?: string;
-  app_version?: string;
-  device_token: string;
-  device_fingerprint: string;
-  ip_address?: string;
-  user_agent?: string;
-  last_active: Date;
-  first_seen: Date;
-  is_active: boolean;
-  created_at: Date;
-  updated_at: Date;
-}

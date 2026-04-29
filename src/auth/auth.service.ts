@@ -5,19 +5,25 @@ import {
   ConflictException,
   InternalServerErrorException,
   BadRequestException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { randomUUID } from 'crypto';
+import * as bcrypt from 'bcrypt';
 import { SupabaseService } from '../common/database/supabase.service';
 import type {
   Profile,
   RequestUser,
-  UserDevice,
   UserPreferences,
 } from './interfaces/user.interface';
 import { UserRole } from './interfaces/user.interface';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { UpdatePreferencesDto } from './dto/update-preferences.dto';
-import { RegisterDeviceDto, UpdateDeviceDto } from './dto/register-device.dto';
+import {
+  RequestOtpDto,
+  VerifyOtpDto,
+  SetWalletPasscodeDto,
+  VerifyWalletPasscodeDto,
+} from './dto/wallet-passcode.dto';
 
 @Injectable()
 export class AuthService {
@@ -468,282 +474,265 @@ export class AuthService {
   }
 
   /**
-   * Register or update a device
+   * Request OTP for wallet passcode change
+   * Generates a 6-digit OTP and sends it via OneSignal email
    */
-  async registerDevice(
-    userId: string,
-    deviceDto: RegisterDeviceDto,
-  ): Promise<UserDevice> {
+  async requestWalletOtp(userId: string, email: string): Promise<{ token: string }> {
     try {
-      // Generate a device token if not provided
-      const deviceToken = deviceDto.device_token || randomUUID();
+      // Generate 6-digit OTP
+      const otp = Math.floor(100000 + Math.random() * 900000).toString();
+      const token = randomUUID();
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
-      // Check if device already exists by fingerprint
-      const { data: existingDevice } = await this.supabaseService
+      // Store OTP in database
+      const { error } = await this.supabaseService
         .getClient()
-        .from('user_devices')
-        .select('*')
-        .eq('user_id', userId)
-        .eq('device_fingerprint', deviceDto.device_fingerprint)
-        .single();
-
-      if (existingDevice) {
-        // Update existing device
-        const { data, error } = await this.supabaseService
-          .getClient()
-          .from('user_devices')
-          .update({
-            device_name: deviceDto.device_name,
-            device_type: deviceDto.device_type,
-            device_model: deviceDto.device_model,
-            os_version: deviceDto.os_version,
-            app_version: deviceDto.app_version,
-            device_token: existingDevice.device_token || deviceToken,
-            ip_address: deviceDto.ip_address,
-            user_agent: deviceDto.user_agent,
-            last_active: new Date().toISOString(),
-            is_active: true,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', existingDevice.id)
-          .select()
-          .single();
-
-        if (error) {
-          this.logger.error(`Error updating device: ${error.message}`);
-          throw new InternalServerErrorException('Failed to update device');
-        }
-
-        this.logger.log(`Device updated for user: ${userId}`);
-        return data as UserDevice;
-      }
-
-      // Create new device with generated token
-      const { data, error } = await this.supabaseService
-        .getClient()
-        .from('user_devices')
+        .from('wallet_otps')
         .insert({
           user_id: userId,
-          ...deviceDto,
-          device_token: deviceToken,
-          last_active: new Date().toISOString(),
-          first_seen: new Date().toISOString(),
-          is_active: true,
-        })
-        .select()
-        .single();
+          email,
+          otp,
+          token,
+          expires_at: expiresAt.toISOString(),
+          used: false,
+        });
 
       if (error) {
-        this.logger.error(`Error registering device: ${error.message}`);
-        throw new InternalServerErrorException('Failed to register device');
+        this.logger.error(`Error storing OTP: ${error.message}`);
+        throw new InternalServerErrorException('Failed to generate OTP');
       }
 
-      this.logger.log(
-        `Device registered for user: ${userId} with token: ${deviceToken}`,
-      );
-      return data as UserDevice;
+      // Send OTP via OneSignal email
+      await this.sendOtpEmail(email, otp);
+
+      this.logger.log(`OTP generated for user: ${userId}`);
+      return { token };
     } catch (error) {
       if (error instanceof InternalServerErrorException) {
         throw error;
       }
-      this.logger.error(`Unexpected error in registerDevice: ${error.message}`);
-      throw new InternalServerErrorException('Failed to register device');
+      this.logger.error(`Unexpected error in requestWalletOtp: ${error.message}`);
+      throw new InternalServerErrorException('Failed to request OTP');
     }
   }
 
   /**
-   * Get all devices for a user
+   * Send OTP via OneSignal email service
    */
-  async getUserDevices(userId: string): Promise<UserDevice[]> {
+  private async sendOtpEmail(email: string, otp: string): Promise<void> {
     try {
-      const { data, error } = await this.supabaseService
+      const oneSignalAppId = process.env.ONESIGNAL_APP_ID;
+      const oneSignalApiKey = process.env.ONESIGNAL_REST_API_KEY;
+
+      if (!oneSignalAppId || !oneSignalApiKey) {
+        this.logger.warn('OneSignal credentials not configured');
+        // For development, log the OTP
+        this.logger.log(`OTP for ${email}: ${otp}`);
+        return;
+      }
+
+      const response = await fetch('https://onesignal.com/api/v1/notifications', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Basic ${oneSignalApiKey}`,
+        },
+        body: JSON.stringify({
+          app_id: oneSignalAppId,
+          include_email_tokens: [email],
+          email_subject: 'Your Wallet Passcode OTP',
+          email_body: `
+            <html>
+              <body style="font-family: Arial, sans-serif; padding: 20px;">
+                <h2 style="color: #3491ff;">Wallet Passcode Verification</h2>
+                <p>Your OTP for wallet passcode change is:</p>
+                <h1 style="color: #3491ff; font-size: 32px; letter-spacing: 5px;">${otp}</h1>
+                <p>This OTP will expire in 10 minutes.</p>
+                <p>If you didn't request this, please ignore this email.</p>
+                <br/>
+                <p style="color: #666; font-size: 12px;">Unifesto Team</p>
+              </body>
+            </html>
+          `,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        this.logger.error(`OneSignal email error: ${JSON.stringify(errorData)}`);
+        // Don't throw - log OTP for development
+        this.logger.log(`OTP for ${email}: ${otp}`);
+      } else {
+        this.logger.log(`OTP email sent to: ${email}`);
+      }
+    } catch (error) {
+      this.logger.error(`Error sending OTP email: ${error.message}`);
+      // Don't throw - log OTP for development
+      this.logger.log(`OTP for ${email}: ${otp}`);
+    }
+  }
+
+  /**
+   * Verify OTP for wallet passcode change
+   */
+  async verifyWalletOtp(userId: string, email: string, otp: string): Promise<{ token: string }> {
+    try {
+      // Get OTP from database
+      const { data: otpRecord, error } = await this.supabaseService
         .getClient()
-        .from('user_devices')
+        .from('wallet_otps')
         .select('*')
         .eq('user_id', userId)
-        .order('last_active', { ascending: false });
+        .eq('email', email)
+        .eq('otp', otp)
+        .eq('used', false)
+        .single();
 
-      if (error) {
-        this.logger.error(`Error fetching devices: ${error.message}`);
-        throw new InternalServerErrorException('Failed to fetch devices');
+      if (error || !otpRecord) {
+        throw new UnauthorizedException('Invalid OTP');
       }
 
-      return (data || []) as UserDevice[];
+      // Check if OTP is expired
+      if (new Date(otpRecord.expires_at) < new Date()) {
+        throw new UnauthorizedException('OTP has expired');
+      }
+
+      // Mark OTP as used
+      await this.supabaseService
+        .getClient()
+        .from('wallet_otps')
+        .update({ used: true })
+        .eq('id', otpRecord.id);
+
+      this.logger.log(`OTP verified for user: ${userId}`);
+      return { token: otpRecord.token };
     } catch (error) {
-      if (error instanceof InternalServerErrorException) {
+      if (error instanceof UnauthorizedException) {
         throw error;
       }
-      this.logger.error(`Unexpected error in getUserDevices: ${error.message}`);
-      throw new InternalServerErrorException('Failed to fetch devices');
+      this.logger.error(`Unexpected error in verifyWalletOtp: ${error.message}`);
+      throw new InternalServerErrorException('Failed to verify OTP');
     }
   }
 
   /**
-   * Update device
+   * Set wallet passcode
    */
-  async updateDevice(
+  async setWalletPasscode(
     userId: string,
-    deviceId: string,
-    updateDto: UpdateDeviceDto,
-  ): Promise<UserDevice> {
+    passcode: string,
+    otpToken: string,
+  ): Promise<void> {
     try {
-      const { data, error } = await this.supabaseService
+      // Verify OTP token is valid and not used
+      const { data: otpRecord, error: otpError } = await this.supabaseService
         .getClient()
-        .from('user_devices')
-        .update({
-          ...updateDto,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', deviceId)
+        .from('wallet_otps')
+        .select('*')
         .eq('user_id', userId)
-        .select()
+        .eq('token', otpToken)
+        .eq('used', true)
         .single();
 
-      if (error) {
-        if (error.code === 'PGRST116') {
-          throw new NotFoundException('Device not found');
-        }
-        this.logger.error(`Error updating device: ${error.message}`);
-        throw new InternalServerErrorException('Failed to update device');
+      if (otpError || !otpRecord) {
+        throw new UnauthorizedException('Invalid or expired OTP token');
       }
 
-      this.logger.log(`Device ${deviceId} updated for user: ${userId}`);
-      return data as UserDevice;
+      // Check if OTP token was used recently (within 5 minutes)
+      const tokenAge = Date.now() - new Date(otpRecord.updated_at).getTime();
+      if (tokenAge > 5 * 60 * 1000) {
+        throw new UnauthorizedException('OTP token has expired');
+      }
+
+      // Hash the passcode
+      const hashedPasscode = await bcrypt.hash(passcode, 10);
+
+      // Store hashed passcode in profile
+      const { error } = await this.supabaseService
+        .getClient()
+        .from('profiles')
+        .update({
+          wallet_passcode: hashedPasscode,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', userId);
+
+      if (error) {
+        this.logger.error(`Error setting wallet passcode: ${error.message}`);
+        throw new InternalServerErrorException('Failed to set wallet passcode');
+      }
+
+      this.logger.log(`Wallet passcode set for user: ${userId}`);
     } catch (error) {
       if (
-        error instanceof NotFoundException ||
+        error instanceof UnauthorizedException ||
         error instanceof InternalServerErrorException
       ) {
         throw error;
       }
-      this.logger.error(`Unexpected error in updateDevice: ${error.message}`);
-      throw new InternalServerErrorException('Failed to update device');
+      this.logger.error(`Unexpected error in setWalletPasscode: ${error.message}`);
+      throw new InternalServerErrorException('Failed to set wallet passcode');
     }
   }
 
   /**
-   * Delete device (logout from device)
-   * Note: This marks the device as inactive but doesn't invalidate the Supabase session
-   * The user will need to manually log out on that device or the session will expire naturally
+   * Verify wallet passcode
    */
-  async deleteDevice(userId: string, deviceId: string): Promise<void> {
+  async verifyWalletPasscode(userId: string, passcode: string): Promise<boolean> {
     try {
-      // Mark device as inactive instead of deleting
-      // This is because we can't invalidate Supabase sessions from the backend
-      const { error } = await this.supabaseService
+      // Get hashed passcode from profile
+      const { data: profile, error } = await this.supabaseService
         .getClient()
-        .from('user_devices')
-        .update({
-          is_active: false,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', deviceId)
-        .eq('user_id', userId);
-
-      if (error) {
-        this.logger.error(`Error marking device as inactive: ${error.message}`);
-        throw new InternalServerErrorException('Failed to remove device');
-      }
-
-      this.logger.log(
-        `Device ${deviceId} marked as inactive for user: ${userId}`,
-      );
-    } catch (error) {
-      if (error instanceof InternalServerErrorException) {
-        throw error;
-      }
-      this.logger.error(`Unexpected error in deleteDevice: ${error.message}`);
-      throw new InternalServerErrorException('Failed to remove device');
-    }
-  }
-
-  /**
-   * Logout from all devices except current
-   * Note: This marks devices as inactive but doesn't invalidate Supabase sessions
-   */
-  async logoutOtherDevices(
-    userId: string,
-    currentDeviceId: string,
-  ): Promise<number> {
-    try {
-      // First, log what devices exist
-      const { data: allDevices } = await this.supabaseService
-        .getClient()
-        .from('user_devices')
-        .select('id, device_name, device_fingerprint, is_active')
-        .eq('user_id', userId);
-
-      this.logger.log(
-        `All devices for user ${userId}:`,
-        JSON.stringify(allDevices),
-      );
-      this.logger.log(`Current device ID to KEEP: ${currentDeviceId}`);
-
-      const devicesToLogout =
-        allDevices?.filter((d) => d.id !== currentDeviceId && d.is_active) ||
-        [];
-      this.logger.log(
-        `Devices to logout (count: ${devicesToLogout.length}):`,
-        JSON.stringify(
-          devicesToLogout.map((d) => ({ id: d.id, name: d.device_name })),
-        ),
-      );
-
-      // Mark other devices as inactive instead of deleting
-      const { data, error } = await this.supabaseService
-        .getClient()
-        .from('user_devices')
-        .update({
-          is_active: false,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('user_id', userId)
-        .neq('id', currentDeviceId) // NOT equal to current device
-        .eq('is_active', true)
-        .select();
-
-      if (error) {
-        this.logger.error(`Error logging out other devices: ${error.message}`);
-        throw new InternalServerErrorException(
-          'Failed to logout other devices',
-        );
-      }
-
-      const count = data?.length || 0;
-      this.logger.log(`Successfully marked ${count} devices as inactive`);
-      this.logger.log(
-        `Updated device IDs:`,
-        JSON.stringify(data?.map((d) => d.id)),
-      );
-
-      // Verify current device is still active
-      const { data: currentDevice } = await this.supabaseService
-        .getClient()
-        .from('user_devices')
-        .select('id, device_name, is_active')
-        .eq('id', currentDeviceId)
+        .from('profiles')
+        .select('wallet_passcode')
+        .eq('id', userId)
         .single();
 
-      this.logger.log(
-        `Current device status after logout others:`,
-        JSON.stringify(currentDevice),
-      );
-
-      if (currentDevice && !currentDevice.is_active) {
-        this.logger.error(
-          `WARNING: Current device was marked as inactive! This should not happen.`,
-        );
+      if (error || !profile || !profile.wallet_passcode) {
+        throw new NotFoundException('Wallet passcode not set');
       }
 
-      return count;
+      // Verify passcode
+      const isValid = await bcrypt.compare(passcode, profile.wallet_passcode);
+
+      if (!isValid) {
+        throw new UnauthorizedException('Invalid passcode');
+      }
+
+      this.logger.log(`Wallet passcode verified for user: ${userId}`);
+      return true;
     } catch (error) {
-      if (error instanceof InternalServerErrorException) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof UnauthorizedException
+      ) {
         throw error;
       }
-      this.logger.error(
-        `Unexpected error in logoutOtherDevices: ${error.message}`,
-      );
-      throw new InternalServerErrorException('Failed to logout other devices');
+      this.logger.error(`Unexpected error in verifyWalletPasscode: ${error.message}`);
+      throw new InternalServerErrorException('Failed to verify wallet passcode');
+    }
+  }
+
+  /**
+   * Check if user has wallet passcode set
+   */
+  async hasWalletPasscode(userId: string): Promise<boolean> {
+    try {
+      const { data: profile, error } = await this.supabaseService
+        .getClient()
+        .from('profiles')
+        .select('wallet_passcode')
+        .eq('id', userId)
+        .single();
+
+      if (error) {
+        return false;
+      }
+
+      return !!profile?.wallet_passcode;
+    } catch (error) {
+      this.logger.error(`Error checking wallet passcode: ${error.message}`);
+      return false;
     }
   }
 }

@@ -24,7 +24,12 @@ import { CurrentUser } from './decorators/current-user.decorator';
 import type { RequestUser } from './interfaces/user.interface';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { UpdatePreferencesDto } from './dto/update-preferences.dto';
-import { RegisterDeviceDto, UpdateDeviceDto } from './dto/register-device.dto';
+import {
+  RequestOtpDto,
+  VerifyOtpDto,
+  SetWalletPasscodeDto,
+  VerifyWalletPasscodeDto,
+} from './dto/wallet-passcode.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -284,128 +289,115 @@ export class AuthController {
   }
 
   /**
-   * POST /auth/devices
-   * Register or update a device
+   * POST /auth/wallet/request-otp
+   * Request OTP for wallet passcode change
    */
-  @Post('devices')
+  @Post('wallet/request-otp')
   @HttpCode(HttpStatus.OK)
   @UseGuards(SupabaseAuthGuard)
-  async registerDevice(
+  async requestWalletOtp(
     @CurrentUser() user: RequestUser,
-    @Body() deviceDto: RegisterDeviceDto,
-    @Req() req: Request,
+    @Body() requestOtpDto: RequestOtpDto,
   ) {
-    this.logger.log(`Registering device for user: ${user.sub}`);
+    this.logger.log(`Requesting wallet OTP for user: ${user.sub}`);
 
-    // Add IP address from request if not provided
-    if (!deviceDto.ip_address) {
-      deviceDto.ip_address =
-        req.ip || (req.headers['x-forwarded-for'] as string) || 'unknown';
-    }
-
-    // Add user agent if not provided
-    if (!deviceDto.user_agent) {
-      deviceDto.user_agent = req.headers['user-agent'] || 'unknown';
-    }
-
-    const device = await this.authService.registerDevice(user.sub, deviceDto);
-
-    // Update last login
-    await this.authService.updateLastLogin(user.sub);
-
-    return {
-      message: 'Device registered successfully',
-      device,
-    };
-  }
-
-  /**
-   * GET /auth/devices
-   * Get all devices for current user
-   */
-  @Get('devices')
-  @UseGuards(SupabaseAuthGuard)
-  async getDevices(@CurrentUser() user: RequestUser) {
-    this.logger.debug(`Fetching devices for user: ${user.sub}`);
-
-    const devices = await this.authService.getUserDevices(user.sub);
-
-    return {
-      devices,
-      total: devices.length,
-    };
-  }
-
-  /**
-   * PATCH /auth/devices/:deviceId
-   * Update a device
-   */
-  @Patch('devices/:deviceId')
-  @UseGuards(SupabaseAuthGuard)
-  async updateDevice(
-    @CurrentUser() user: RequestUser,
-    @Param('deviceId') deviceId: string,
-    @Body() updateDto: UpdateDeviceDto,
-  ) {
-    this.logger.log(`Updating device ${deviceId} for user: ${user.sub}`);
-
-    const device = await this.authService.updateDevice(
+    const result = await this.authService.requestWalletOtp(
       user.sub,
-      deviceId,
-      updateDto,
+      requestOtpDto.email,
     );
 
     return {
-      message: 'Device updated successfully',
-      device,
+      message: 'OTP sent to your email',
+      token: result.token,
     };
   }
 
   /**
-   * DELETE /auth/devices/:deviceId
-   * Delete a device (logout from device)
+   * POST /auth/wallet/verify-otp
+   * Verify OTP for wallet passcode change
    */
-  @Delete('devices/:deviceId')
+  @Post('wallet/verify-otp')
   @HttpCode(HttpStatus.OK)
   @UseGuards(SupabaseAuthGuard)
-  async deleteDevice(
+  async verifyWalletOtp(
     @CurrentUser() user: RequestUser,
-    @Param('deviceId') deviceId: string,
+    @Body() verifyOtpDto: VerifyOtpDto,
   ) {
-    this.logger.log(`Deleting device ${deviceId} for user: ${user.sub}`);
+    this.logger.log(`Verifying wallet OTP for user: ${user.sub}`);
 
-    await this.authService.deleteDevice(user.sub, deviceId);
-
-    return {
-      message: 'Device removed successfully',
-    };
-  }
-
-  /**
-   * POST /auth/devices/logout-others
-   * Logout from all devices except current
-   */
-  @Post('devices/logout-others')
-  @HttpCode(HttpStatus.OK)
-  @UseGuards(SupabaseAuthGuard)
-  async logoutOtherDevices(
-    @CurrentUser() user: RequestUser,
-    @Body('current_device_id') currentDeviceId: string,
-  ) {
-    this.logger.log(`Logging out other devices for user: ${user.sub}`);
-
-    if (!currentDeviceId) {
-      throw new BadRequestException('current_device_id is required');
-    }
-
-    const count = await this.authService.logoutOtherDevices(
+    const result = await this.authService.verifyWalletOtp(
       user.sub,
-      currentDeviceId,
+      verifyOtpDto.email,
+      verifyOtpDto.otp,
     );
 
     return {
-      message: `Logged out from ${count} device(s)`,
-      count,
+      message: 'OTP verified successfully',
+      token: result.token,
+    };
+  }
+
+  /**
+   * POST /auth/wallet/set-passcode
+   * Set wallet passcode
+   */
+  @Post('wallet/set-passcode')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(SupabaseAuthGuard)
+  async setWalletPasscode(
+    @CurrentUser() user: RequestUser,
+    @Body() setPasscodeDto: SetWalletPasscodeDto,
+  ) {
+    this.logger.log(`Setting wallet passcode for user: ${user.sub}`);
+
+    await this.authService.setWalletPasscode(
+      user.sub,
+      setPasscodeDto.passcode,
+      setPasscodeDto.otp_token,
+    );
+
+    return {
+      message: 'Wallet passcode set successfully',
+    };
+  }
+
+  /**
+   * POST /auth/wallet/verify-passcode
+   * Verify wallet passcode
+   */
+  @Post('wallet/verify-passcode')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(SupabaseAuthGuard)
+  async verifyWalletPasscode(
+    @CurrentUser() user: RequestUser,
+    @Body() verifyPasscodeDto: VerifyWalletPasscodeDto,
+  ) {
+    this.logger.log(`Verifying wallet passcode for user: ${user.sub}`);
+
+    await this.authService.verifyWalletPasscode(
+      user.sub,
+      verifyPasscodeDto.passcode,
+    );
+
+    return {
+      message: 'Passcode verified successfully',
+      valid: true,
+    };
+  }
+
+  /**
+   * GET /auth/wallet/has-passcode
+   * Check if user has wallet passcode set
+   */
+  @Get('wallet/has-passcode')
+  @UseGuards(SupabaseAuthGuard)
+  async hasWalletPasscode(@CurrentUser() user: RequestUser) {
+    this.logger.debug(`Checking wallet passcode for user: ${user.sub}`);
+
+    const hasPasscode = await this.authService.hasWalletPasscode(user.sub);
+
+    return {
+      has_passcode: hasPasscode,
     };
   }
 }
