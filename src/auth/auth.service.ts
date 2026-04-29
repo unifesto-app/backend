@@ -593,45 +593,58 @@ export class AuthService {
 
   /**
    * Delete device (logout from device)
+   * Note: This marks the device as inactive but doesn't invalidate the Supabase session
+   * The user will need to manually log out on that device or the session will expire naturally
    */
   async deleteDevice(userId: string, deviceId: string): Promise<void> {
     try {
+      // Mark device as inactive instead of deleting
+      // This is because we can't invalidate Supabase sessions from the backend
       const { error } = await this.supabaseService
         .getClient()
         .from('user_devices')
-        .delete()
+        .update({
+          is_active: false,
+          updated_at: new Date().toISOString(),
+        })
         .eq('id', deviceId)
         .eq('user_id', userId);
 
       if (error) {
-        this.logger.error(`Error deleting device: ${error.message}`);
-        throw new InternalServerErrorException('Failed to delete device');
+        this.logger.error(`Error marking device as inactive: ${error.message}`);
+        throw new InternalServerErrorException('Failed to remove device');
       }
 
-      this.logger.log(`Device ${deviceId} deleted for user: ${userId}`);
+      this.logger.log(`Device ${deviceId} marked as inactive for user: ${userId}`);
     } catch (error) {
       if (error instanceof InternalServerErrorException) {
         throw error;
       }
       this.logger.error(`Unexpected error in deleteDevice: ${error.message}`);
-      throw new InternalServerErrorException('Failed to delete device');
+      throw new InternalServerErrorException('Failed to remove device');
     }
   }
 
   /**
    * Logout from all devices except current
+   * Note: This marks devices as inactive but doesn't invalidate Supabase sessions
    */
   async logoutOtherDevices(
     userId: string,
     currentDeviceId: string,
   ): Promise<number> {
     try {
+      // Mark other devices as inactive instead of deleting
       const { data, error } = await this.supabaseService
         .getClient()
         .from('user_devices')
-        .delete()
+        .update({
+          is_active: false,
+          updated_at: new Date().toISOString(),
+        })
         .eq('user_id', userId)
         .neq('id', currentDeviceId)
+        .eq('is_active', true)
         .select();
 
       if (error) {
@@ -640,7 +653,7 @@ export class AuthService {
       }
 
       const count = data?.length || 0;
-      this.logger.log(`Logged out ${count} devices for user: ${userId}`);
+      this.logger.log(`Marked ${count} devices as inactive for user: ${userId}`);
       return count;
     } catch (error) {
       if (error instanceof InternalServerErrorException) {
