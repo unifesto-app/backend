@@ -14,7 +14,7 @@ async function bootstrap() {
         callback(null, true);
         return;
       }
-      
+
       // Allow all *.unifesto.app subdomains and localhost
       if (
         origin.endsWith('.unifesto.app') ||

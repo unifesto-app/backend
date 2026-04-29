@@ -21,7 +21,8 @@ export class UpdateProfileDto {
   @MinLength(3)
   @MaxLength(30)
   @Matches(/^[a-zA-Z0-9_-]+$/, {
-    message: 'Username can only contain letters, numbers, underscores and hyphens',
+    message:
+      'Username can only contain letters, numbers, underscores and hyphens',
   })
   username?: string;
 
@@ -36,10 +37,12 @@ export class UpdateProfileDto {
   bio?: string;
 
   @IsOptional()
-  @ValidateIf((o) => o.phone !== '' && o.phone !== null && o.phone !== undefined)
+  @ValidateIf(
+    (o) => o.phone !== '' && o.phone !== null && o.phone !== undefined,
+  )
   @IsPhoneNumber(undefined, {
-    message: 'Phone must be a valid phone number (e.g., +1234567890 or +911234567890)',
+    message:
+      'Phone must be a valid phone number (e.g., +1234567890 or +911234567890)',
   })
   phone?: string | null;
 }
-

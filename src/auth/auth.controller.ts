@@ -299,7 +299,8 @@ export class AuthController {
 
     // Add IP address from request if not provided
     if (!deviceDto.ip_address) {
-      deviceDto.ip_address = req.ip || req.headers['x-forwarded-for'] as string || 'unknown';
+      deviceDto.ip_address =
+        req.ip || (req.headers['x-forwarded-for'] as string) || 'unknown';
     }
 
     // Add user agent if not provided

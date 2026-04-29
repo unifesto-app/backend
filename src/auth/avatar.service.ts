@@ -7,7 +7,12 @@ export class AvatarService {
   private readonly logger = new Logger(AvatarService.name);
   private readonly BUCKET_NAME = 'avatars';
   private readonly MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
-  private readonly ALLOWED_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+  private readonly ALLOWED_TYPES = [
+    'image/jpeg',
+    'image/jpg',
+    'image/png',
+    'image/webp',
+  ];
   private readonly MAX_WIDTH = 800;
   private readonly MAX_HEIGHT = 800;
   private readonly COMPRESSION_QUALITY = 80;
@@ -86,7 +91,9 @@ export class AvatarService {
           .storage.from(this.BUCKET_NAME)
           .remove(filesToDelete);
 
-        this.logger.log(`Deleted ${files.length} old avatars for user: ${userId}`);
+        this.logger.log(
+          `Deleted ${files.length} old avatars for user: ${userId}`,
+        );
       }
     } catch (error) {
       this.logger.warn(`Failed to delete old avatars: ${error.message}`);

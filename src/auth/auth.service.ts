@@ -8,7 +8,12 @@ import {
 } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { SupabaseService } from '../common/database/supabase.service';
-import type { Profile, RequestUser, UserDevice, UserPreferences } from './interfaces/user.interface';
+import type {
+  Profile,
+  RequestUser,
+  UserDevice,
+  UserPreferences,
+} from './interfaces/user.interface';
 import { UserRole } from './interfaces/user.interface';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { UpdatePreferencesDto } from './dto/update-preferences.dto';
@@ -68,7 +73,7 @@ export class AuthService {
 
       if (existingProfile) {
         this.logger.debug(`Profile already exists for user: ${user.sub}`);
-        
+
         // Sync phone to auth.users if profile has phone but auth.users doesn't
         if (existingProfile.phone) {
           try {
@@ -76,19 +81,27 @@ export class AuthService {
               .getClient()
               .auth.admin.getUserById(user.sub);
 
-            if (authUser?.user && !authUser.user.phone && existingProfile.phone) {
+            if (
+              authUser?.user &&
+              !authUser.user.phone &&
+              existingProfile.phone
+            ) {
               await this.supabaseService
                 .getClient()
                 .auth.admin.updateUserById(user.sub, {
                   phone: existingProfile.phone,
                 });
-              this.logger.debug(`Synced existing phone to auth.users for user: ${user.sub}`);
+              this.logger.debug(
+                `Synced existing phone to auth.users for user: ${user.sub}`,
+              );
             }
           } catch (syncError) {
-            this.logger.warn(`Failed to sync existing phone: ${syncError.message}`);
+            this.logger.warn(
+              `Failed to sync existing phone: ${syncError.message}`,
+            );
           }
         }
-        
+
         return existingProfile as Profile;
       }
 
@@ -149,7 +162,7 @@ export class AuthService {
       // Convert username to lowercase if provided
       if (updateDto.username) {
         updateDto.username = updateDto.username.toLowerCase().trim();
-        
+
         // Check for uniqueness
         const { data: existingUsername } = await this.supabaseService
           .getClient()
@@ -285,7 +298,9 @@ export class AuthService {
       ) {
         throw error;
       }
-      this.logger.error(`Unexpected error in syncPhoneToAuthUsers: ${error.message}`);
+      this.logger.error(
+        `Unexpected error in syncPhoneToAuthUsers: ${error.message}`,
+      );
       throw new InternalServerErrorException('Failed to sync phone number');
     }
   }
@@ -345,8 +360,12 @@ export class AuthService {
       if (error instanceof InternalServerErrorException) {
         throw error;
       }
-      this.logger.error(`Unexpected error in bulkSyncPhonesToAuthUsers: ${error.message}`);
-      throw new InternalServerErrorException('Failed to bulk sync phone numbers');
+      this.logger.error(
+        `Unexpected error in bulkSyncPhonesToAuthUsers: ${error.message}`,
+      );
+      throw new InternalServerErrorException(
+        'Failed to bulk sync phone numbers',
+      );
     }
   }
 
@@ -393,7 +412,9 @@ export class AuthService {
       ) {
         throw error;
       }
-      this.logger.error(`Unexpected error in updatePreferences: ${error.message}`);
+      this.logger.error(
+        `Unexpected error in updatePreferences: ${error.message}`,
+      );
       throw new InternalServerErrorException('Failed to update preferences');
     }
   }
@@ -404,12 +425,14 @@ export class AuthService {
   async getPreferences(userId: string): Promise<UserPreferences> {
     try {
       const profile = await this.getProfile(userId);
-      return profile.preferences || {
-        push_notifications: true,
-        email_notifications: true,
-        event_reminders: true,
-        marketing_emails: false,
-      };
+      return (
+        profile.preferences || {
+          push_notifications: true,
+          email_notifications: true,
+          event_reminders: true,
+          marketing_emails: false,
+        }
+      );
     } catch (error) {
       if (error instanceof NotFoundException) {
         throw error;
@@ -515,7 +538,9 @@ export class AuthService {
         throw new InternalServerErrorException('Failed to register device');
       }
 
-      this.logger.log(`Device registered for user: ${userId} with token: ${deviceToken}`);
+      this.logger.log(
+        `Device registered for user: ${userId} with token: ${deviceToken}`,
+      );
       return data as UserDevice;
     } catch (error) {
       if (error instanceof InternalServerErrorException) {
@@ -620,7 +645,9 @@ export class AuthService {
         throw new InternalServerErrorException('Failed to remove device');
       }
 
-      this.logger.log(`Device ${deviceId} marked as inactive for user: ${userId}`);
+      this.logger.log(
+        `Device ${deviceId} marked as inactive for user: ${userId}`,
+      );
     } catch (error) {
       if (error instanceof InternalServerErrorException) {
         throw error;
@@ -646,11 +673,21 @@ export class AuthService {
         .select('id, device_name, device_fingerprint, is_active')
         .eq('user_id', userId);
 
-      this.logger.log(`All devices for user ${userId}:`, JSON.stringify(allDevices));
+      this.logger.log(
+        `All devices for user ${userId}:`,
+        JSON.stringify(allDevices),
+      );
       this.logger.log(`Current device ID to KEEP: ${currentDeviceId}`);
-      
-      const devicesToLogout = allDevices?.filter(d => d.id !== currentDeviceId && d.is_active) || [];
-      this.logger.log(`Devices to logout (count: ${devicesToLogout.length}):`, JSON.stringify(devicesToLogout.map(d => ({ id: d.id, name: d.device_name }))));
+
+      const devicesToLogout =
+        allDevices?.filter((d) => d.id !== currentDeviceId && d.is_active) ||
+        [];
+      this.logger.log(
+        `Devices to logout (count: ${devicesToLogout.length}):`,
+        JSON.stringify(
+          devicesToLogout.map((d) => ({ id: d.id, name: d.device_name })),
+        ),
+      );
 
       // Mark other devices as inactive instead of deleting
       const { data, error } = await this.supabaseService
@@ -661,19 +698,24 @@ export class AuthService {
           updated_at: new Date().toISOString(),
         })
         .eq('user_id', userId)
-        .neq('id', currentDeviceId)  // NOT equal to current device
+        .neq('id', currentDeviceId) // NOT equal to current device
         .eq('is_active', true)
         .select();
 
       if (error) {
         this.logger.error(`Error logging out other devices: ${error.message}`);
-        throw new InternalServerErrorException('Failed to logout other devices');
+        throw new InternalServerErrorException(
+          'Failed to logout other devices',
+        );
       }
 
       const count = data?.length || 0;
       this.logger.log(`Successfully marked ${count} devices as inactive`);
-      this.logger.log(`Updated device IDs:`, JSON.stringify(data?.map(d => d.id)));
-      
+      this.logger.log(
+        `Updated device IDs:`,
+        JSON.stringify(data?.map((d) => d.id)),
+      );
+
       // Verify current device is still active
       const { data: currentDevice } = await this.supabaseService
         .getClient()
@@ -681,19 +723,26 @@ export class AuthService {
         .select('id, device_name, is_active')
         .eq('id', currentDeviceId)
         .single();
-      
-      this.logger.log(`Current device status after logout others:`, JSON.stringify(currentDevice));
-      
+
+      this.logger.log(
+        `Current device status after logout others:`,
+        JSON.stringify(currentDevice),
+      );
+
       if (currentDevice && !currentDevice.is_active) {
-        this.logger.error(`WARNING: Current device was marked as inactive! This should not happen.`);
+        this.logger.error(
+          `WARNING: Current device was marked as inactive! This should not happen.`,
+        );
       }
-      
+
       return count;
     } catch (error) {
       if (error instanceof InternalServerErrorException) {
         throw error;
       }
-      this.logger.error(`Unexpected error in logoutOtherDevices: ${error.message}`);
+      this.logger.error(
+        `Unexpected error in logoutOtherDevices: ${error.message}`,
+      );
       throw new InternalServerErrorException('Failed to logout other devices');
     }
   }

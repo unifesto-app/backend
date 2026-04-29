@@ -44,7 +44,9 @@ export class SupabaseAuthGuard implements CanActivate {
       } = await this.supabaseService.getClient().auth.getUser(token);
 
       if (error || !user) {
-        this.logger.warn(`Token verification failed: ${error?.message || 'No user found'}`);
+        this.logger.warn(
+          `Token verification failed: ${error?.message || 'No user found'}`,
+        );
         throw new UnauthorizedException('Invalid token');
       }
 
