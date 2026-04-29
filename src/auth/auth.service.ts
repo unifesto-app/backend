@@ -634,6 +634,17 @@ export class AuthService {
     currentDeviceId: string,
   ): Promise<number> {
     try {
+      // First, log what devices exist
+      const { data: allDevices } = await this.supabaseService
+        .getClient()
+        .from('user_devices')
+        .select('id, device_name, device_fingerprint, is_active')
+        .eq('user_id', userId);
+
+      this.logger.log(`All devices for user ${userId}:`, JSON.stringify(allDevices));
+      this.logger.log(`Current device ID: ${currentDeviceId}`);
+      this.logger.log(`Devices to logout: ${allDevices?.filter(d => d.id !== currentDeviceId && d.is_active).length}`);
+
       // Mark other devices as inactive instead of deleting
       const { data, error } = await this.supabaseService
         .getClient()
@@ -654,6 +665,7 @@ export class AuthService {
 
       const count = data?.length || 0;
       this.logger.log(`Marked ${count} devices as inactive for user: ${userId}`);
+      this.logger.log(`Updated devices:`, JSON.stringify(data));
       return count;
     } catch (error) {
       if (error instanceof InternalServerErrorException) {
