@@ -7,9 +7,11 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { SupabaseService } from '../common/database/supabase.service';
-import type { Profile, RequestUser } from './interfaces/user.interface';
+import type { Profile, RequestUser, UserDevice, UserPreferences } from './interfaces/user.interface';
 import { UserRole } from './interfaces/user.interface';
 import { UpdateProfileDto } from './dto/update-profile.dto';
+import { UpdatePreferencesDto } from './dto/update-preferences.dto';
+import { RegisterDeviceDto, UpdateDeviceDto } from './dto/register-device.dto';
 
 @Injectable()
 export class AuthService {
@@ -143,8 +145,11 @@ export class AuthService {
       // Check if profile exists
       await this.getProfile(userId);
 
-      // If username is being updated, check for uniqueness
+      // Convert username to lowercase if provided
       if (updateDto.username) {
+        updateDto.username = updateDto.username.toLowerCase().trim();
+        
+        // Check for uniqueness
         const { data: existingUsername } = await this.supabaseService
           .getClient()
           .from('profiles')
@@ -341,6 +346,308 @@ export class AuthService {
       }
       this.logger.error(`Unexpected error in bulkSyncPhonesToAuthUsers: ${error.message}`);
       throw new InternalServerErrorException('Failed to bulk sync phone numbers');
+    }
+  }
+
+  /**
+   * Update user preferences
+   */
+  async updatePreferences(
+    userId: string,
+    preferencesDto: UpdatePreferencesDto,
+  ): Promise<UserPreferences> {
+    try {
+      // Get current profile to merge preferences
+      const profile = await this.getProfile(userId);
+      const currentPreferences = profile.preferences || {};
+
+      // Merge new preferences with existing ones
+      const updatedPreferences = {
+        ...currentPreferences,
+        ...preferencesDto,
+      };
+
+      const { data, error } = await this.supabaseService
+        .getClient()
+        .from('profiles')
+        .update({
+          preferences: updatedPreferences,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', userId)
+        .select('preferences')
+        .single();
+
+      if (error) {
+        this.logger.error(`Error updating preferences: ${error.message}`);
+        throw new InternalServerErrorException('Failed to update preferences');
+      }
+
+      this.logger.log(`Preferences updated for user: ${userId}`);
+      return data.preferences as UserPreferences;
+    } catch (error) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof InternalServerErrorException
+      ) {
+        throw error;
+      }
+      this.logger.error(`Unexpected error in updatePreferences: ${error.message}`);
+      throw new InternalServerErrorException('Failed to update preferences');
+    }
+  }
+
+  /**
+   * Get user preferences
+   */
+  async getPreferences(userId: string): Promise<UserPreferences> {
+    try {
+      const profile = await this.getProfile(userId);
+      return profile.preferences || {
+        push_notifications: true,
+        email_notifications: true,
+        event_reminders: true,
+        marketing_emails: false,
+      };
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      this.logger.error(`Unexpected error in getPreferences: ${error.message}`);
+      throw new InternalServerErrorException('Failed to fetch preferences');
+    }
+  }
+
+  /**
+   * Update last login timestamp
+   */
+  async updateLastLogin(userId: string): Promise<void> {
+    try {
+      const { error } = await this.supabaseService
+        .getClient()
+        .from('profiles')
+        .update({
+          last_login: new Date().toISOString(),
+        })
+        .eq('id', userId);
+
+      if (error) {
+        this.logger.warn(`Failed to update last_login: ${error.message}`);
+        // Don't throw - this is not critical
+      } else {
+        this.logger.debug(`Last login updated for user: ${userId}`);
+      }
+    } catch (error) {
+      this.logger.warn(`Error updating last_login: ${error.message}`);
+      // Don't throw - this is not critical
+    }
+  }
+
+  /**
+   * Register or update a device
+   */
+  async registerDevice(
+    userId: string,
+    deviceDto: RegisterDeviceDto,
+  ): Promise<UserDevice> {
+    try {
+      // Check if device already exists by fingerprint
+      const { data: existingDevice } = await this.supabaseService
+        .getClient()
+        .from('user_devices')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('device_fingerprint', deviceDto.device_fingerprint)
+        .single();
+
+      if (existingDevice) {
+        // Update existing device
+        const { data, error } = await this.supabaseService
+          .getClient()
+          .from('user_devices')
+          .update({
+            device_name: deviceDto.device_name,
+            device_type: deviceDto.device_type,
+            device_model: deviceDto.device_model,
+            os_version: deviceDto.os_version,
+            app_version: deviceDto.app_version,
+            device_token: deviceDto.device_token,
+            ip_address: deviceDto.ip_address,
+            user_agent: deviceDto.user_agent,
+            last_active: new Date().toISOString(),
+            is_active: true,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', existingDevice.id)
+          .select()
+          .single();
+
+        if (error) {
+          this.logger.error(`Error updating device: ${error.message}`);
+          throw new InternalServerErrorException('Failed to update device');
+        }
+
+        this.logger.log(`Device updated for user: ${userId}`);
+        return data as UserDevice;
+      }
+
+      // Create new device
+      const { data, error } = await this.supabaseService
+        .getClient()
+        .from('user_devices')
+        .insert({
+          user_id: userId,
+          ...deviceDto,
+          last_active: new Date().toISOString(),
+          first_seen: new Date().toISOString(),
+          is_active: true,
+        })
+        .select()
+        .single();
+
+      if (error) {
+        this.logger.error(`Error registering device: ${error.message}`);
+        throw new InternalServerErrorException('Failed to register device');
+      }
+
+      this.logger.log(`Device registered for user: ${userId}`);
+      return data as UserDevice;
+    } catch (error) {
+      if (error instanceof InternalServerErrorException) {
+        throw error;
+      }
+      this.logger.error(`Unexpected error in registerDevice: ${error.message}`);
+      throw new InternalServerErrorException('Failed to register device');
+    }
+  }
+
+  /**
+   * Get all devices for a user
+   */
+  async getUserDevices(userId: string): Promise<UserDevice[]> {
+    try {
+      const { data, error } = await this.supabaseService
+        .getClient()
+        .from('user_devices')
+        .select('*')
+        .eq('user_id', userId)
+        .order('last_active', { ascending: false });
+
+      if (error) {
+        this.logger.error(`Error fetching devices: ${error.message}`);
+        throw new InternalServerErrorException('Failed to fetch devices');
+      }
+
+      return (data || []) as UserDevice[];
+    } catch (error) {
+      if (error instanceof InternalServerErrorException) {
+        throw error;
+      }
+      this.logger.error(`Unexpected error in getUserDevices: ${error.message}`);
+      throw new InternalServerErrorException('Failed to fetch devices');
+    }
+  }
+
+  /**
+   * Update device
+   */
+  async updateDevice(
+    userId: string,
+    deviceId: string,
+    updateDto: UpdateDeviceDto,
+  ): Promise<UserDevice> {
+    try {
+      const { data, error } = await this.supabaseService
+        .getClient()
+        .from('user_devices')
+        .update({
+          ...updateDto,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', deviceId)
+        .eq('user_id', userId)
+        .select()
+        .single();
+
+      if (error) {
+        if (error.code === 'PGRST116') {
+          throw new NotFoundException('Device not found');
+        }
+        this.logger.error(`Error updating device: ${error.message}`);
+        throw new InternalServerErrorException('Failed to update device');
+      }
+
+      this.logger.log(`Device ${deviceId} updated for user: ${userId}`);
+      return data as UserDevice;
+    } catch (error) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof InternalServerErrorException
+      ) {
+        throw error;
+      }
+      this.logger.error(`Unexpected error in updateDevice: ${error.message}`);
+      throw new InternalServerErrorException('Failed to update device');
+    }
+  }
+
+  /**
+   * Delete device (logout from device)
+   */
+  async deleteDevice(userId: string, deviceId: string): Promise<void> {
+    try {
+      const { error } = await this.supabaseService
+        .getClient()
+        .from('user_devices')
+        .delete()
+        .eq('id', deviceId)
+        .eq('user_id', userId);
+
+      if (error) {
+        this.logger.error(`Error deleting device: ${error.message}`);
+        throw new InternalServerErrorException('Failed to delete device');
+      }
+
+      this.logger.log(`Device ${deviceId} deleted for user: ${userId}`);
+    } catch (error) {
+      if (error instanceof InternalServerErrorException) {
+        throw error;
+      }
+      this.logger.error(`Unexpected error in deleteDevice: ${error.message}`);
+      throw new InternalServerErrorException('Failed to delete device');
+    }
+  }
+
+  /**
+   * Logout from all devices except current
+   */
+  async logoutOtherDevices(
+    userId: string,
+    currentDeviceId: string,
+  ): Promise<number> {
+    try {
+      const { data, error } = await this.supabaseService
+        .getClient()
+        .from('user_devices')
+        .delete()
+        .eq('user_id', userId)
+        .neq('id', currentDeviceId)
+        .select();
+
+      if (error) {
+        this.logger.error(`Error logging out other devices: ${error.message}`);
+        throw new InternalServerErrorException('Failed to logout other devices');
+      }
+
+      const count = data?.length || 0;
+      this.logger.log(`Logged out ${count} devices for user: ${userId}`);
+      return count;
+    } catch (error) {
+      if (error instanceof InternalServerErrorException) {
+        throw error;
+      }
+      this.logger.error(`Unexpected error in logoutOtherDevices: ${error.message}`);
+      throw new InternalServerErrorException('Failed to logout other devices');
     }
   }
 }
