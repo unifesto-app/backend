@@ -300,7 +300,7 @@ export class WalletService {
       // Generate new code using database function
       const { data: newCodeText, error: genError } = await this.supabaseService
         .getClient()
-        .rpc('generate_referral_code', { user_id_param: userId });
+        .rpc('generate_referral_code_from_username', { p_user_id: userId });
 
       if (genError) {
         this.logger.error(`Error generating referral code: ${genError.message}`);
