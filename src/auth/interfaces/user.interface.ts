@@ -53,7 +53,7 @@ export interface UserDevice {
   device_model?: string;
   os_version?: string;
   app_version?: string;
-  device_token?: string;
+  device_token: string;
   device_fingerprint: string;
   ip_address?: string;
   user_agent?: string;

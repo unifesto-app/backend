@@ -6,6 +6,7 @@ import {
   InternalServerErrorException,
   BadRequestException,
 } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import { SupabaseService } from '../common/database/supabase.service';
 import type { Profile, RequestUser, UserDevice, UserPreferences } from './interfaces/user.interface';
 import { UserRole } from './interfaces/user.interface';
@@ -451,6 +452,9 @@ export class AuthService {
     deviceDto: RegisterDeviceDto,
   ): Promise<UserDevice> {
     try {
+      // Generate a device token if not provided
+      const deviceToken = deviceDto.device_token || randomUUID();
+
       // Check if device already exists by fingerprint
       const { data: existingDevice } = await this.supabaseService
         .getClient()
@@ -471,7 +475,7 @@ export class AuthService {
             device_model: deviceDto.device_model,
             os_version: deviceDto.os_version,
             app_version: deviceDto.app_version,
-            device_token: deviceDto.device_token,
+            device_token: existingDevice.device_token || deviceToken,
             ip_address: deviceDto.ip_address,
             user_agent: deviceDto.user_agent,
             last_active: new Date().toISOString(),
@@ -491,13 +495,14 @@ export class AuthService {
         return data as UserDevice;
       }
 
-      // Create new device
+      // Create new device with generated token
       const { data, error } = await this.supabaseService
         .getClient()
         .from('user_devices')
         .insert({
           user_id: userId,
           ...deviceDto,
+          device_token: deviceToken,
           last_active: new Date().toISOString(),
           first_seen: new Date().toISOString(),
           is_active: true,
@@ -510,7 +515,7 @@ export class AuthService {
         throw new InternalServerErrorException('Failed to register device');
       }
 
-      this.logger.log(`Device registered for user: ${userId}`);
+      this.logger.log(`Device registered for user: ${userId} with token: ${deviceToken}`);
       return data as UserDevice;
     } catch (error) {
       if (error instanceof InternalServerErrorException) {

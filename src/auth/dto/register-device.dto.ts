@@ -3,6 +3,7 @@ import {
   IsOptional,
   IsIn,
   IsBoolean,
+  IsNotEmpty,
   MaxLength,
 } from 'class-validator';
 
@@ -30,10 +31,10 @@ export class RegisterDeviceDto {
   @MaxLength(50)
   app_version?: string;
 
-  @IsOptional()
   @IsString()
+  @IsNotEmpty()
   @MaxLength(500)
-  device_token?: string;
+  device_token: string;
 
   @IsString()
   @MaxLength(255)
