@@ -42,4 +42,4 @@ export class UpdateProfileDto {
   })
   phone?: string | null;
 }
-}
+

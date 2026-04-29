@@ -194,4 +194,46 @@ export class AuthController {
       message: 'Avatar deleted successfully',
     };
   }
+
+  /**
+   * POST /auth/sync-phone
+   * Sync phone number from profile to auth.users
+   */
+  @Post('sync-phone')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(SupabaseAuthGuard)
+  async syncPhone(@CurrentUser() user: RequestUser) {
+    this.logger.log(`Syncing phone to auth.users for user: ${user.sub}`);
+
+    await this.authService.syncPhoneToAuthUsers(user.sub);
+
+    return {
+      message: 'Phone number synced to auth.users successfully',
+    };
+  }
+
+  /**
+   * POST /auth/bulk-sync-phones
+   * Bulk sync all phone numbers from profiles to auth.users
+   * Admin only - requires super_admin role
+   */
+  @Post('bulk-sync-phones')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(SupabaseAuthGuard)
+  async bulkSyncPhones(@CurrentUser() user: RequestUser) {
+    this.logger.log(`Bulk phone sync requested by user: ${user.sub}`);
+
+    // Check if user is super_admin
+    const profile = await this.authService.getProfile(user.sub);
+    if (profile.role !== 'super_admin') {
+      throw new BadRequestException('Only super_admin can perform bulk sync');
+    }
+
+    const result = await this.authService.bulkSyncPhonesToAuthUsers();
+
+    return {
+      message: 'Bulk phone sync completed',
+      ...result,
+    };
+  }
 }
