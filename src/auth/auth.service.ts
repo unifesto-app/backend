@@ -642,8 +642,10 @@ export class AuthService {
         .eq('user_id', userId);
 
       this.logger.log(`All devices for user ${userId}:`, JSON.stringify(allDevices));
-      this.logger.log(`Current device ID: ${currentDeviceId}`);
-      this.logger.log(`Devices to logout: ${allDevices?.filter(d => d.id !== currentDeviceId && d.is_active).length}`);
+      this.logger.log(`Current device ID to KEEP: ${currentDeviceId}`);
+      
+      const devicesToLogout = allDevices?.filter(d => d.id !== currentDeviceId && d.is_active) || [];
+      this.logger.log(`Devices to logout (count: ${devicesToLogout.length}):`, JSON.stringify(devicesToLogout.map(d => ({ id: d.id, name: d.device_name }))));
 
       // Mark other devices as inactive instead of deleting
       const { data, error } = await this.supabaseService
@@ -654,7 +656,7 @@ export class AuthService {
           updated_at: new Date().toISOString(),
         })
         .eq('user_id', userId)
-        .neq('id', currentDeviceId)
+        .neq('id', currentDeviceId)  // NOT equal to current device
         .eq('is_active', true)
         .select();
 
@@ -664,8 +666,23 @@ export class AuthService {
       }
 
       const count = data?.length || 0;
-      this.logger.log(`Marked ${count} devices as inactive for user: ${userId}`);
-      this.logger.log(`Updated devices:`, JSON.stringify(data));
+      this.logger.log(`Successfully marked ${count} devices as inactive`);
+      this.logger.log(`Updated device IDs:`, JSON.stringify(data?.map(d => d.id)));
+      
+      // Verify current device is still active
+      const { data: currentDevice } = await this.supabaseService
+        .getClient()
+        .from('user_devices')
+        .select('id, device_name, is_active')
+        .eq('id', currentDeviceId)
+        .single();
+      
+      this.logger.log(`Current device status after logout others:`, JSON.stringify(currentDevice));
+      
+      if (currentDevice && !currentDevice.is_active) {
+        this.logger.error(`WARNING: Current device was marked as inactive! This should not happen.`);
+      }
+      
       return count;
     } catch (error) {
       if (error instanceof InternalServerErrorException) {
