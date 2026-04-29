@@ -475,7 +475,7 @@ export class AuthService {
 
   /**
    * Request OTP for wallet passcode change
-   * Generates a 6-digit OTP and sends it via OneSignal email
+   * Generates a 6-digit OTP and sends it via Resend email
    */
   async requestWalletOtp(userId: string, email: string): Promise<{ token: string }> {
     try {
@@ -502,7 +502,7 @@ export class AuthService {
         throw new InternalServerErrorException('Failed to generate OTP');
       }
 
-      // Send OTP via OneSignal email
+      // Send OTP via Resend email
       await this.sendOtpEmail(email, otp);
 
       this.logger.log(`OTP generated for user: ${userId}`);
@@ -517,40 +517,92 @@ export class AuthService {
   }
 
   /**
-   * Send OTP via OneSignal email service
+   * Send OTP via Resend email service
    */
   private async sendOtpEmail(email: string, otp: string): Promise<void> {
     try {
-      const oneSignalAppId = process.env.ONESIGNAL_APP_ID;
-      const oneSignalApiKey = process.env.ONESIGNAL_REST_API_KEY;
+      const resendApiKey = process.env.RESEND_API_KEY;
+      const emailFrom = process.env.EMAIL_FROM || 'Unifesto <noreply@unifesto.app>';
 
-      if (!oneSignalAppId || !oneSignalApiKey) {
-        this.logger.warn('OneSignal credentials not configured');
+      if (!resendApiKey) {
+        this.logger.warn('Resend API key not configured');
         // For development, log the OTP
         this.logger.log(`OTP for ${email}: ${otp}`);
         return;
       }
 
-      const response = await fetch('https://onesignal.com/api/v1/notifications', {
+      const response = await fetch('https://api.resend.com/emails', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Basic ${oneSignalApiKey}`,
+          'Authorization': `Bearer ${resendApiKey}`,
         },
         body: JSON.stringify({
-          app_id: oneSignalAppId,
-          include_email_tokens: [email],
-          email_subject: 'Your Wallet Passcode OTP',
-          email_body: `
+          from: emailFrom,
+          to: [email],
+          subject: 'Your Wallet Passcode OTP - Unifesto',
+          html: `
+            <!DOCTYPE html>
             <html>
-              <body style="font-family: Arial, sans-serif; padding: 20px;">
-                <h2 style="color: #3491ff;">Wallet Passcode Verification</h2>
-                <p>Your OTP for wallet passcode change is:</p>
-                <h1 style="color: #3491ff; font-size: 32px; letter-spacing: 5px;">${otp}</h1>
-                <p>This OTP will expire in 10 minutes.</p>
-                <p>If you didn't request this, please ignore this email.</p>
-                <br/>
-                <p style="color: #666; font-size: 12px;">Unifesto Team</p>
+              <head>
+                <meta charset="utf-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>Wallet Passcode OTP</title>
+              </head>
+              <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f5f5f5;">
+                <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5; padding: 40px 20px;">
+                  <tr>
+                    <td align="center">
+                      <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                        <!-- Header -->
+                        <tr>
+                          <td style="padding: 40px 40px 20px 40px; text-align: center;">
+                            <h1 style="margin: 0; color: #3491ff; font-size: 28px; font-weight: 700;">Pocket by Unifesto</h1>
+                          </td>
+                        </tr>
+                        
+                        <!-- Content -->
+                        <tr>
+                          <td style="padding: 20px 40px;">
+                            <h2 style="margin: 0 0 20px 0; color: #1a1a1a; font-size: 24px; font-weight: 600;">Wallet Passcode Verification</h2>
+                            <p style="margin: 0 0 20px 0; color: #4a4a4a; font-size: 16px; line-height: 1.5;">
+                              You requested to change your wallet passcode. Use the verification code below to continue:
+                            </p>
+                            
+                            <!-- OTP Box -->
+                            <table width="100%" cellpadding="0" cellspacing="0" style="margin: 30px 0;">
+                              <tr>
+                                <td align="center" style="background: linear-gradient(135deg, #3491ff 0%, #0062ff 100%); border-radius: 12px; padding: 30px;">
+                                  <div style="font-size: 48px; font-weight: 700; color: #ffffff; letter-spacing: 8px; font-family: 'Courier New', monospace;">
+                                    ${otp}
+                                  </div>
+                                </td>
+                              </tr>
+                            </table>
+                            
+                            <p style="margin: 20px 0; color: #4a4a4a; font-size: 14px; line-height: 1.5;">
+                              <strong>This code will expire in 10 minutes.</strong>
+                            </p>
+                            
+                            <p style="margin: 20px 0; color: #666666; font-size: 14px; line-height: 1.5;">
+                              If you didn't request this code, please ignore this email or contact support if you have concerns.
+                            </p>
+                          </td>
+                        </tr>
+                        
+                        <!-- Footer -->
+                        <tr>
+                          <td style="padding: 30px 40px; background-color: #f8f9fa; border-radius: 0 0 12px 12px;">
+                            <p style="margin: 0; color: #999999; font-size: 12px; text-align: center; line-height: 1.5;">
+                              © ${new Date().getFullYear()} Unifesto. All rights reserved.<br/>
+                              This is an automated message, please do not reply.
+                            </p>
+                          </td>
+                        </tr>
+                      </table>
+                    </td>
+                  </tr>
+                </table>
               </body>
             </html>
           `,
@@ -559,7 +611,7 @@ export class AuthService {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        this.logger.error(`OneSignal email error: ${JSON.stringify(errorData)}`);
+        this.logger.error(`Resend email error: ${JSON.stringify(errorData)}`);
         // Don't throw - log OTP for development
         this.logger.log(`OTP for ${email}: ${otp}`);
       } else {
