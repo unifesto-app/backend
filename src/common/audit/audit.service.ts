@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { DatabaseService } from '../database/database.service';
+import { SupabaseService } from '../database/supabase.service';
 
 export interface AuditLogData {
   userId?: string;
@@ -18,14 +18,14 @@ export interface AuditLogData {
 export class AuditService {
   private readonly logger = new Logger(AuditService.name);
 
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(private readonly supabaseService: SupabaseService) {}
 
   /**
    * Log an audit event
    */
-  async log(data: AuditLogData): Promise<string> {
+  async log(data: AuditLogData): Promise<string | null> {
     try {
-      const { data: result, error } = await this.databaseService
+      const { data: result, error } = await this.supabaseService
         .getClient()
         .rpc('log_audit_event', {
           p_user_id: data.userId || null,
@@ -67,7 +67,7 @@ export class AuditService {
       userAgent?: string;
       project?: 'backend' | 'admin' | 'auth';
     },
-  ): Promise<string> {
+  ): Promise<string | null> {
     return this.log({
       action,
       resourceType,
@@ -92,7 +92,7 @@ export class AuditService {
       userAgent?: string;
       project?: 'backend' | 'admin' | 'auth';
     },
-  ): Promise<string> {
+  ): Promise<string | null> {
     return this.log({
       action,
       resourceType,
@@ -118,7 +118,7 @@ export class AuditService {
     offset?: number;
   }) {
     try {
-      let query = this.databaseService
+      let query = this.supabaseService
         .getClient()
         .from('audit_logs')
         .select('*', { count: 'exact' });
@@ -179,7 +179,7 @@ export class AuditService {
     project?: string;
   }) {
     try {
-      let query = this.databaseService
+      let query = this.supabaseService
         .getClient()
         .from('audit_logs')
         .select('action, status, project');

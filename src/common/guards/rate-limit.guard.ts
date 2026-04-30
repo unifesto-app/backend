@@ -8,7 +8,7 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { Request } from 'express';
-import { DatabaseService } from '../database/database.service';
+import { SupabaseService } from '../database/supabase.service';
 
 export const RATE_LIMIT_KEY = 'rateLimit';
 
@@ -27,7 +27,7 @@ export class RateLimitGuard implements CanActivate {
 
   constructor(
     private readonly reflector: Reflector,
-    private readonly databaseService: DatabaseService,
+    private readonly supabaseService: SupabaseService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -52,7 +52,7 @@ export class RateLimitGuard implements CanActivate {
     }
 
     try {
-      const { data, error } = await this.databaseService
+      const { data, error } = await this.supabaseService
         .getClient()
         .rpc('check_rate_limit', {
           p_identifier: identifier,

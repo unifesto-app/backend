@@ -1,3 +1,6 @@
+-- საჭიროა uuid extension
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
 -- Create audit_logs table for tracking all important actions
 CREATE TABLE IF NOT EXISTS audit_logs (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -26,7 +29,7 @@ CREATE INDEX IF NOT EXISTS idx_audit_logs_status ON audit_logs(status);
 -- Create rate_limit_tracking table for API rate limiting
 CREATE TABLE IF NOT EXISTS rate_limit_tracking (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  identifier TEXT NOT NULL, -- user_id or IP address
+  identifier TEXT NOT NULL,
   endpoint TEXT NOT NULL,
   request_count INTEGER DEFAULT 1,
   window_start TIMESTAMPTZ DEFAULT NOW(),
@@ -45,7 +48,6 @@ ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE rate_limit_tracking ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies for audit_logs
--- Only super_admins can view audit logs
 CREATE POLICY "Super admins can view all audit logs"
   ON audit_logs FOR SELECT
   USING (
@@ -56,13 +58,11 @@ CREATE POLICY "Super admins can view all audit logs"
     )
   );
 
--- Service role can insert audit logs
 CREATE POLICY "Service role can insert audit logs"
   ON audit_logs FOR INSERT
   WITH CHECK (true);
 
 -- RLS Policies for rate_limit_tracking
--- Service role has full access
 CREATE POLICY "Service role has full access to rate limits"
   ON rate_limit_tracking
   USING (true)
@@ -70,21 +70,21 @@ CREATE POLICY "Service role has full access to rate limits"
 
 -- Function to clean up old audit logs (older than 90 days)
 CREATE OR REPLACE FUNCTION cleanup_old_audit_logs()
-RETURNS void AS $
+RETURNS void AS $$
 BEGIN
   DELETE FROM audit_logs
   WHERE created_at < NOW() - INTERVAL '90 days';
 END;
-$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Function to clean up old rate limit records (older than 1 hour)
 CREATE OR REPLACE FUNCTION cleanup_old_rate_limits()
-RETURNS void AS $
+RETURNS void AS $$
 BEGIN
   DELETE FROM rate_limit_tracking
   WHERE window_start < NOW() - INTERVAL '1 hour';
 END;
-$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Function to check rate limit
 CREATE OR REPLACE FUNCTION check_rate_limit(
@@ -93,7 +93,7 @@ CREATE OR REPLACE FUNCTION check_rate_limit(
   p_max_requests INTEGER,
   p_window_minutes INTEGER
 )
-RETURNS JSONB AS $
+RETURNS JSONB AS $$
 DECLARE
   v_window_start TIMESTAMPTZ;
   v_current_count INTEGER;
@@ -123,11 +123,13 @@ BEGIN
     'window_end', v_window_start + (p_window_minutes || ' minutes')::INTERVAL,
     'retry_after', CASE 
       WHEN v_is_allowed THEN NULL 
-      ELSE EXTRACT(EPOCH FROM (v_window_start + (p_window_minutes || ' minutes')::INTERVAL - NOW()))::INTEGER
+      ELSE EXTRACT(EPOCH FROM (
+        v_window_start + (p_window_minutes || ' minutes')::INTERVAL - NOW()
+      ))::INTEGER
     END
   );
 END;
-$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Function to log audit event
 CREATE OR REPLACE FUNCTION log_audit_event(
@@ -142,7 +144,7 @@ CREATE OR REPLACE FUNCTION log_audit_event(
   p_error_message TEXT,
   p_project TEXT
 )
-RETURNS UUID AS $
+RETURNS UUID AS $$
 DECLARE
   v_log_id UUID;
 BEGIN
@@ -173,13 +175,12 @@ BEGIN
   
   RETURN v_log_id;
 END;
-$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Add comments
+-- Comments
 COMMENT ON TABLE audit_logs IS 'Audit trail for all important actions across all projects';
 COMMENT ON TABLE rate_limit_tracking IS 'Rate limiting tracking for API endpoints';
 COMMENT ON FUNCTION check_rate_limit IS 'Check if request is within rate limit';
 COMMENT ON FUNCTION log_audit_event IS 'Log an audit event';
 COMMENT ON FUNCTION cleanup_old_audit_logs IS 'Clean up audit logs older than 90 days';
 COMMENT ON FUNCTION cleanup_old_rate_limits IS 'Clean up rate limit records older than 1 hour';
-

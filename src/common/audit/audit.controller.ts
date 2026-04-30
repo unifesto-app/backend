@@ -9,11 +9,12 @@ import { AuditService } from './audit.service';
 import { SupabaseAuthGuard } from '../../auth/guards/supabase-auth.guard';
 import { RolesGuard } from '../../auth/guards/roles.guard';
 import { Roles } from '../../auth/decorators/roles.decorator';
+import { UserRole } from '../../auth/interfaces/user.interface';
 import { RateLimit } from '../guards/rate-limit.guard';
 
 @Controller('audit')
 @UseGuards(SupabaseAuthGuard, RolesGuard)
-@Roles('super_admin')
+@Roles(UserRole.SUPER_ADMIN)
 export class AuditController {
   constructor(private readonly auditService: AuditService) {}
 
