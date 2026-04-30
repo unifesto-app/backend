@@ -155,6 +155,34 @@ export class AuthService {
   }
 
   /**
+   * Check if username is available
+   */
+  async checkUsernameAvailability(username: string): Promise<boolean> {
+    try {
+      const { data, error } = await this.supabaseService
+        .getClient()
+        .from('profiles')
+        .select('id')
+        .eq('username', username.toLowerCase().trim())
+        .maybeSingle();
+
+      if (error) {
+        this.logger.error(`Error checking username: ${error.message}`);
+        throw new InternalServerErrorException('Failed to check username availability');
+      }
+
+      // If data exists, username is taken
+      return !data;
+    } catch (error) {
+      if (error instanceof InternalServerErrorException) {
+        throw error;
+      }
+      this.logger.error('Unexpected error checking username', error);
+      throw new InternalServerErrorException('Failed to check username availability');
+    }
+  }
+
+  /**
    * Update user profile
    */
   async updateProfile(

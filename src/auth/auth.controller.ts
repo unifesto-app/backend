@@ -42,6 +42,35 @@ export class AuthController {
   ) {}
 
   /**
+   * GET /auth/check-username
+   * Check if username is available
+   */
+  @Get('check-username')
+  @RateLimit({ maxRequests: 20, windowMinutes: 5 })
+  async checkUsername(@Req() request: Request) {
+    const username = (request.query as any).username as string;
+
+    if (!username) {
+      throw new BadRequestException('Username is required');
+    }
+
+    // Validate username format
+    const usernameRegex = /^[a-z][a-z0-9_-]{2,19}$/;
+    if (!usernameRegex.test(username)) {
+      throw new BadRequestException('Invalid username format');
+    }
+
+    this.logger.debug(`Checking username availability: ${username}`);
+
+    const available = await this.authService.checkUsernameAvailability(username);
+
+    return {
+      username,
+      available,
+    };
+  }
+
+  /**
    * GET /auth/health
    * Health check endpoint (no auth required)
    */
