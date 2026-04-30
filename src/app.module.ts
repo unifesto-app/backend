@@ -1,13 +1,44 @@
 import { Module } from '@nestjs/common';
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
 import { WalletModule } from './wallet/wallet.module';
 import { DatabaseModule } from './common/database/database.module';
+import { AuditModule } from './common/audit/audit.module';
+import { AuditInterceptor } from './common/interceptors/audit.interceptor';
+import { RateLimitGuard } from './common/guards/rate-limit.guard';
 
 @Module({
-  imports: [DatabaseModule, AuthModule, WalletModule],
+  imports: [
+    // Global throttler configuration (fallback)
+    ThrottlerModule.forRoot([
+      {
+        ttl: 60000, // 1 minute
+        limit: 100, // 100 requests per minute
+      },
+    ]),
+    DatabaseModule,
+    AuditModule,
+    AuthModule,
+    WalletModule,
+  ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: RateLimitGuard,
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: AuditInterceptor,
+    },
+  ],
 })
 export class AppModule {}

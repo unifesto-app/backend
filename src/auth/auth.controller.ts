@@ -30,6 +30,7 @@ import {
   SetWalletPasscodeDto,
   VerifyWalletPasscodeDto,
 } from './dto/wallet-passcode.dto';
+import { RateLimit } from '../common/guards/rate-limit.guard';
 
 @Controller('auth')
 export class AuthController {
@@ -97,6 +98,7 @@ export class AuthController {
   @Post('sync')
   @HttpCode(HttpStatus.OK)
   @UseGuards(SupabaseAuthGuard)
+  @RateLimit({ maxRequests: 10, windowMinutes: 5 })
   async syncProfile(@CurrentUser() user: RequestUser) {
     this.logger.log(`Syncing profile for user: ${user.sub}`);
 
@@ -127,6 +129,7 @@ export class AuthController {
    */
   @Patch('profile')
   @UseGuards(SupabaseAuthGuard)
+  @RateLimit({ maxRequests: 20, windowMinutes: 5 })
   async updateProfile(
     @CurrentUser() user: RequestUser,
     @Body() updateDto: UpdateProfileDto,
@@ -160,6 +163,7 @@ export class AuthController {
   @Post('avatar')
   @UseGuards(SupabaseAuthGuard)
   @UseInterceptors(FileInterceptor('avatar'))
+  @RateLimit({ maxRequests: 5, windowMinutes: 10 })
   async uploadAvatar(
     @CurrentUser() user: RequestUser,
     @UploadedFile() file: Express.Multer.File,
@@ -295,6 +299,7 @@ export class AuthController {
   @Post('wallet/request-otp')
   @HttpCode(HttpStatus.OK)
   @UseGuards(SupabaseAuthGuard)
+  @RateLimit({ maxRequests: 3, windowMinutes: 15 })
   async requestWalletOtp(
     @CurrentUser() user: RequestUser,
     @Body() requestOtpDto: RequestOtpDto,
@@ -319,6 +324,7 @@ export class AuthController {
   @Post('wallet/verify-otp')
   @HttpCode(HttpStatus.OK)
   @UseGuards(SupabaseAuthGuard)
+  @RateLimit({ maxRequests: 5, windowMinutes: 15 })
   async verifyWalletOtp(
     @CurrentUser() user: RequestUser,
     @Body() verifyOtpDto: VerifyOtpDto,
