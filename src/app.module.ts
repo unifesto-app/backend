@@ -9,6 +9,12 @@ import { DatabaseModule } from './common/database/database.module';
 import { AuditModule } from './common/audit/audit.module';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 import { RateLimitGuard } from './common/guards/rate-limit.guard';
+import { PermissionsModule } from './permissions/permissions.module';
+import { OrganizationsModule } from './organizations/organizations.module';
+import { MembersModule } from './members/members.module';
+import { EventsModule } from './events/events.module';
+import { AnalyticsModule } from './analytics/analytics.module';
+import { ContentRemovalModule } from './content-removal/content-removal.module';
 
 @Module({
   imports: [
@@ -23,6 +29,13 @@ import { RateLimitGuard } from './common/guards/rate-limit.guard';
     AuditModule,
     AuthModule,
     WalletModule,
+    // RBAC Modules
+    PermissionsModule,
+    OrganizationsModule,
+    MembersModule,
+    EventsModule,
+    AnalyticsModule,
+    ContentRemovalModule,
   ],
   controllers: [AppController],
   providers: [
