@@ -1,4 +1,4 @@
-import { IsOptional, IsEnum, IsUUID, IsInt, Min } from 'class-validator';
+import { IsOptional, IsEnum, IsUUID, IsInt, Min, IsString, IsBoolean } from 'class-validator';
 import { Transform } from 'class-transformer';
 
 export class EventQueryDto {
@@ -13,6 +13,37 @@ export class EventQueryDto {
   @IsOptional()
   @IsUUID()
   created_by?: string;
+
+  @IsOptional()
+  @IsString()
+  search?: string;
+
+  @IsOptional()
+  @IsString()
+  category?: string;
+
+  @IsOptional()
+  @IsString()
+  event_type?: string;
+
+  @IsOptional()
+  @IsString()
+  city?: string;
+
+  @IsOptional()
+  @Transform(({ value }) => value === 'true' || value === true)
+  @IsBoolean()
+  is_free?: boolean;
+
+  @IsOptional()
+  @Transform(({ value }) => value === 'true' || value === true)
+  @IsBoolean()
+  is_featured?: boolean;
+
+  @IsOptional()
+  @Transform(({ value }) => value === 'true' || value === true)
+  @IsBoolean()
+  is_trending?: boolean;
 
   @IsOptional()
   @Transform(({ value }) => parseInt(value, 10))
