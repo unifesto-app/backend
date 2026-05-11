@@ -202,10 +202,11 @@ export class PublicEventsService {
           organization:organizations (
             id,
             name,
+            slug,
+            type,
             logo_url,
             description,
-            website,
-            social_links
+            website
           )
         `,
         )
