@@ -38,7 +38,7 @@ export class PublicEventsService {
         .select(
           `
           *,
-          organization:organizations!events_organization_id_fkey (
+          organization:organizations (
             id,
             name,
             logo_url
@@ -117,7 +117,7 @@ export class PublicEventsService {
         .select(
           `
           *,
-          organization:organizations!events_organization_id_fkey (
+          organization:organizations (
             id,
             name,
             logo_url
@@ -158,7 +158,7 @@ export class PublicEventsService {
         .select(
           `
           *,
-          organization:organizations!events_organization_id_fkey (
+          organization:organizations (
             id,
             name,
             logo_url
@@ -199,7 +199,7 @@ export class PublicEventsService {
         .select(
           `
           *,
-          organization:organizations!events_organization_id_fkey (
+          organization:organizations (
             id,
             name,
             logo_url,
