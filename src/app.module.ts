@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
+import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -18,6 +19,11 @@ import { ContentRemovalModule } from './content-removal/content-removal.module';
 
 @Module({
   imports: [
+    // Load environment variables from .env file
+    ConfigModule.forRoot({
+      isGlobal: true,
+      envFilePath: '.env',
+    }),
     // Global throttler configuration (fallback)
     ThrottlerModule.forRoot([
       {

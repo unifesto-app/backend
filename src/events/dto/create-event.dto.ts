@@ -3,6 +3,7 @@ import {
   IsUUID,
   IsOptional,
   IsDateString,
+  IsUrl,
   MinLength,
   MaxLength,
 } from 'class-validator';
@@ -31,4 +32,9 @@ export class CreateEventDto {
   @IsOptional()
   @MaxLength(500)
   location?: string;
+
+  @IsUrl()
+  @IsOptional()
+  @MaxLength(1000)
+  image_url?: string;
 }

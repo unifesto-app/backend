@@ -12,7 +12,7 @@ import { UpdateEventDto } from './dto/update-event.dto';
 import { ApproveEventDto } from './dto/approve-event.dto';
 import { RejectEventDto } from './dto/reject-event.dto';
 import { EventQueryDto } from './dto/event-query.dto';
-import { OrgRole } from '../permissions/interfaces/permission.interface';
+import { RelationshipType } from '../permissions/interfaces/permission.interface';
 
 @Injectable()
 export class EventsService {
@@ -82,8 +82,25 @@ export class EventsService {
         throw new BadRequestException('Failed to fetch events');
       }
 
+      // Fetch creator details for each event
+      const eventsWithCreators = await Promise.all(
+        (data || []).map(async (event) => {
+          const { data: creator } = await this.supabaseService
+            .getClient()
+            .from('profiles')
+            .select('id, name, email, avatar_url')
+            .eq('id', event.created_by)
+            .single();
+
+          return {
+            ...event,
+            creator: creator || null,
+          };
+        })
+      );
+
       return {
-        data: data || [],
+        data: eventsWithCreators,
         total: count || 0,
         page: query.page,
         limit: query.limit,
@@ -99,18 +116,20 @@ export class EventsService {
    */
   async findOne(userId: string, eventId: string) {
     try {
+      // First, get the event
       const { data: event, error } = await this.supabaseService
         .getClient()
         .from('events')
-        .select(`
-          *,
-          organization:organizations(id, name, slug, type),
-          creator:profiles!created_by(id, name, email, avatar_url)
-        `)
+        .select('*')
         .eq('id', eventId)
         .single();
 
-      if (error || !event) {
+      if (error) {
+        this.logger.error(`Error fetching event: ${error.message}`);
+        throw new NotFoundException('Event not found');
+      }
+
+      if (!event) {
         throw new NotFoundException('Event not found');
       }
 
@@ -121,7 +140,28 @@ export class EventsService {
         throw new ForbiddenException('Access denied to this event');
       }
 
-      return event;
+      // Fetch organization details
+      const { data: organization } = await this.supabaseService
+        .getClient()
+        .from('organizations')
+        .select('id, name, slug, type')
+        .eq('id', event.organization_id)
+        .single();
+
+      // Fetch creator details
+      const { data: creator } = await this.supabaseService
+        .getClient()
+        .from('profiles')
+        .select('id, name, email, avatar_url')
+        .eq('id', event.created_by)
+        .single();
+
+      // Combine the data
+      return {
+        ...event,
+        organization: organization || null,
+        creator: creator || null,
+      };
     } catch (error) {
       this.logger.error(`Error in findOne: ${error.message}`);
       throw error;
@@ -150,17 +190,26 @@ export class EventsService {
         throw new BadRequestException('End date must be after start date');
       }
 
-      // Determine initial status based on role
+      // Check user's platform role
+      const { data: profile } = await this.supabaseService
+        .getClient()
+        .from('profiles')
+        .select('role')
+        .eq('id', userId)
+        .single();
+
+      const platformRole = profile?.role;
+
+      // Determine initial status based on user's role
       let initialStatus = 'draft';
-      if (permissions.role === OrgRole.ORGANIZER) {
-        // Organizers create events as pending (requires approval)
-        initialStatus = 'pending';
-      } else if (
-        permissions.role === OrgRole.ADMIN ||
-        permissions.role === OrgRole.OWNER
+      
+      // Platform super admin, org_super_admin, and Org Owner can publish directly
+      if (
+        platformRole === 'super_admin' ||
+        platformRole === 'org_super_admin' ||
+        permissions.role === RelationshipType.OWNER
       ) {
-        // Admins can create as draft or published
-        initialStatus = 'draft';
+        initialStatus = 'published';
       }
 
       // Create event
@@ -171,8 +220,12 @@ export class EventsService {
           ...createDto,
           created_by: userId,
           status: initialStatus,
-          submitted_for_approval_at:
-            initialStatus === 'pending' ? new Date().toISOString() : null,
+          submitted_for_approval_at: null,
+          // If auto-published, set approval fields
+          ...(initialStatus === 'published' && {
+            approved_by: userId,
+            approved_at: new Date().toISOString(),
+          }),
         })
         .select()
         .single();
@@ -182,12 +235,9 @@ export class EventsService {
         throw new BadRequestException('Failed to create event');
       }
 
-      // Log approval history if pending
-      if (initialStatus === 'pending') {
-        await this.logApprovalHistory(newEvent.id, 'submitted', userId);
-      }
-
-      this.logger.log(`Event created: ${newEvent.id} by user ${userId}`);
+      this.logger.log(
+        `Event created: ${newEvent.id} by user ${userId} (platform role: ${platformRole}, org role: ${permissions.role}) with status ${initialStatus}`,
+      );
       return newEvent;
     } catch (error) {
       this.logger.error(`Error in create: ${error.message}`);
@@ -355,7 +405,7 @@ export class EventsService {
    */
   async approve(userId: string, eventId: string, approveDto: ApproveEventDto) {
     try {
-      // Get event
+      // Get event with creator details
       const { data: event } = await this.supabaseService
         .getClient()
         .from('events')
@@ -367,20 +417,57 @@ export class EventsService {
         throw new NotFoundException('Event not found');
       }
 
-      // Check if user can approve events
-      const canApprove = await this.permissionsService.canApproveEvents(
-        userId,
-        event.organization_id,
-      );
-
-      if (!canApprove) {
-        throw new ForbiddenException('Cannot approve events in this organization');
-      }
-
       // Check current status
       if (event.status !== 'pending') {
         throw new BadRequestException(
           `Cannot approve event with status: ${event.status}`,
+        );
+      }
+
+      // Get creator's platform role
+      const { data: creatorProfile } = await this.supabaseService
+        .getClient()
+        .from('profiles')
+        .select('role')
+        .eq('id', event.created_by)
+        .single();
+
+      // Get creator's org relationship
+      const { data: creatorMembership } = await this.supabaseService
+        .getClient()
+        .from('organization_members')
+        .select('relationship_type')
+        .eq('user_id', event.created_by)
+        .eq('organization_id', event.organization_id)
+        .single();
+
+      // Get approver's platform role
+      const { data: approverProfile } = await this.supabaseService
+        .getClient()
+        .from('profiles')
+        .select('role')
+        .eq('id', userId)
+        .single();
+
+      // Get approver's permissions
+      const approverPermissions = await this.permissionsService.getOrgPermissions(
+        userId,
+        event.organization_id,
+      );
+
+      // Check if user can approve this event based on hierarchy
+      const canApprove = await this.canApproveEventHierarchy(
+        userId,
+        event,
+        creatorProfile?.role,
+        creatorMembership?.relationship_type,
+        approverProfile?.role,
+        approverPermissions,
+      );
+
+      if (!canApprove) {
+        throw new ForbiddenException(
+          'You do not have sufficient permissions to approve this event',
         );
       }
 
@@ -423,7 +510,7 @@ export class EventsService {
    */
   async reject(userId: string, eventId: string, rejectDto: RejectEventDto) {
     try {
-      // Get event
+      // Get event with creator details
       const { data: event } = await this.supabaseService
         .getClient()
         .from('events')
@@ -435,20 +522,57 @@ export class EventsService {
         throw new NotFoundException('Event not found');
       }
 
-      // Check if user can approve events (same permission for reject)
-      const canApprove = await this.permissionsService.canApproveEvents(
-        userId,
-        event.organization_id,
-      );
-
-      if (!canApprove) {
-        throw new ForbiddenException('Cannot reject events in this organization');
-      }
-
       // Check current status
       if (event.status !== 'pending') {
         throw new BadRequestException(
           `Cannot reject event with status: ${event.status}`,
+        );
+      }
+
+      // Get creator's platform role
+      const { data: creatorProfile } = await this.supabaseService
+        .getClient()
+        .from('profiles')
+        .select('role')
+        .eq('id', event.created_by)
+        .single();
+
+      // Get creator's org relationship
+      const { data: creatorMembership } = await this.supabaseService
+        .getClient()
+        .from('organization_members')
+        .select('relationship_type')
+        .eq('user_id', event.created_by)
+        .eq('organization_id', event.organization_id)
+        .single();
+
+      // Get approver's platform role
+      const { data: approverProfile } = await this.supabaseService
+        .getClient()
+        .from('profiles')
+        .select('role')
+        .eq('id', userId)
+        .single();
+
+      // Get approver's permissions
+      const approverPermissions = await this.permissionsService.getOrgPermissions(
+        userId,
+        event.organization_id,
+      );
+
+      // Check if user can reject this event based on hierarchy (same rules as approval)
+      const canReject = await this.canApproveEventHierarchy(
+        userId,
+        event,
+        creatorProfile?.role,
+        creatorMembership?.relationship_type,
+        approverProfile?.role,
+        approverPermissions,
+      );
+
+      if (!canReject) {
+        throw new ForbiddenException(
+          'You do not have sufficient permissions to reject this event',
         );
       }
 
@@ -484,20 +608,61 @@ export class EventsService {
   /**
    * Get pending events for admin
    */
-  async getPendingEvents(userId: string) {
+  async getPendingEvents(userId: string, organizationId?: string) {
     try {
-      const { data, error } = await this.supabaseService
+      // Get accessible organizations where user can approve events
+      const accessibleOrgs = await this.permissionsService.getUserAccessibleOrgs(
+        userId,
+      );
+
+      if (accessibleOrgs.length === 0) {
+        return [];
+      }
+
+      const orgIds = accessibleOrgs.map((org) => org.orgId);
+
+      // Build query for pending events
+      let dbQuery = this.supabaseService
         .getClient()
-        .rpc('get_pending_events_for_admin', {
-          p_user_id: userId,
-        });
+        .from('events')
+        .select('*, organization:organizations(id, name, slug, type)')
+        .eq('status', 'pending');
+
+      // Filter by accessible orgs
+      dbQuery = dbQuery.in('organization_id', orgIds);
+
+      // Filter by specific organization if provided
+      if (organizationId) {
+        dbQuery = dbQuery.eq('organization_id', organizationId);
+      }
+
+      dbQuery = dbQuery.order('submitted_for_approval_at', { ascending: false });
+
+      const { data, error } = await dbQuery;
 
       if (error) {
         this.logger.error(`Error getting pending events: ${error.message}`);
         throw new BadRequestException('Failed to get pending events');
       }
 
-      return data || [];
+      // Fetch creator details for each event
+      const eventsWithCreators = await Promise.all(
+        (data || []).map(async (event) => {
+          const { data: creator } = await this.supabaseService
+            .getClient()
+            .from('profiles')
+            .select('id, name, email, avatar_url')
+            .eq('id', event.created_by)
+            .single();
+
+          return {
+            ...event,
+            creator: creator || null,
+          };
+        })
+      );
+
+      return eventsWithCreators;
     } catch (error) {
       this.logger.error(`Error in getPendingEvents: ${error.message}`);
       throw error;
@@ -551,6 +716,91 @@ export class EventsService {
   }
 
   /**
+   * Check if user can approve event based on hierarchy
+   * Platform roles: super_admin, org_super_admin, org_admin, organizer, attendee
+   * Org relationships: owner, admin, member
+   * 
+   * Rules:
+   * - Cannot approve own events
+   * - super_admin can approve anything
+   * - org_super_admin can approve events by org_admin, organizer, attendee
+   * - org_admin can approve events by organizer, attendee
+   * - Org owner can approve events by admin, member
+   * - Org admin can approve events by member only
+   */
+  private async canApproveEventHierarchy(
+    approverId: string,
+    event: any,
+    creatorPlatformRole: string,
+    creatorOrgRelationship: string,
+    approverPlatformRole: string,
+    approverPermissions: any,
+  ): Promise<boolean> {
+    this.logger.log(`Checking approval hierarchy:`);
+    this.logger.log(`  Approver ID: ${approverId}`);
+    this.logger.log(`  Creator ID: ${event.created_by}`);
+    this.logger.log(`  Creator Platform Role: ${creatorPlatformRole}`);
+    this.logger.log(`  Creator Org Relationship: ${creatorOrgRelationship}`);
+    this.logger.log(`  Approver Platform Role: ${approverPlatformRole}`);
+    this.logger.log(`  Approver Org Role: ${approverPermissions.role}`);
+    this.logger.log(`  Approver Access Type: ${approverPermissions.accessType}`);
+
+    // Cannot approve own events
+    if (event.created_by === approverId) {
+      this.logger.log(`  Result: DENIED - Cannot approve own event`);
+      return false;
+    }
+
+    // Platform super_admin can approve anything
+    if (approverPlatformRole === 'super_admin') {
+      this.logger.log(`  Result: APPROVED - Platform super_admin`);
+      return true;
+    }
+
+    // org_super_admin can approve events by org_admin, organizer, attendee
+    if (approverPlatformRole === 'org_super_admin') {
+      const canApprove = ['org_admin', 'organizer', 'attendee'].includes(creatorPlatformRole);
+      this.logger.log(`  Result: ${canApprove ? 'APPROVED' : 'DENIED'} - org_super_admin checking ${creatorPlatformRole}`);
+      return canApprove;
+    }
+
+    // org_admin can approve events by organizer, attendee
+    if (approverPlatformRole === 'org_admin') {
+      const canApprove = ['organizer', 'attendee'].includes(creatorPlatformRole);
+      this.logger.log(`  Result: ${canApprove ? 'APPROVED' : 'DENIED'} - org_admin checking ${creatorPlatformRole}`);
+      return canApprove;
+    }
+
+    // Fallback to org relationship-based approval
+    const approverOrgRole = approverPermissions.role;
+
+    // Owner (Org Super Admin) can approve events by Admin or Member
+    if (approverOrgRole === RelationshipType.OWNER) {
+      const canApprove = (
+        creatorOrgRelationship === RelationshipType.ADMIN ||
+        creatorOrgRelationship === RelationshipType.MEMBER ||
+        !creatorOrgRelationship
+      );
+      this.logger.log(`  Result: ${canApprove ? 'APPROVED' : 'DENIED'} - Org Owner checking ${creatorOrgRelationship}`);
+      return canApprove;
+    }
+
+    // Admin can approve events by Member only
+    if (approverOrgRole === RelationshipType.ADMIN) {
+      const canApprove = (
+        creatorOrgRelationship === RelationshipType.MEMBER ||
+        !creatorOrgRelationship
+      );
+      this.logger.log(`  Result: ${canApprove ? 'APPROVED' : 'DENIED'} - Org Admin checking ${creatorOrgRelationship}`);
+      return canApprove;
+    }
+
+    // Members cannot approve events
+    this.logger.log(`  Result: DENIED - No approval permissions`);
+    return false;
+  }
+
+  /**
    * Check if user can access event
    */
   private async canAccessEvent(userId: string, event: any): Promise<boolean> {
@@ -563,7 +813,7 @@ export class EventsService {
     return await this.permissionsService.hasHierarchyAccess(
       userId,
       event.organization_id,
-      OrgRole.MEMBER,
+      RelationshipType.MEMBER,
     );
   }
 

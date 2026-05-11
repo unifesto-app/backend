@@ -9,7 +9,7 @@ import { SupabaseService } from '../common/database/supabase.service';
 import { PermissionsService } from '../permissions/permissions.service';
 import { AddMemberDto } from './dto/add-member.dto';
 import { UpdateMemberRoleDto } from './dto/update-member-role.dto';
-import { OrgRole } from '../permissions/interfaces/permission.interface';
+import { RelationshipType } from '../permissions/interfaces/permission.interface';
 
 @Injectable()
 export class MembersService {
@@ -29,7 +29,7 @@ export class MembersService {
       const hasAccess = await this.permissionsService.hasHierarchyAccess(
         userId,
         orgId,
-        OrgRole.MEMBER,
+        RelationshipType.MEMBER,
       );
 
       if (!hasAccess) {
@@ -43,7 +43,7 @@ export class MembersService {
         .eq('organization_id', orgId);
 
       if (roleFilter) {
-        query = query.eq('role', roleFilter);
+        query = query.eq('relationship_type', roleFilter); // Changed from 'role' to 'relationship_type'
       }
 
       query = query.order('joined_at', { ascending: false });
@@ -98,7 +98,7 @@ export class MembersService {
       const canAssignRole = await this.permissionsService.canAssignRole(
         userId,
         orgId,
-        addMemberDto.role as OrgRole,
+        addMemberDto.role as RelationshipType,
       );
 
       if (!canAssignRole) {
@@ -134,7 +134,7 @@ export class MembersService {
 
       // Set default permissions based on role
       const defaultPermissions = this.getDefaultPermissions(
-        addMemberDto.role as OrgRole,
+        addMemberDto.role as RelationshipType,
       );
 
       // Add member
@@ -144,8 +144,7 @@ export class MembersService {
         .insert({
           organization_id: orgId,
           user_id: addMemberDto.user_id,
-          role: addMemberDto.role,
-          permissions: addMemberDto.permissions || {},
+          relationship_type: addMemberDto.role, // Changed from 'role' to 'relationship_type'
           ...defaultPermissions,
         })
         .select()
@@ -193,7 +192,7 @@ export class MembersService {
         const canAssignRole = await this.permissionsService.canAssignRole(
           userId,
           orgId,
-          updateDto.role as OrgRole,
+          updateDto.role as RelationshipType,
         );
 
         if (!canAssignRole) {
@@ -222,15 +221,12 @@ export class MembersService {
       // Build update object
       const updateData: any = {};
       if (updateDto.role) {
-        updateData.role = updateDto.role;
+        updateData.relationship_type = updateDto.role; // Changed from 'role' to 'relationship_type'
         // Update default permissions for new role
         const defaultPermissions = this.getDefaultPermissions(
-          updateDto.role as OrgRole,
+          updateDto.role as RelationshipType,
         );
         Object.assign(updateData, defaultPermissions);
-      }
-      if (updateDto.permissions) {
-        updateData.permissions = updateDto.permissions;
       }
 
       // Update member
@@ -334,11 +330,11 @@ export class MembersService {
   }
 
   /**
-   * Get default permissions for role
+   * Get default permissions for relationship type
    */
-  private getDefaultPermissions(role: OrgRole) {
+  private getDefaultPermissions(role: RelationshipType) {
     switch (role) {
-      case OrgRole.OWNER:
+      case RelationshipType.OWNER:
         return {
           can_manage_sub_orgs: true,
           can_approve_events: true,
@@ -346,7 +342,7 @@ export class MembersService {
           can_export_reports: true,
           analytics_scope: 'hierarchy',
         };
-      case OrgRole.ADMIN:
+      case RelationshipType.ADMIN:
         return {
           can_manage_sub_orgs: true,
           can_approve_events: true,
@@ -354,15 +350,7 @@ export class MembersService {
           can_export_reports: true,
           analytics_scope: 'organization',
         };
-      case OrgRole.ORGANIZER:
-        return {
-          can_manage_sub_orgs: false,
-          can_approve_events: false,
-          can_view_analytics: true,
-          can_export_reports: false,
-          analytics_scope: 'events',
-        };
-      case OrgRole.MEMBER:
+      case RelationshipType.MEMBER:
       default:
         return {
           can_manage_sub_orgs: false,

@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { SupabaseService } from '../common/database/supabase.service';
 import {
   OrgPermissions,
-  OrgRole,
+  RelationshipType,
   PlatformRole,
   UserOrgAccess,
 } from './interfaces/permission.interface';
@@ -40,15 +40,21 @@ export class PermissionsService {
   async hasHierarchyAccess(
     userId: string,
     orgId: string,
-    requiredRole: OrgRole = OrgRole.MEMBER,
+    requiredRole: RelationshipType = RelationshipType.MEMBER,
   ): Promise<boolean> {
     try {
+      // Platform super admins have access to everything
+      const isSuperAdmin = await this.isPlatformSuperAdmin(userId);
+      if (isSuperAdmin) {
+        return true;
+      }
+
       const { data, error } = await this.supabaseService
         .getClient()
         .rpc('user_has_hierarchy_access', {
           p_user_id: userId,
           p_org_id: orgId,
-          p_required_role: requiredRole,
+          p_required_relationship: requiredRole,
         });
 
       if (error) {
@@ -58,7 +64,7 @@ export class PermissionsService {
 
       return data === true;
     } catch (error) {
-      this.logger.error(`Error checking hierarchy access: ${error.message}`);
+      this.logger.error(`Error in hasHierarchyAccess: ${error.message}`);
       return false;
     }
   }
@@ -85,7 +91,7 @@ export class PermissionsService {
           canExportReports: true,
           analyticsScope: 'hierarchy',
           eventScope: 'all',
-          role: OrgRole.OWNER,
+          role: RelationshipType.OWNER,
           accessType: 'platform',
         };
       }
@@ -107,7 +113,7 @@ export class PermissionsService {
       const hasHierarchy = await this.hasHierarchyAccess(
         userId,
         orgId,
-        OrgRole.OWNER,
+        RelationshipType.OWNER,
       );
       if (hasHierarchy) {
         return {
@@ -121,7 +127,7 @@ export class PermissionsService {
           canExportReports: true,
           analyticsScope: 'hierarchy',
           eventScope: 'all',
-          role: OrgRole.OWNER,
+          role: RelationshipType.OWNER,
           accessType: 'hierarchy',
         };
       }
@@ -138,7 +144,7 @@ export class PermissionsService {
         canExportReports: false,
         analyticsScope: 'none',
         eventScope: 'own',
-        role: OrgRole.MEMBER,
+        role: RelationshipType.MEMBER,
         accessType: 'direct',
       };
     } catch (error) {
@@ -152,14 +158,14 @@ export class PermissionsService {
    */
   async getUserAccessibleOrgs(
     userId: string,
-    roleFilter?: OrgRole,
+    roleFilter?: RelationshipType,
   ): Promise<UserOrgAccess[]> {
     try {
       const { data, error } = await this.supabaseService
         .getClient()
         .rpc('get_user_accessible_orgs', {
           p_user_id: userId,
-          p_role_filter: roleFilter || null,
+          p_relationship_filter: roleFilter || null, // Changed from p_role_filter
         });
 
       if (error) {
@@ -174,7 +180,7 @@ export class PermissionsService {
         orgName: org.org_name,
         orgSlug: org.org_slug,
         orgType: org.org_type,
-        userRole: org.user_role as OrgRole,
+        userRole: org.user_relationship as RelationshipType, // Changed from user_role to user_relationship
         accessType: org.access_type as 'direct' | 'hierarchy',
         canManage: org.can_manage,
         depthLevel: org.depth_level,
@@ -215,7 +221,7 @@ export class PermissionsService {
   async canAssignRole(
     userId: string,
     orgId: string,
-    targetRole: OrgRole,
+    targetRole: RelationshipType,
   ): Promise<boolean> {
     const permissions = await this.getOrgPermissions(userId, orgId);
 
@@ -224,17 +230,17 @@ export class PermissionsService {
       return true;
     }
 
-    // Org Super Admin (owner) can assign admin, organizer, member
-    if (permissions.role === OrgRole.OWNER) {
-      return targetRole !== OrgRole.OWNER; // Cannot assign another owner
+    // Org Super Admin (owner) can assign admin or member
+    if (permissions.role === RelationshipType.OWNER) {
+      return targetRole !== RelationshipType.OWNER; // Cannot assign another owner
     }
 
-    // Org Admin can assign organizer, member
-    if (permissions.role === OrgRole.ADMIN) {
-      return [OrgRole.ORGANIZER, OrgRole.MEMBER].includes(targetRole);
+    // Org Admin can assign member only
+    if (permissions.role === RelationshipType.ADMIN) {
+      return targetRole === RelationshipType.MEMBER;
     }
 
-    // Organizers and members cannot assign roles
+    // Members cannot assign roles
     return false;
   }
 
@@ -245,10 +251,10 @@ export class PermissionsService {
     membership: any,
     accessType: 'direct' | 'hierarchy',
   ): OrgPermissions {
-    const role = membership.role as OrgRole;
+    const role = membership.relationship_type as RelationshipType;
 
     switch (role) {
-      case OrgRole.OWNER:
+      case RelationshipType.OWNER:
         return {
           canManageOrg: true,
           canManageSubOrgs: true,
@@ -264,7 +270,7 @@ export class PermissionsService {
           accessType,
         };
 
-      case OrgRole.ADMIN:
+      case RelationshipType.ADMIN:
         return {
           canManageOrg: true,
           canManageSubOrgs: membership.can_manage_sub_orgs || true,
@@ -280,36 +286,20 @@ export class PermissionsService {
           accessType,
         };
 
-      case OrgRole.ORGANIZER:
-        return {
-          canManageOrg: false,
-          canManageSubOrgs: false,
-          canManageMembers: false,
-          canCreateEvents: true,
-          canManageEvents: true,
-          canApproveEvents: false,
-          canViewAnalytics: membership.can_view_analytics || true,
-          canExportReports: false,
-          analyticsScope: membership.analytics_scope || 'events',
-          eventScope: 'own',
-          role,
-          accessType,
-        };
-
-      case OrgRole.MEMBER:
+      case RelationshipType.MEMBER:
       default:
         return {
           canManageOrg: false,
           canManageSubOrgs: false,
           canManageMembers: false,
-          canCreateEvents: false,
-          canManageEvents: false,
+          canCreateEvents: true, // Members can create events
+          canManageEvents: false, // But can only manage their own
           canApproveEvents: false,
           canViewAnalytics: false,
           canExportReports: false,
           analyticsScope: 'none',
           eventScope: 'own',
-          role: OrgRole.MEMBER,
+          role: RelationshipType.MEMBER,
           accessType,
         };
     }

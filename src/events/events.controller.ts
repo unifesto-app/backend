@@ -32,8 +32,11 @@ export class EventsController {
   }
 
   @Get('pending')
-  async getPendingEvents(@CurrentUser() user: RequestUser) {
-    return this.eventsService.getPendingEvents(user.sub);
+  async getPendingEvents(
+    @CurrentUser() user: RequestUser,
+    @Query('organization_id') organizationId?: string,
+  ) {
+    return this.eventsService.getPendingEvents(user.sub, organizationId);
   }
 
   @Get(':id')

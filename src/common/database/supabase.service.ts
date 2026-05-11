@@ -22,9 +22,17 @@ export class SupabaseService implements OnModuleInit {
         autoRefreshToken: false,
         persistSession: false,
       },
+      db: {
+        schema: 'public',
+      },
+      global: {
+        headers: {
+          'x-application-name': 'unifesto-backend',
+        },
+      },
     });
 
-    this.logger.log('Supabase client initialized');
+    this.logger.log('Supabase client initialized with service role (bypasses RLS)');
   }
 
   getClient(): SupabaseClient {

@@ -71,8 +71,16 @@ export class OrganizationsService {
         throw new BadRequestException('Failed to fetch organizations');
       }
 
+      // Transform member_count from array to number
+      const transformedData = (data || []).map(org => ({
+        ...org,
+        member_count: Array.isArray(org.member_count) && org.member_count.length > 0 
+          ? org.member_count[0].count 
+          : 0,
+      }));
+
       return {
-        data: data || [],
+        data: transformedData,
         total: count || 0,
         page: query.page,
         limit: query.limit,
@@ -114,13 +122,24 @@ export class OrganizationsService {
         throw new NotFoundException('Organization not found');
       }
 
+      // Transform count aggregates from arrays to numbers
+      const transformedOrg = {
+        ...org,
+        member_count: Array.isArray(org.member_count) && org.member_count.length > 0
+          ? org.member_count[0].count
+          : 0,
+        sub_org_count: Array.isArray(org.sub_org_count) && org.sub_org_count.length > 0
+          ? org.sub_org_count[0].count
+          : 0,
+      };
+
       // Get organization path (breadcrumb)
       const { data: orgPath } = await this.supabaseService
         .getClient()
         .rpc('get_organization_path', { org_id: orgId });
 
       return {
-        ...org,
+        ...transformedOrg,
         org_path: orgPath || [],
       };
     } catch (error) {

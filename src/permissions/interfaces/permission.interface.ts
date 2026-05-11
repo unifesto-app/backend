@@ -1,13 +1,17 @@
-export enum OrgRole {
+// Organization relationship types (not roles)
+export enum RelationshipType {
   OWNER = 'owner',
   ADMIN = 'admin',
-  ORGANIZER = 'organizer',
   MEMBER = 'member',
 }
 
+// Legacy alias for backward compatibility
+export const OrgRole = RelationshipType;
+
 export enum PlatformRole {
   SUPER_ADMIN = 'super_admin',
-  ADMIN = 'admin',
+  ORG_SUPER_ADMIN = 'org_super_admin',
+  ORG_ADMIN = 'org_admin',
   ORGANIZER = 'organizer',
   ATTENDEE = 'attendee',
 }
@@ -23,7 +27,7 @@ export interface OrgPermissions {
   canExportReports: boolean;
   analyticsScope: 'none' | 'events' | 'organization' | 'hierarchy';
   eventScope: 'all' | 'own';
-  role: OrgRole;
+  role: RelationshipType;
   accessType: 'direct' | 'hierarchy' | 'platform';
 }
 
@@ -32,7 +36,7 @@ export interface UserOrgAccess {
   orgName: string;
   orgSlug: string;
   orgType: string;
-  userRole: OrgRole;
+  userRole: RelationshipType;
   accessType: 'direct' | 'hierarchy';
   canManage: boolean;
   depthLevel: number;
