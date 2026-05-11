@@ -52,7 +52,7 @@ export class PublicEventsService {
       // Apply filters
       if (search) {
         queryBuilder = queryBuilder.or(
-          `title.ilike.%${search}%,description.ilike.%${search}%`,
+          `title.ilike.%${search}%,description.ilike.%${search}%,short_description.ilike.%${search}%`,
         );
       }
 
