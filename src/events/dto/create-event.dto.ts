@@ -11,6 +11,7 @@ import {
   IsNumber,
   IsArray,
   Min,
+  Matches,
 } from 'class-validator';
 
 export class CreateEventDto {
@@ -31,6 +32,10 @@ export class CreateEventDto {
 
   @IsString()
   @IsOptional()
+  @Matches(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, {
+    message: 'Slug must contain only lowercase letters, numbers, and hyphens (cannot start or end with hyphen)',
+  })
+  @MinLength(3)
   @MaxLength(200)
   slug?: string;
 

@@ -185,6 +185,20 @@ export class EventsService {
         );
       }
 
+      // Check if slug is unique (if provided)
+      if (createDto.slug) {
+        const { data: existing } = await this.supabaseService
+          .getClient()
+          .from('events')
+          .select('id')
+          .eq('slug', createDto.slug)
+          .single();
+
+        if (existing) {
+          throw new BadRequestException('Event slug already exists');
+        }
+      }
+
       // Validate dates
       if (new Date(createDto.start_date) >= new Date(createDto.end_date)) {
         throw new BadRequestException('End date must be after start date');
@@ -267,6 +281,21 @@ export class EventsService {
 
       if (!canUpdate) {
         throw new ForbiddenException('Cannot update this event');
+      }
+
+      // If updating slug, check uniqueness
+      if ((updateDto as any).slug) {
+        const { data: existing } = await this.supabaseService
+          .getClient()
+          .from('events')
+          .select('id')
+          .eq('slug', (updateDto as any).slug)
+          .neq('id', eventId)
+          .single();
+
+        if (existing) {
+          throw new BadRequestException('Event slug already exists');
+        }
       }
 
       // Validate dates if provided
