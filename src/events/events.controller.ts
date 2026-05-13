@@ -14,6 +14,7 @@ import {
 import { EventsService } from './events.service';
 import { EventAccessService } from './event-access.service';
 import { EventAdditionalInfoService } from './event-additional-info.service';
+import { TicketsService } from './tickets.service';
 import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
 import { ApproveEventDto } from './dto/approve-event.dto';
@@ -26,6 +27,9 @@ import { CreateAgendaItemDto, UpdateAgendaItemDto } from './dto/agenda.dto';
 import { CreateSpeakerDto, UpdateSpeakerDto } from './dto/speaker.dto';
 import { CreatePrizeDto, UpdatePrizeDto } from './dto/prize.dto';
 import { CreateFaqDto, UpdateFaqDto } from './dto/faq.dto';
+import { CreateTicketDto } from './dto/create-ticket.dto';
+import { UpdateTicketDto } from './dto/update-ticket.dto';
+import { CreateCustomFieldDto, UpdateCustomFieldDto } from './dto/custom-field.dto';
 import { SupabaseAuthGuard } from '../auth/guards/supabase-auth.guard';
 import { CurrentUser } from '../permissions/decorators/current-user.decorator';
 import type { RequestUser } from '../auth/interfaces/user.interface';
@@ -37,6 +41,7 @@ export class EventsController {
     private readonly eventsService: EventsService,
     private readonly eventAccessService: EventAccessService,
     private readonly additionalInfoService: EventAdditionalInfoService,
+    private readonly ticketsService: TicketsService,
   ) {}
 
   @Get()
@@ -388,5 +393,123 @@ export class EventsController {
     @Param('faqId') faqId: string,
   ) {
     return this.additionalInfoService.deleteFaq(user.sub, id, faqId);
+  }
+
+  // ==========================================
+  // TICKETS ENDPOINTS
+  // ==========================================
+
+  /**
+   * Get all tickets for an event
+   */
+  @Get(':id/tickets')
+  async getTickets(
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+  ) {
+    return this.ticketsService.getTickets(user.sub, id);
+  }
+
+  /**
+   * Get single ticket
+   */
+  @Get(':id/tickets/:ticketId')
+  async getTicket(
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+    @Param('ticketId') ticketId: string,
+  ) {
+    return this.ticketsService.getTicket(user.sub, id, ticketId);
+  }
+
+  /**
+   * Create a ticket
+   */
+  @Post(':id/tickets')
+  @HttpCode(HttpStatus.CREATED)
+  async createTicket(
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+    @Body() dto: CreateTicketDto,
+  ) {
+    return this.ticketsService.createTicket(user.sub, id, dto);
+  }
+
+  /**
+   * Update a ticket
+   */
+  @Patch(':id/tickets/:ticketId')
+  async updateTicket(
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+    @Param('ticketId') ticketId: string,
+    @Body() dto: UpdateTicketDto,
+  ) {
+    return this.ticketsService.updateTicket(user.sub, id, ticketId, dto);
+  }
+
+  /**
+   * Delete a ticket
+   */
+  @Delete(':id/tickets/:ticketId')
+  async deleteTicket(
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+    @Param('ticketId') ticketId: string,
+  ) {
+    return this.ticketsService.deleteTicket(user.sub, id, ticketId);
+  }
+
+  // ==========================================
+  // CUSTOM FIELDS ENDPOINTS
+  // ==========================================
+
+  /**
+   * Get all custom fields for an event
+   */
+  @Get(':id/custom-fields')
+  async getCustomFields(
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+  ) {
+    return this.ticketsService.getCustomFields(user.sub, id);
+  }
+
+  /**
+   * Create a custom field
+   */
+  @Post(':id/custom-fields')
+  @HttpCode(HttpStatus.CREATED)
+  async createCustomField(
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+    @Body() dto: CreateCustomFieldDto,
+  ) {
+    return this.ticketsService.createCustomField(user.sub, id, dto);
+  }
+
+  /**
+   * Update a custom field
+   */
+  @Patch(':id/custom-fields/:fieldId')
+  async updateCustomField(
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+    @Param('fieldId') fieldId: string,
+    @Body() dto: UpdateCustomFieldDto,
+  ) {
+    return this.ticketsService.updateCustomField(user.sub, id, fieldId, dto);
+  }
+
+  /**
+   * Delete a custom field
+   */
+  @Delete(':id/custom-fields/:fieldId')
+  async deleteCustomField(
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+    @Param('fieldId') fieldId: string,
+  ) {
+    return this.ticketsService.deleteCustomField(user.sub, id, fieldId);
   }
 }

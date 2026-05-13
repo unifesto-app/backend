@@ -5,6 +5,7 @@ import { EventsService } from './events.service';
 import { PublicEventsService } from './public-events.service';
 import { EventAccessService } from './event-access.service';
 import { EventAdditionalInfoService } from './event-additional-info.service';
+import { TicketsService } from './tickets.service';
 import { DatabaseModule } from '../common/database/database.module';
 import { PermissionsModule } from '../permissions/permissions.module';
 import { AuthModule } from '../auth/auth.module';
@@ -12,7 +13,19 @@ import { AuthModule } from '../auth/auth.module';
 @Module({
   imports: [DatabaseModule, PermissionsModule, AuthModule],
   controllers: [EventsController, PublicEventsController],
-  providers: [EventsService, PublicEventsService, EventAccessService, EventAdditionalInfoService],
-  exports: [EventsService, PublicEventsService, EventAccessService, EventAdditionalInfoService],
+  providers: [
+    EventsService,
+    PublicEventsService,
+    EventAccessService,
+    EventAdditionalInfoService,
+    TicketsService,
+  ],
+  exports: [
+    EventsService,
+    PublicEventsService,
+    EventAccessService,
+    EventAdditionalInfoService,
+    TicketsService,
+  ],
 })
 export class EventsModule {}

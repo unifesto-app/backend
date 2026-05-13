@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { PublicEventsService } from './public-events.service';
 import { EventAdditionalInfoService } from './event-additional-info.service';
+import { TicketsService } from './tickets.service';
 import { EventQueryDto } from './dto/event-query.dto';
 
 /**
@@ -20,6 +21,7 @@ export class PublicEventsController {
   constructor(
     private readonly publicEventsService: PublicEventsService,
     private readonly additionalInfoService: EventAdditionalInfoService,
+    private readonly ticketsService: TicketsService,
   ) {}
 
   /**
