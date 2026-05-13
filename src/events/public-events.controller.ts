@@ -7,6 +7,7 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { PublicEventsService } from './public-events.service';
+import { EventAdditionalInfoService } from './event-additional-info.service';
 import { EventQueryDto } from './dto/event-query.dto';
 
 /**
@@ -16,7 +17,10 @@ import { EventQueryDto } from './dto/event-query.dto';
  */
 @Controller('public/events')
 export class PublicEventsController {
-  constructor(private readonly publicEventsService: PublicEventsService) {}
+  constructor(
+    private readonly publicEventsService: PublicEventsService,
+    private readonly additionalInfoService: EventAdditionalInfoService,
+  ) {}
 
   /**
    * GET /public/events
@@ -56,5 +60,55 @@ export class PublicEventsController {
   @HttpCode(HttpStatus.OK)
   async findOne(@Param('id') id: string) {
     return this.publicEventsService.findOnePublic(id);
+  }
+
+  /**
+   * GET /public/events/:id/agenda
+   * Get event agenda (no auth required)
+   */
+  @Get(':id/agenda')
+  @HttpCode(HttpStatus.OK)
+  async getAgenda(@Param('id') id: string) {
+    return this.additionalInfoService.getAgenda(id);
+  }
+
+  /**
+   * GET /public/events/:id/speakers
+   * Get event speakers (no auth required)
+   */
+  @Get(':id/speakers')
+  @HttpCode(HttpStatus.OK)
+  async getSpeakers(@Param('id') id: string) {
+    return this.additionalInfoService.getSpeakers(id);
+  }
+
+  /**
+   * GET /public/events/:id/prizes
+   * Get event prizes (no auth required)
+   */
+  @Get(':id/prizes')
+  @HttpCode(HttpStatus.OK)
+  async getPrizes(@Param('id') id: string) {
+    return this.additionalInfoService.getPrizes(id);
+  }
+
+  /**
+   * GET /public/events/:id/faq
+   * Get event FAQs (no auth required, only published)
+   */
+  @Get(':id/faq')
+  @HttpCode(HttpStatus.OK)
+  async getFaqs(@Param('id') id: string) {
+    return this.additionalInfoService.getFaqs(id, false); // Only published FAQs
+  }
+
+  /**
+   * GET /public/events/:id/additional-info
+   * Get all additional info (no auth required)
+   */
+  @Get(':id/additional-info')
+  @HttpCode(HttpStatus.OK)
+  async getAllAdditionalInfo(@Param('id') id: string) {
+    return this.additionalInfoService.getAllAdditionalInfo(id, false); // Only published FAQs
   }
 }

@@ -13,6 +13,7 @@ import {
 } from '@nestjs/common';
 import { EventsService } from './events.service';
 import { EventAccessService } from './event-access.service';
+import { EventAdditionalInfoService } from './event-additional-info.service';
 import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
 import { ApproveEventDto } from './dto/approve-event.dto';
@@ -21,6 +22,10 @@ import { EventQueryDto } from './dto/event-query.dto';
 import { GrantAccessDto } from './dto/grant-access.dto';
 import { RequestAccessDto } from './dto/request-access.dto';
 import { ProcessAccessRequestDto } from './dto/process-access-request.dto';
+import { CreateAgendaItemDto, UpdateAgendaItemDto } from './dto/agenda.dto';
+import { CreateSpeakerDto, UpdateSpeakerDto } from './dto/speaker.dto';
+import { CreatePrizeDto, UpdatePrizeDto } from './dto/prize.dto';
+import { CreateFaqDto, UpdateFaqDto } from './dto/faq.dto';
 import { SupabaseAuthGuard } from '../auth/guards/supabase-auth.guard';
 import { CurrentUser } from '../permissions/decorators/current-user.decorator';
 import type { RequestUser } from '../auth/interfaces/user.interface';
@@ -31,6 +36,7 @@ export class EventsController {
   constructor(
     private readonly eventsService: EventsService,
     private readonly eventAccessService: EventAccessService,
+    private readonly additionalInfoService: EventAdditionalInfoService,
   ) {}
 
   @Get()
@@ -224,5 +230,163 @@ export class EventsController {
     @Param('id') id: string,
   ) {
     return this.eventAccessService.getAccessAuditLog(user.sub, id);
+  }
+
+  // ==========================================
+  // ADDITIONAL INFO ENDPOINTS
+  // ==========================================
+
+  /**
+   * Get all additional info (agenda, speakers, prizes, faqs)
+   */
+  @Get(':id/additional-info')
+  async getAllAdditionalInfo(
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+  ) {
+    return this.additionalInfoService.getAllAdditionalInfo(id, true);
+  }
+
+  // AGENDA ENDPOINTS
+  @Get(':id/agenda')
+  async getAgenda(@Param('id') id: string) {
+    return this.additionalInfoService.getAgenda(id);
+  }
+
+  @Post(':id/agenda')
+  @HttpCode(HttpStatus.CREATED)
+  async createAgendaItem(
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+    @Body() dto: CreateAgendaItemDto,
+  ) {
+    return this.additionalInfoService.createAgendaItem(user.sub, id, dto);
+  }
+
+  @Patch(':id/agenda/:itemId')
+  async updateAgendaItem(
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+    @Param('itemId') itemId: string,
+    @Body() dto: UpdateAgendaItemDto,
+  ) {
+    return this.additionalInfoService.updateAgendaItem(user.sub, id, itemId, dto);
+  }
+
+  @Delete(':id/agenda/:itemId')
+  async deleteAgendaItem(
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+    @Param('itemId') itemId: string,
+  ) {
+    return this.additionalInfoService.deleteAgendaItem(user.sub, id, itemId);
+  }
+
+  // SPEAKERS ENDPOINTS
+  @Get(':id/speakers')
+  async getSpeakers(@Param('id') id: string) {
+    return this.additionalInfoService.getSpeakers(id);
+  }
+
+  @Post(':id/speakers')
+  @HttpCode(HttpStatus.CREATED)
+  async createSpeaker(
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+    @Body() dto: CreateSpeakerDto,
+  ) {
+    return this.additionalInfoService.createSpeaker(user.sub, id, dto);
+  }
+
+  @Patch(':id/speakers/:speakerId')
+  async updateSpeaker(
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+    @Param('speakerId') speakerId: string,
+    @Body() dto: UpdateSpeakerDto,
+  ) {
+    return this.additionalInfoService.updateSpeaker(user.sub, id, speakerId, dto);
+  }
+
+  @Delete(':id/speakers/:speakerId')
+  async deleteSpeaker(
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+    @Param('speakerId') speakerId: string,
+  ) {
+    return this.additionalInfoService.deleteSpeaker(user.sub, id, speakerId);
+  }
+
+  // PRIZES ENDPOINTS
+  @Get(':id/prizes')
+  async getPrizes(@Param('id') id: string) {
+    return this.additionalInfoService.getPrizes(id);
+  }
+
+  @Post(':id/prizes')
+  @HttpCode(HttpStatus.CREATED)
+  async createPrize(
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+    @Body() dto: CreatePrizeDto,
+  ) {
+    return this.additionalInfoService.createPrize(user.sub, id, dto);
+  }
+
+  @Patch(':id/prizes/:prizeId')
+  async updatePrize(
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+    @Param('prizeId') prizeId: string,
+    @Body() dto: UpdatePrizeDto,
+  ) {
+    return this.additionalInfoService.updatePrize(user.sub, id, prizeId, dto);
+  }
+
+  @Delete(':id/prizes/:prizeId')
+  async deletePrize(
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+    @Param('prizeId') prizeId: string,
+  ) {
+    return this.additionalInfoService.deletePrize(user.sub, id, prizeId);
+  }
+
+  // FAQ ENDPOINTS
+  @Get(':id/faq')
+  async getFaqs(
+    @Param('id') id: string,
+    @Query('include_unpublished') includeUnpublished?: string,
+  ) {
+    return this.additionalInfoService.getFaqs(id, includeUnpublished === 'true');
+  }
+
+  @Post(':id/faq')
+  @HttpCode(HttpStatus.CREATED)
+  async createFaq(
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+    @Body() dto: CreateFaqDto,
+  ) {
+    return this.additionalInfoService.createFaq(user.sub, id, dto);
+  }
+
+  @Patch(':id/faq/:faqId')
+  async updateFaq(
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+    @Param('faqId') faqId: string,
+    @Body() dto: UpdateFaqDto,
+  ) {
+    return this.additionalInfoService.updateFaq(user.sub, id, faqId, dto);
+  }
+
+  @Delete(':id/faq/:faqId')
+  async deleteFaq(
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+    @Param('faqId') faqId: string,
+  ) {
+    return this.additionalInfoService.deleteFaq(user.sub, id, faqId);
   }
 }
