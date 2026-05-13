@@ -25,26 +25,11 @@ export class EventsService {
 
   /**
    * Get all events accessible by user
+   * NEW: Shows events created by user OR events they're a collaborator on
    */
   async findAll(userId: string, query: EventQueryDto) {
     try {
-      // Get accessible organizations
-      const accessibleOrgs = await this.permissionsService.getUserAccessibleOrgs(
-        userId,
-      );
-
-      if (accessibleOrgs.length === 0 && !query.created_by) {
-        return {
-          data: [],
-          total: 0,
-          page: query.page,
-          limit: query.limit,
-        };
-      }
-
-      const orgIds = accessibleOrgs.map((org) => org.orgId);
-
-      // Build query
+      // Get events created by user
       let dbQuery = this.supabaseService
         .getClient()
         .from('events')
@@ -52,11 +37,26 @@ export class EventsService {
           count: 'exact',
         });
 
-      // Filter by accessible orgs or created by user
+      // Get events where user is creator OR collaborator
+      const { data: collaboratorEvents } = await this.supabaseService
+        .getClient()
+        .from('event_collaborators')
+        .select('event_id')
+        .eq('user_id', userId)
+        .eq('is_active', true);
+
+      const collaboratorEventIds = collaboratorEvents?.map(c => c.event_id) || [];
+
+      // Filter: created by user OR user is collaborator
       if (query.created_by) {
         dbQuery = dbQuery.eq('created_by', query.created_by);
       } else {
-        dbQuery = dbQuery.in('organization_id', orgIds);
+        // Show events created by user or where they're a collaborator
+        if (collaboratorEventIds.length > 0) {
+          dbQuery = dbQuery.or(`created_by.eq.${userId},id.in.(${collaboratorEventIds.join(',')})`);
+        } else {
+          dbQuery = dbQuery.eq('created_by', userId);
+        }
       }
 
       // Apply filters
@@ -749,6 +749,9 @@ export class EventsService {
    * Platform roles: super_admin, org_super_admin, org_admin, organizer, attendee
    * Org relationships: owner, admin, member
    * 
+   * NOTE: Admins can APPROVE events but cannot MANAGE them without explicit permission.
+   * To manage an event, admins must request access from the creator.
+   * 
    * Rules:
    * - Cannot approve own events
    * - super_admin can approve anything
@@ -831,6 +834,7 @@ export class EventsService {
 
   /**
    * Check if user can access event
+   * NEW: Only creator or collaborators with permission can access
    */
   private async canAccessEvent(userId: string, event: any): Promise<boolean> {
     // Creator can always access
@@ -838,48 +842,49 @@ export class EventsService {
       return true;
     }
 
-    // Check org access
-    return await this.permissionsService.hasHierarchyAccess(
-      userId,
-      event.organization_id,
-      RelationshipType.MEMBER,
-    );
+    // Check if user has collaborator access
+    const { data: collaborator } = await this.supabaseService
+      .getClient()
+      .from('event_collaborators')
+      .select('id, can_view_overview')
+      .eq('event_id', event.id)
+      .eq('user_id', userId)
+      .eq('is_active', true)
+      .single();
+
+    return collaborator?.can_view_overview === true;
   }
 
   /**
    * Check if user can update event
+   * NEW: Only creator or collaborators with edit permission
    */
   private async canUpdateEvent(userId: string, event: any): Promise<boolean> {
-    // Creator can update own events
+    // Creator can always update
     if (event.created_by === userId) {
       return true;
     }
 
-    // Admins can update any event in their org
-    const permissions = await this.permissionsService.getOrgPermissions(
-      userId,
-      event.organization_id,
-    );
+    // Check if user has edit permission
+    const { data: collaborator } = await this.supabaseService
+      .getClient()
+      .from('event_collaborators')
+      .select('id, can_edit_details')
+      .eq('event_id', event.id)
+      .eq('user_id', userId)
+      .eq('is_active', true)
+      .single();
 
-    return permissions.canManageEvents;
+    return collaborator?.can_edit_details === true;
   }
 
   /**
    * Check if user can delete event
+   * NEW: Only creator can delete
    */
   private async canDeleteEvent(userId: string, event: any): Promise<boolean> {
-    // Creator can delete own events
-    if (event.created_by === userId) {
-      return true;
-    }
-
-    // Admins can delete any event in their org
-    const permissions = await this.permissionsService.getOrgPermissions(
-      userId,
-      event.organization_id,
-    );
-
-    return permissions.canManageEvents;
+    // Only creator can delete events
+    return event.created_by === userId;
   }
 
   /**
