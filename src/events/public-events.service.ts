@@ -233,4 +233,50 @@ export class PublicEventsService {
       throw error;
     }
   }
+
+  /**
+   * Get event by slug (public access)
+   */
+  async findBySlugPublic(slug: string) {
+    try {
+      const { data, error } = await this.supabaseService
+        .getClient()
+        .from('events')
+        .select(
+          `
+          *,
+          organization:organizations (
+            id,
+            name,
+            slug,
+            type,
+            logo_url,
+            description,
+            website
+          )
+        `,
+        )
+        .eq('slug', slug)
+        .eq('status', 'published') // Only published events
+        .single();
+
+      if (error) {
+        if (error.code === 'PGRST116') {
+          throw new NotFoundException('Event not found');
+        }
+        this.logger.error(`Error fetching event by slug: ${error.message}`);
+        throw error;
+      }
+
+      return {
+        event: data,
+      };
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      this.logger.error(`Unexpected error in findBySlugPublic: ${error.message}`);
+      throw error;
+    }
+  }
 }

@@ -97,6 +97,83 @@ export class PublicOrganizationsService {
   }
 
   /**
+   * Get organization by slug (public access)
+   */
+  async findBySlugPublic(slug: string) {
+    try {
+      const { data, error } = await this.supabaseService
+        .getClient()
+        .from('organizations')
+        .select('*')
+        .eq('slug', slug)
+        .eq('is_active', true)
+        .single();
+
+      if (error) {
+        if (error.code === 'PGRST116') {
+          throw new NotFoundException('Organization not found');
+        }
+        this.logger.error(`Error fetching organization by slug: ${error.message}`);
+        throw error;
+      }
+
+      return {
+        organization: data,
+      };
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      this.logger.error(`Unexpected error in findBySlugPublic: ${error.message}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Get sub-organizations (public access)
+   */
+  async getSubOrganizations(parentId: string) {
+    try {
+      // First verify parent organization exists and is active
+      const { data: parent, error: parentError } = await this.supabaseService
+        .getClient()
+        .from('organizations')
+        .select('id')
+        .eq('id', parentId)
+        .eq('is_active', true)
+        .single();
+
+      if (parentError || !parent) {
+        throw new NotFoundException('Parent organization not found');
+      }
+
+      // Get sub-organizations
+      const { data, error } = await this.supabaseService
+        .getClient()
+        .from('organizations')
+        .select('*')
+        .eq('parent_org_id', parentId)
+        .eq('is_active', true)
+        .order('name', { ascending: true });
+
+      if (error) {
+        this.logger.error(`Error fetching sub-organizations: ${error.message}`);
+        throw error;
+      }
+
+      return {
+        organizations: data || [],
+      };
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      this.logger.error(`Unexpected error in getSubOrganizations: ${error.message}`);
+      throw error;
+    }
+  }
+
+  /**
    * Get organization's published events (public access)
    */
   async getOrganizationEvents(

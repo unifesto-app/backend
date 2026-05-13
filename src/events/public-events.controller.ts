@@ -53,6 +53,17 @@ export class PublicEventsController {
   }
 
   /**
+   * GET /public/events/slug/:slug
+   * Get event by slug (no auth required)
+   * IMPORTANT: This must come before :id route
+   */
+  @Get('slug/:slug')
+  @HttpCode(HttpStatus.OK)
+  async findBySlug(@Param('slug') slug: string) {
+    return this.publicEventsService.findBySlugPublic(slug);
+  }
+
+  /**
    * GET /public/events/:id
    * Get event by ID (no auth required)
    */

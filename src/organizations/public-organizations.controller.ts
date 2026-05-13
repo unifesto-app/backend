@@ -38,6 +38,17 @@ export class PublicOrganizationsController {
   }
 
   /**
+   * GET /public/organizations/slug/:slug
+   * Get organization by slug (no auth required)
+   * IMPORTANT: This must come before :id route
+   */
+  @Get('slug/:slug')
+  @HttpCode(HttpStatus.OK)
+  async findBySlug(@Param('slug') slug: string) {
+    return this.publicOrganizationsService.findBySlugPublic(slug);
+  }
+
+  /**
    * GET /public/organizations/:id
    * Get organization by ID (no auth required)
    */
@@ -45,6 +56,16 @@ export class PublicOrganizationsController {
   @HttpCode(HttpStatus.OK)
   async findOne(@Param('id') id: string) {
     return this.publicOrganizationsService.findOnePublic(id);
+  }
+
+  /**
+   * GET /public/organizations/:id/sub-orgs
+   * Get sub-organizations (no auth required)
+   */
+  @Get(':id/sub-orgs')
+  @HttpCode(HttpStatus.OK)
+  async getSubOrganizations(@Param('id') id: string) {
+    return this.publicOrganizationsService.getSubOrganizations(id);
   }
 
   /**
