@@ -9,6 +9,14 @@ import { Observable, throwError } from 'rxjs';
 import { tap, catchError } from 'rxjs/operators';
 import { Request } from 'express';
 import { AuditService } from '../audit/audit.service';
+import { RequestUser } from '../../auth/interfaces/user.interface';
+
+// Extend Express Request type
+declare module 'express' {
+  interface Request {
+    user?: RequestUser;
+  }
+}
 
 @Injectable()
 export class AuditInterceptor implements NestInterceptor {

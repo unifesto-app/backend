@@ -9,6 +9,14 @@ import {
 import { Reflector } from '@nestjs/core';
 import { Request } from 'express';
 import { SupabaseService } from '../database/supabase.service';
+import { RequestUser } from '../../auth/interfaces/user.interface';
+
+// Extend Express Request type
+declare module 'express' {
+  interface Request {
+    user?: RequestUser;
+  }
+}
 
 export const RATE_LIMIT_KEY = 'rateLimit';
 
