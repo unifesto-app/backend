@@ -57,3 +57,35 @@ export interface ReferralStats {
   pending_referrals: number;
   completed_referrals: number;
 }
+
+export interface RedeemCode {
+  id: string;
+  code: string;
+  type: 'promotional' | 'gift' | 'event' | 'partner';
+  coin_amount: number;
+  max_uses: number | null;
+  current_uses: number;
+  is_active: boolean;
+  expires_at: string | null;
+  created_by: string | null;
+  metadata: Record<string, any>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RedeemCodeUse {
+  id: string;
+  redeem_code_id: string;
+  user_id: string;
+  coin_amount: number;
+  created_at: string;
+}
+
+export interface SystemSetting {
+  id: string;
+  key: string;
+  value: any;
+  description: string | null;
+  created_at: string;
+  updated_at: string;
+}

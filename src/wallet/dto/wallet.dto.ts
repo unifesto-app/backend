@@ -34,3 +34,48 @@ export class ApplyReferralDto {
   @IsNotEmpty()
   referralCode: string;
 }
+
+export class ApplyRedeemCodeDto {
+  @IsString()
+  @IsNotEmpty()
+  code: string;
+}
+
+export class CreateRedeemCodeDto {
+  @IsString()
+  @IsNotEmpty()
+  code: string;
+
+  @IsString()
+  @IsIn(['promotional', 'gift', 'event', 'partner'])
+  type: string;
+
+  @IsInt()
+  @Min(1)
+  coinAmount: number;
+
+  @IsInt()
+  @IsOptional()
+  @Min(1)
+  maxUses?: number;
+
+  @IsString()
+  @IsOptional()
+  expiresAt?: string;
+
+  @IsOptional()
+  metadata?: Record<string, any>;
+}
+
+export class UpdateSystemSettingDto {
+  @IsString()
+  @IsNotEmpty()
+  key: string;
+
+  @IsNotEmpty()
+  value: any;
+
+  @IsString()
+  @IsOptional()
+  description?: string;
+}

@@ -506,4 +506,103 @@ export class WalletService {
       throw new InternalServerErrorException('Failed to fetch referral history');
     }
   }
+
+  /**
+   * Apply redeem code
+   */
+  async applyRedeemCode(userId: string, code: string): Promise<any> {
+    try {
+      const { data, error } = await this.supabaseService
+        .getClient()
+        .rpc('apply_redeem_code', {
+          p_user_id: userId,
+          p_code: code.toUpperCase(),
+        });
+
+      if (error) {
+        this.logger.error(`Error applying redeem code: ${error.message}`);
+        
+        if (error.message.includes('Invalid or inactive')) {
+          throw new BadRequestException('Invalid or inactive redeem code');
+        } else if (error.message.includes('expired')) {
+          throw new BadRequestException('Redeem code has expired');
+        } else if (error.message.includes('already used')) {
+          throw new ConflictException('You have already used this redeem code');
+        } else if (error.message.includes('maximum uses')) {
+          throw new BadRequestException('Redeem code has reached maximum uses');
+        }
+        
+        throw new InternalServerErrorException('Failed to apply redeem code');
+      }
+
+      this.logger.log(`Redeem code ${code} applied by user ${userId}`);
+      return data;
+    } catch (error) {
+      if (
+        error instanceof BadRequestException ||
+        error instanceof ConflictException ||
+        error instanceof InternalServerErrorException
+      ) {
+        throw error;
+      }
+      this.logger.error(`Unexpected error in applyRedeemCode: ${error.message}`);
+      throw new InternalServerErrorException('Failed to apply redeem code');
+    }
+  }
+
+  /**
+   * Get system setting
+   */
+  async getSystemSetting(key: string): Promise<any> {
+    try {
+      const { data, error } = await this.supabaseService
+        .getClient()
+        .from('system_settings')
+        .select('value')
+        .eq('key', key)
+        .single();
+
+      if (error || !data) {
+        return null;
+      }
+
+      return data.value;
+    } catch (error) {
+      this.logger.error(`Error getting system setting: ${error.message}`);
+      return null;
+    }
+  }
+
+  /**
+   * Update system setting
+   */
+  async updateSystemSetting(key: string, value: any, description?: string): Promise<any> {
+    try {
+      const { data, error } = await this.supabaseService
+        .getClient()
+        .from('system_settings')
+        .upsert({
+          key,
+          value,
+          description,
+          updated_at: new Date().toISOString(),
+        })
+        .select()
+        .single();
+
+      if (error) {
+        this.logger.error(`Error updating system setting: ${error.message}`);
+        throw new InternalServerErrorException('Failed to update system setting');
+      }
+
+      this.logger.log(`System setting ${key} updated`);
+      return data;
+    } catch (error) {
+      if (error instanceof InternalServerErrorException) {
+        throw error;
+      }
+      this.logger.error(`Unexpected error in updateSystemSetting: ${error.message}`);
+      throw new InternalServerErrorException('Failed to update system setting');
+    }
+  }
 }

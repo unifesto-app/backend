@@ -15,7 +15,7 @@ import { WalletService } from './wallet.service';
 import { SupabaseAuthGuard } from '../auth/guards/supabase-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { RequestUser } from '../auth/interfaces/user.interface';
-import { AddCoinsDto, SpendCoinsDto, ApplyReferralDto } from './dto/wallet.dto';
+import { AddCoinsDto, SpendCoinsDto, ApplyReferralDto, ApplyRedeemCodeDto } from './dto/wallet.dto';
 
 @Controller('wallet')
 @UseGuards(SupabaseAuthGuard)
@@ -224,6 +224,42 @@ export class WalletController {
         created_at: ref.created_at,
       })),
       count: referrals.length,
+    };
+  }
+
+  /**
+   * POST /wallet/redeem
+   * Apply a redeem code
+   */
+  @Post('redeem')
+  @HttpCode(HttpStatus.OK)
+  async applyRedeemCode(
+    @CurrentUser() user: RequestUser,
+    @Body() applyRedeemCodeDto: ApplyRedeemCodeDto,
+  ) {
+    this.logger.log(`Applying redeem code for user: ${user.sub}`);
+
+    const result = await this.walletService.applyRedeemCode(
+      user.sub,
+      applyRedeemCodeDto.code,
+    );
+
+    return {
+      message: result.message || 'Redeem code applied successfully',
+      coin_amount: result.coin_amount,
+      new_balance: result.new_balance,
+    };
+  }
+
+  /**
+   * GET /wallet/settings/referral-reward
+   * Get referral reward amount
+   */
+  @Get('settings/referral-reward')
+  async getReferralRewardSetting() {
+    const value = await this.walletService.getSystemSetting('referral_reward_amount');
+    return {
+      referral_reward_amount: value || 25,
     };
   }
 }
