@@ -20,7 +20,7 @@ import type {
 export class WalletService {
   private readonly logger = new Logger(WalletService.name);
 
-  constructor(private readonly supabaseService: SupabaseService) {}
+  constructor(private readonly supabaseService: SupabaseService) { }
 
   /**
    * Get or create wallet for user
@@ -377,6 +377,13 @@ export class WalletService {
         throw new ConflictException('You have already used a referral code');
       }
 
+      // Fetch dynamic settings (with fallback defaults)
+      const referralRewardSetting = await this.getSystemSetting('referral_reward_amount');
+      const welcomeBonusSetting = await this.getSystemSetting('welcome_bonus_amount');
+
+      const referrerReward = referralRewardSetting !== null ? parseInt(referralRewardSetting.toString()) : 10;
+      const newUserBonus = welcomeBonusSetting !== null ? parseInt(welcomeBonusSetting.toString()) : 25;
+
       // Create referral record
       const { data: referral, error: referralError } = await this.supabaseService
         .getClient()
@@ -386,7 +393,7 @@ export class WalletService {
           referred_id: userId,
           referral_code: referralCode.toUpperCase(),
           status: 'completed',
-          reward_amount: 25,
+          reward_amount: referrerReward,
         })
         .select()
         .single();
@@ -397,13 +404,26 @@ export class WalletService {
       }
 
       // Award coins to referrer
-      await this.addCoins(
-        referrerId,
-        25,
-        'referral_bonus',
-        'Referral bonus',
-        { referred_user_id: userId }
-      );
+      if (referrerReward > 0) {
+        await this.addCoins(
+          referrerId,
+          referrerReward,
+          'referral_bonus',
+          'Referral bonus',
+          { referred_user_id: userId }
+        );
+      }
+
+      // Award coins to new user (welcome bonus)
+      if (newUserBonus > 0) {
+        await this.addCoins(
+          userId,
+          newUserBonus,
+          'welcome_bonus',
+          'Welcome bonus from referral',
+          { referrer_user_id: referrerId }
+        );
+      }
 
       // Update referral code stats
       await this.supabaseService
@@ -411,7 +431,7 @@ export class WalletService {
         .from('referral_codes')
         .update({
           total_referrals: codeData.total_referrals + 1,
-          total_rewards: codeData.total_rewards + 25,
+          total_rewards: codeData.total_rewards + referrerReward,
           updated_at: new Date().toISOString(),
         })
         .eq('user_id', referrerId);
@@ -521,7 +541,7 @@ export class WalletService {
 
       if (error) {
         this.logger.error(`Error applying redeem code: ${error.message}`);
-        
+
         if (error.message.includes('Invalid or inactive')) {
           throw new BadRequestException('Invalid or inactive redeem code');
         } else if (error.message.includes('expired')) {
@@ -531,7 +551,7 @@ export class WalletService {
         } else if (error.message.includes('maximum uses')) {
           throw new BadRequestException('Redeem code has reached maximum uses');
         }
-        
+
         throw new InternalServerErrorException('Failed to apply redeem code');
       }
 

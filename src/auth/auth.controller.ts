@@ -39,7 +39,7 @@ export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly avatarService: AvatarService,
-  ) {}
+  ) { }
 
   /**
    * GET /auth/check-username
