@@ -71,6 +71,35 @@ export class AuthController {
   }
 
   /**
+   * GET /auth/check-email
+   * Check if email exists
+   */
+  @Get('check-email')
+  @RateLimit({ maxRequests: 20, windowMinutes: 5 })
+  async checkEmail(@Req() request: Request) {
+    const email = (request.query as any).email as string;
+
+    if (!email) {
+      throw new BadRequestException('Email is required');
+    }
+
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      throw new BadRequestException('Invalid email format');
+    }
+
+    this.logger.debug(`Checking email existence: ${email}`);
+
+    const exists = await this.authService.checkEmailExistence(email);
+
+    return {
+      email,
+      exists,
+    };
+  }
+
+  /**
    * GET /auth/health
    * Health check endpoint (no auth required)
    */

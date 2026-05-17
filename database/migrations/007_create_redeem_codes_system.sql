@@ -63,13 +63,42 @@ ALTER TABLE redeem_code_uses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE system_settings ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies for redeem_codes
+-- Allow anyone to view active codes (for validation when redeeming)
 CREATE POLICY "Anyone can view active redeem codes"
   ON redeem_codes FOR SELECT
   USING (is_active = true);
 
-CREATE POLICY "Admins can manage redeem codes"
-  ON redeem_codes FOR ALL
+-- Allow authenticated users to view all codes (for admin panel)
+CREATE POLICY "Authenticated users can view all redeem codes"
+  ON redeem_codes FOR SELECT
+  TO authenticated
   USING (true);
+
+-- Allow authenticated users to insert codes (for admin panel)
+CREATE POLICY "Authenticated users can insert redeem codes"
+  ON redeem_codes FOR INSERT
+  TO authenticated
+  WITH CHECK (true);
+
+-- Allow authenticated users to update codes (for admin panel)
+CREATE POLICY "Authenticated users can update redeem codes"
+  ON redeem_codes FOR UPDATE
+  TO authenticated
+  USING (true)
+  WITH CHECK (true);
+
+-- Allow authenticated users to delete codes (for admin panel)
+CREATE POLICY "Authenticated users can delete redeem codes"
+  ON redeem_codes FOR DELETE
+  TO authenticated
+  USING (true);
+
+-- Service role has full access
+CREATE POLICY "Service role has full access to redeem codes"
+  ON redeem_codes FOR ALL
+  TO service_role
+  USING (true)
+  WITH CHECK (true);
 
 -- RLS Policies for redeem_code_uses
 CREATE POLICY "Users can view their own redeem code uses"
@@ -98,6 +127,7 @@ RETURNS JSONB AS $$
 DECLARE
   v_redeem_code redeem_codes;
   v_coin_amount INTEGER;
+  v_result JSONB;
   v_transaction_id UUID;
   v_new_balance INTEGER;
 BEGIN
@@ -134,15 +164,18 @@ BEGIN
 
   v_coin_amount := v_redeem_code.coin_amount;
 
-  -- Add coins to user's wallet
-  SELECT new_balance, transaction_id INTO v_new_balance, v_transaction_id
-  FROM update_wallet_balance(
+  -- Add coins to user's wallet (returns JSONB)
+  v_result := update_wallet_balance(
     p_user_id,
     v_coin_amount,
     'earned',
     'Redeem code: ' || v_redeem_code.code,
     jsonb_build_object('redeem_code_id', v_redeem_code.id, 'code', v_redeem_code.code)
   );
+
+  -- Extract values from JSONB result
+  v_new_balance := (v_result->>'new_balance')::INTEGER;
+  v_transaction_id := (v_result->>'transaction_id')::UUID;
 
   -- Record redeem code use
   INSERT INTO redeem_code_uses (redeem_code_id, user_id, coin_amount)

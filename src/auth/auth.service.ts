@@ -183,6 +183,33 @@ export class AuthService {
   }
 
   /**
+   * Check if email exists
+   */
+  async checkEmailExistence(email: string): Promise<boolean> {
+    try {
+      const { data, error } = await this.supabaseService
+        .getClient()
+        .from('profiles')
+        .select('id')
+        .eq('email', email.toLowerCase().trim())
+        .maybeSingle();
+
+      if (error) {
+        this.logger.error(`Error checking email: ${error.message}`);
+        throw new InternalServerErrorException('Failed to check email');
+      }
+
+      return !!data;
+    } catch (error) {
+      if (error instanceof InternalServerErrorException) {
+        throw error;
+      }
+      this.logger.error('Unexpected error checking email', error);
+      throw new InternalServerErrorException('Failed to check email');
+    }
+  }
+
+  /**
    * Update user profile
    */
   async updateProfile(
