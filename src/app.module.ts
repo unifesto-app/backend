@@ -16,6 +16,7 @@ import { MembersModule } from './members/members.module';
 import { EventsModule } from './events/events.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { ContentRemovalModule } from './content-removal/content-removal.module';
+import { WhatsAppModule } from './whatsapp/whatsapp.module';
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { ContentRemovalModule } from './content-removal/content-removal.module';
     EventsModule,
     AnalyticsModule,
     ContentRemovalModule,
+    WhatsAppModule,
   ],
   controllers: [AppController],
   providers: [
