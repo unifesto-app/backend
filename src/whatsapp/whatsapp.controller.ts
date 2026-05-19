@@ -58,6 +58,19 @@ export class WhatsAppController {
     return this.whatsappService.getStats();
   }
 
+  @Get('templates')
+  @UseGuards(SupabaseAuthGuard)
+  async getTemplates() {
+    return this.whatsappService.getMetaTemplates();
+  }
+
+  @Post('templates/sync')
+  @UseGuards(SupabaseAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  async syncTemplates(@CurrentUser() user: RequestUser) {
+    return this.whatsappService.syncMetaTemplates();
+  }
+
   // Webhook verification endpoint (GET)
   @Get('webhook')
   @HttpCode(HttpStatus.OK)

@@ -277,4 +277,137 @@ export class WhatsAppService {
       this.logger.error('Error storing incoming message', error);
     }
   }
+
+  async getMetaTemplates() {
+    try {
+      if (!this.whatsappAccessToken) {
+        throw new BadRequestException('WhatsApp access token not configured');
+      }
+
+      // Get WhatsApp Business Account ID from config
+      const wabaid = this.configService.get<string>('WHATSAPP_BUSINESS_ACCOUNT_ID', '');
+      
+      if (!wabaid) {
+        throw new BadRequestException('WhatsApp Business Account ID not configured');
+      }
+
+      const url = `https://graph.facebook.com/v18.0/${wabaid}/message_templates`;
+
+      this.logger.log('Fetching templates from Meta');
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${this.whatsappAccessToken}`,
+        },
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        this.logger.error('Meta API Error:', JSON.stringify(data));
+        throw new BadRequestException(
+          data.error?.message || 'Failed to fetch templates from Meta',
+        );
+      }
+
+      this.logger.log(`Fetched ${data.data?.length || 0} templates from Meta`);
+
+      return data.data || [];
+    } catch (error) {
+      this.logger.error('Error fetching Meta templates', error);
+      throw new BadRequestException(
+        error.message || 'Failed to fetch templates',
+      );
+    }
+  }
+
+  async syncMetaTemplates() {
+    try {
+      const metaTemplates = await this.getMetaTemplates();
+      
+      this.logger.log(`Syncing ${metaTemplates.length} templates to database`);
+
+      const syncedTemplates: any[] = [];
+
+      for (const template of metaTemplates) {
+        // Only sync approved templates
+        if (template.status !== 'APPROVED') {
+          continue;
+        }
+
+        // Extract template content and variables
+        const bodyComponent = template.components?.find((c: any) => c.type === 'BODY');
+        const content = bodyComponent?.text || '';
+        
+        // Extract variables from {{1}}, {{2}} format
+        const variables: string[] = [];
+        const variableMatches = content.match(/\{\{(\d+)\}\}/g);
+        if (variableMatches) {
+          variableMatches.forEach((match: string, index: number) => {
+            variables.push(`var${index + 1}`);
+          });
+        }
+
+        // Check if template already exists
+        const { data: existing } = await this.supabaseService.getClient()
+          .from('whatsapp_templates')
+          .select('id')
+          .eq('name', template.name)
+          .single();
+
+        if (existing) {
+          // Update existing template
+          const { error } = await this.supabaseService.getClient()
+            .from('whatsapp_templates')
+            .update({
+              content,
+              category: template.category || 'general',
+              variables,
+              is_active: true,
+              meta_template_id: template.id,
+              meta_template_name: template.name,
+              meta_language: template.language,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', existing.id);
+
+          if (!error) {
+            syncedTemplates.push({ ...template, action: 'updated' });
+          }
+        } else {
+          // Insert new template
+          const { error } = await this.supabaseService.getClient()
+            .from('whatsapp_templates')
+            .insert({
+              name: template.name,
+              content,
+              category: template.category || 'general',
+              variables,
+              is_active: true,
+              meta_template_id: template.id,
+              meta_template_name: template.name,
+              meta_language: template.language,
+            });
+
+          if (!error) {
+            syncedTemplates.push({ ...template, action: 'created' });
+          }
+        }
+      }
+
+      this.logger.log(`Successfully synced ${syncedTemplates.length} templates`);
+
+      return {
+        success: true,
+        synced: syncedTemplates.length,
+        templates: syncedTemplates,
+      };
+    } catch (error) {
+      this.logger.error('Error syncing templates', error);
+      throw new BadRequestException(
+        error.message || 'Failed to sync templates',
+      );
+    }
+  }
 }
