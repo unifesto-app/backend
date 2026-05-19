@@ -2,8 +2,10 @@ import {
   Controller,
   Post,
   Get,
+  Delete,
   Body,
   Query,
+  Param,
   UseGuards,
   HttpCode,
   HttpStatus,
@@ -12,6 +14,8 @@ import {
 } from '@nestjs/common';
 import { WhatsAppService } from './whatsapp.service';
 import { SendMessageDto } from './dto/send-message.dto';
+import { SendTemplateMessageDto } from './dto/send-template-message.dto';
+import { CreateTemplateDto } from './dto/create-template.dto';
 import { SupabaseAuthGuard } from '../auth/guards/supabase-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { ConfigService } from '@nestjs/config';
@@ -60,8 +64,33 @@ export class WhatsAppController {
 
   @Get('templates')
   @UseGuards(SupabaseAuthGuard)
-  async getTemplates() {
-    return this.whatsappService.getMetaTemplates();
+  async getTemplates(
+    @Query('source') source?: string,
+    @Query('category') category?: string,
+    @Query('language') language?: string,
+    @Query('type') templateType?: string,
+  ) {
+    // If source is 'meta', fetch from Meta API, otherwise fetch from local DB
+    if (source === 'meta') {
+      return this.whatsappService.getMetaTemplates();
+    }
+    return this.whatsappService.getLocalTemplates(category, language, templateType);
+  }
+
+  @Get('templates/:id')
+  @UseGuards(SupabaseAuthGuard)
+  async getTemplateById(@Param('id') id: string) {
+    return this.whatsappService.getTemplateById(id);
+  }
+
+  @Post('templates')
+  @UseGuards(SupabaseAuthGuard)
+  @HttpCode(HttpStatus.CREATED)
+  async createTemplate(
+    @Body() createTemplateDto: CreateTemplateDto,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return this.whatsappService.createTemplate(createTemplateDto);
   }
 
   @Post('templates/sync')
@@ -69,6 +98,26 @@ export class WhatsAppController {
   @HttpCode(HttpStatus.OK)
   async syncTemplates(@CurrentUser() user: RequestUser) {
     return this.whatsappService.syncMetaTemplates();
+  }
+
+  @Delete('templates/:name')
+  @UseGuards(SupabaseAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  async deleteTemplate(
+    @Param('name') name: string,
+    @Query('language') language?: string,
+  ) {
+    return this.whatsappService.deleteTemplate(name, language);
+  }
+
+  @Post('send-template')
+  @UseGuards(SupabaseAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  async sendTemplateMessage(
+    @Body() sendTemplateDto: SendTemplateMessageDto,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return this.whatsappService.sendTemplateMessage(sendTemplateDto, user.sub);
   }
 
   // Webhook verification endpoint (GET)
