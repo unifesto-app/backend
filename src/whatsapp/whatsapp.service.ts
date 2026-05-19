@@ -46,11 +46,11 @@ export class WhatsAppService {
       const wamid = `wamid.${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
       // Store message in database
-      const { data, error } = await this.supabaseService.client
+      const { data, error } = await this.supabaseService.getClient()
         .from('whatsapp_messages')
         .insert({
-          from: this.whatsappPhoneNumberId || 'system',
-          to,
+          from_phone: this.whatsappPhoneNumberId || 'system',
+          to_phone: to,
           message,
           status: 'sent',
           direction: 'outbound',
@@ -81,14 +81,14 @@ export class WhatsAppService {
 
   async getMessages(limit: number = 50, phone?: string) {
     try {
-      let query = this.supabaseService.client
+      let query = this.supabaseService.getClient()
         .from('whatsapp_messages')
         .select('*')
         .order('created_at', { ascending: false })
         .limit(limit);
 
       if (phone) {
-        query = query.or(`from.eq.${phone},to.eq.${phone}`);
+        query = query.or(`from_phone.eq.${phone},to_phone.eq.${phone}`);
       }
 
       const { data, error } = await query;
@@ -100,8 +100,8 @@ export class WhatsAppService {
 
       return data.map((msg) => ({
         id: msg.id,
-        from: msg.from,
-        to: msg.to,
+        from: msg.from_phone,
+        to: msg.to_phone,
         message: msg.message,
         timestamp: msg.created_at,
         status: msg.status,
@@ -117,7 +117,7 @@ export class WhatsAppService {
 
   async getStats() {
     try {
-      const { data, error } = await this.supabaseService.client
+      const { data, error } = await this.supabaseService.getClient()
         .from('whatsapp_messages')
         .select('status')
         .eq('direction', 'outbound');
@@ -175,7 +175,7 @@ export class WhatsAppService {
 
   private async updateMessageStatus(wamid: string, status: string) {
     try {
-      const { error } = await this.supabaseService.client
+      const { error } = await this.supabaseService.getClient()
         .from('whatsapp_messages')
         .update({ status, updated_at: new Date().toISOString() })
         .eq('wamid', wamid);
@@ -192,7 +192,7 @@ export class WhatsAppService {
 
   private async storeIncomingMessage(message: any) {
     try {
-      const { error } = await this.supabaseService.client
+      const { error } = await this.supabaseService.getClient()
         .from('whatsapp_messages')
         .insert({
           from_phone: message.from,

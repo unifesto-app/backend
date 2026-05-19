@@ -12,9 +12,10 @@ import {
 } from '@nestjs/common';
 import { WhatsAppService } from './whatsapp.service';
 import { SendMessageDto } from './dto/send-message.dto';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { GetUser } from '../auth/decorators/get-user.decorator';
+import { SupabaseAuthGuard } from '../auth/guards/supabase-auth.guard';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { ConfigService } from '@nestjs/config';
+import type { RequestUser } from '../auth/interfaces/user.interface';
 
 @Controller('messages')
 export class WhatsAppController {
@@ -32,17 +33,17 @@ export class WhatsAppController {
   }
 
   @Post('send')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(SupabaseAuthGuard)
   @HttpCode(HttpStatus.OK)
   async sendMessage(
     @Body() sendMessageDto: SendMessageDto,
-    @GetUser() user: any,
+    @CurrentUser() user: RequestUser,
   ) {
-    return this.whatsappService.sendMessage(sendMessageDto, user.id);
+    return this.whatsappService.sendMessage(sendMessageDto, user.sub);
   }
 
   @Get()
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(SupabaseAuthGuard)
   async getMessages(
     @Query('limit') limit?: string,
     @Query('phone') phone?: string,
@@ -52,7 +53,7 @@ export class WhatsAppController {
   }
 
   @Get('stats')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(SupabaseAuthGuard)
   async getStats() {
     return this.whatsappService.getStats();
   }
