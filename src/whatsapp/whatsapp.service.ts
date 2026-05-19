@@ -41,15 +41,60 @@ export class WhatsAppService {
     const { to, message, event_id } = sendMessageDto;
 
     try {
-      // For now, simulate sending (you'll need to implement actual WhatsApp Cloud API)
-      // TODO: Implement actual WhatsApp Cloud API call
-      const wamid = `wamid.${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      // Validate WhatsApp credentials
+      if (!this.whatsappPhoneNumberId || !this.whatsappAccessToken) {
+        this.logger.error('WhatsApp credentials not configured');
+        throw new BadRequestException(
+          'WhatsApp API credentials are not configured. Please set WHATSAPP_PHONE_NUMBER_ID and WHATSAPP_ACCESS_TOKEN',
+        );
+      }
+
+      // Send message via WhatsApp Cloud API
+      const url = `https://graph.facebook.com/v18.0/${this.whatsappPhoneNumberId}/messages`;
+
+      this.logger.log(`Sending WhatsApp message to ${to}`);
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${this.whatsappAccessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          messaging_product: 'whatsapp',
+          recipient_type: 'individual',
+          to: to,
+          type: 'text',
+          text: {
+            preview_url: false,
+            body: message,
+          },
+        }),
+      });
+
+      const responseData = await response.json();
+
+      if (!response.ok) {
+        this.logger.error('WhatsApp API Error:', JSON.stringify(responseData));
+        throw new BadRequestException(
+          responseData.error?.message || 'Failed to send WhatsApp message',
+        );
+      }
+
+      const wamid = responseData.messages?.[0]?.id;
+      
+      if (!wamid) {
+        this.logger.error('No message ID returned from WhatsApp API');
+        throw new BadRequestException('Invalid response from WhatsApp API');
+      }
+
+      this.logger.log(`WhatsApp message sent successfully. WAMID: ${wamid}`);
 
       // Store message in database
       const { data, error } = await this.supabaseService.getClient()
         .from('whatsapp_messages')
         .insert({
-          from_phone: this.whatsappPhoneNumberId || 'system',
+          from_phone: this.whatsappPhoneNumberId,
           to_phone: to,
           message,
           status: 'sent',
@@ -62,14 +107,15 @@ export class WhatsAppService {
         .single();
 
       if (error) {
-        this.logger.error('Failed to store message', error);
-        throw new BadRequestException('Failed to send message');
+        this.logger.error('Failed to store message in database', error);
+        // Message was sent but not stored - log warning but don't fail
+        this.logger.warn(`Message sent to WhatsApp but failed to store in DB. WAMID: ${wamid}`);
       }
 
       return {
         wamid,
         status: 'sent',
-        message_id: data.id,
+        message_id: data?.id,
       };
     } catch (error) {
       this.logger.error('Error sending message', error);
@@ -144,7 +190,7 @@ export class WhatsAppService {
   // Webhook handler for WhatsApp status updates
   async handleWebhook(payload: any) {
     try {
-      this.logger.log('Processing webhook payload');
+      this.logger.log('Processing webhook payload', JSON.stringify(payload));
 
       // Process status updates
       if (payload.entry?.[0]?.changes?.[0]?.value?.statuses) {
@@ -159,10 +205,12 @@ export class WhatsAppService {
       // Process incoming messages
       if (payload.entry?.[0]?.changes?.[0]?.value?.messages) {
         const messages = payload.entry[0].changes[0].value.messages;
+        const metadata = payload.entry[0].changes[0].value.metadata;
+        
         this.logger.log(`Processing ${messages.length} incoming messages`);
 
         for (const msg of messages) {
-          await this.storeIncomingMessage(msg);
+          await this.storeIncomingMessage(msg, metadata);
         }
       }
 
@@ -190,14 +238,31 @@ export class WhatsAppService {
     }
   }
 
-  private async storeIncomingMessage(message: any) {
+  private async storeIncomingMessage(message: any, metadata?: any) {
     try {
+      // Extract message content based on type
+      let messageText = '';
+      
+      if (message.type === 'text') {
+        messageText = message.text?.body || '';
+      } else if (message.type === 'image') {
+        messageText = `[Image] ${message.image?.caption || ''}`;
+      } else if (message.type === 'video') {
+        messageText = `[Video] ${message.video?.caption || ''}`;
+      } else if (message.type === 'audio') {
+        messageText = '[Audio message]';
+      } else if (message.type === 'document') {
+        messageText = `[Document] ${message.document?.filename || ''}`;
+      } else {
+        messageText = `[${message.type}]`;
+      }
+
       const { error } = await this.supabaseService.getClient()
         .from('whatsapp_messages')
         .insert({
           from_phone: message.from,
-          to_phone: this.whatsappPhoneNumberId,
-          message: message.text?.body || message.type || '',
+          to_phone: metadata?.phone_number_id || this.whatsappPhoneNumberId,
+          message: messageText,
           status: 'received',
           direction: 'inbound',
           wamid: message.id,
@@ -206,7 +271,7 @@ export class WhatsAppService {
       if (error) {
         this.logger.error('Failed to store incoming message', error);
       } else {
-        this.logger.log(`Stored incoming message from ${message.from}`);
+        this.logger.log(`Stored incoming message from ${message.from}: ${messageText}`);
       }
     } catch (error) {
       this.logger.error('Error storing incoming message', error);

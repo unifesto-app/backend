@@ -61,11 +61,11 @@ export class WhatsAppController {
   // Webhook verification endpoint (GET)
   @Get('webhook')
   @HttpCode(HttpStatus.OK)
-  async verifyWebhook(
-    @Query('hub.mode') mode: string,
-    @Query('hub.verify_token') verifyToken: string,
-    @Query('hub.challenge') challenge: string,
-  ) {
+  async verifyWebhook(@Query() query: any) {
+    const mode = query['hub.mode'] || (query.hub && query.hub.mode);
+    const verifyToken = query['hub.verify_token'] || (query.hub && query.hub.verify_token);
+    const challenge = query['hub.challenge'] || (query.hub && query.hub.challenge);
+
     this.logger.log('Webhook verification request received');
     this.logger.log(`Mode: ${mode}, Token: ${verifyToken}`);
 
