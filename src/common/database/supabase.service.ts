@@ -1,10 +1,11 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { Database } from '../../types/database.types';
 
 @Injectable()
 export class SupabaseService implements OnModuleInit {
   private readonly logger = new Logger(SupabaseService.name);
-  private supabase: SupabaseClient;
+  private supabase: SupabaseClient<Database>;
 
   onModuleInit() {
     const supabaseUrl = process.env.SUPABASE_URL;
@@ -17,7 +18,7 @@ export class SupabaseService implements OnModuleInit {
       throw new Error('Supabase configuration missing');
     }
 
-    this.supabase = createClient(supabaseUrl, supabaseServiceKey, {
+    this.supabase = createClient<Database>(supabaseUrl, supabaseServiceKey, {
       auth: {
         autoRefreshToken: false,
         persistSession: false,
@@ -35,7 +36,7 @@ export class SupabaseService implements OnModuleInit {
     this.logger.log('Supabase client initialized with service role (bypasses RLS)');
   }
 
-  getClient(): SupabaseClient {
+  getClient(): SupabaseClient<Database> {
     return this.supabase;
   }
 }

@@ -14,6 +14,7 @@ import {
   BadRequestException,
   Param,
   Req,
+  Inject,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import type { Request } from 'express';
@@ -31,6 +32,7 @@ import {
   VerifyWalletPasscodeDto,
 } from './dto/wallet-passcode.dto';
 import { RateLimit } from '../common/guards/rate-limit.guard';
+import { RolesHelperService } from '../roles/roles-helper.service';
 
 @Controller('auth')
 export class AuthController {
@@ -39,6 +41,7 @@ export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly avatarService: AvatarService,
+    private readonly rolesHelperService: RolesHelperService,
   ) { }
 
   /**
@@ -138,7 +141,6 @@ export class AuthController {
         avatar_url: profile.avatar_url,
         bio: profile.bio,
         phone: profile.phone,
-        role: profile.role,
         is_verified: profile.is_verified,
         is_active: profile.is_active,
         preferences: profile.preferences,
@@ -172,7 +174,6 @@ export class AuthController {
         avatar_url: profile.avatar_url,
         bio: profile.bio,
         phone: profile.phone,
-        role: profile.role,
         is_verified: profile.is_verified,
         is_active: profile.is_active,
         created_at: profile.created_at,
@@ -206,7 +207,6 @@ export class AuthController {
         avatar_url: profile.avatar_url,
         bio: profile.bio,
         phone: profile.phone,
-        role: profile.role,
         is_verified: profile.is_verified,
         is_active: profile.is_active,
         updated_at: profile.updated_at,
@@ -297,9 +297,9 @@ export class AuthController {
   async bulkSyncPhones(@CurrentUser() user: RequestUser) {
     this.logger.log(`Bulk phone sync requested by user: ${user.sub}`);
 
-    // Check if user is super_admin
-    const profile = await this.authService.getProfile(user.sub);
-    if (profile.role !== 'super_admin') {
+    // Check if user is super_admin using new roles system
+    const isSuperAdmin = await this.rolesHelperService.isSuperAdmin(user.sub);
+    if (!isSuperAdmin) {
       throw new BadRequestException('Only super_admin can perform bulk sync');
     }
 

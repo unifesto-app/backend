@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { SupabaseService } from '../common/database/supabase.service';
 import { PermissionsService } from '../permissions/permissions.service';
+import { RolesHelperService } from '../roles/roles-helper.service';
 import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
 import { ApproveEventDto } from './dto/approve-event.dto';
@@ -21,6 +22,7 @@ export class EventsService {
   constructor(
     private readonly supabaseService: SupabaseService,
     private readonly permissionsService: PermissionsService,
+    private readonly rolesHelperService: RolesHelperService,
   ) {}
 
   /**
@@ -85,12 +87,16 @@ export class EventsService {
       // Fetch creator details for each event
       const eventsWithCreators = await Promise.all(
         (data || []).map(async (event) => {
-          const { data: creator } = await this.supabaseService
-            .getClient()
-            .from('profiles')
-            .select('id, name, email, avatar_url')
-            .eq('id', event.created_by)
-            .single();
+          let creator: any = null;
+          if (event.created_by) {
+            const { data: creatorData } = await this.supabaseService
+              .getClient()
+              .from('profiles')
+              .select('id, name, email, avatar_url')
+              .eq('id', event.created_by)
+              .single();
+            creator = creatorData;
+          }
 
           return {
             ...event,
@@ -149,12 +155,16 @@ export class EventsService {
         .single();
 
       // Fetch creator details
-      const { data: creator } = await this.supabaseService
-        .getClient()
-        .from('profiles')
-        .select('id, name, email, avatar_url')
-        .eq('id', event.created_by)
-        .single();
+      let creator: any = null;
+       if (event.created_by) {
+         const { data: creatorData } = await this.supabaseService
+           .getClient()
+           .from('profiles')
+           .select('id, name, email, avatar_url')
+           .eq('id', event.created_by)
+           .single();
+         creator = creatorData;
+       }
 
       // Combine the data
       return {
@@ -204,25 +214,15 @@ export class EventsService {
         throw new BadRequestException('End date must be after start date');
       }
 
-      // Check user's platform role
-      const { data: profile } = await this.supabaseService
-        .getClient()
-        .from('profiles')
-        .select('role')
-        .eq('id', userId)
-        .single();
-
-      const platformRole = profile?.role;
+      // Check user's platform role using the new RBAC system
+      const isSuperAdmin = await this.rolesHelperService.isSuperAdmin(userId);
+      const isOrgOwner = permissions.role === RelationshipType.OWNER;
 
       // Determine initial status based on user's role
       let initialStatus = 'draft';
       
-      // Platform super admin, org_super_admin, and Org Owner can publish directly
-      if (
-        platformRole === 'super_admin' ||
-        platformRole === 'org_super_admin' ||
-        permissions.role === RelationshipType.OWNER
-      ) {
+      // Platform super admin and Org Owner can publish directly
+      if (isSuperAdmin || isOrgOwner) {
         initialStatus = 'published';
       }
 
@@ -250,7 +250,7 @@ export class EventsService {
       }
 
       this.logger.log(
-        `Event created: ${newEvent.id} by user ${userId} (platform role: ${platformRole}, org role: ${permissions.role}) with status ${initialStatus}`,
+        `Event created: ${newEvent.id} by user ${userId} (org role: ${permissions.role}) with status ${initialStatus}`,
       );
       return newEvent;
     } catch (error) {
@@ -453,45 +453,19 @@ export class EventsService {
         );
       }
 
-      // Get creator's platform role
-      const { data: creatorProfile } = await this.supabaseService
-        .getClient()
-        .from('profiles')
-        .select('role')
-        .eq('id', event.created_by)
-        .single();
-
       // Get creator's org relationship
       const { data: creatorMembership } = await this.supabaseService
         .getClient()
         .from('organization_members')
         .select('relationship_type')
-        .eq('user_id', event.created_by)
+        .eq('user_id', event.created_by!)
         .eq('organization_id', event.organization_id)
         .single();
 
-      // Get approver's platform role
-      const { data: approverProfile } = await this.supabaseService
-        .getClient()
-        .from('profiles')
-        .select('role')
-        .eq('id', userId)
-        .single();
-
-      // Get approver's permissions
-      const approverPermissions = await this.permissionsService.getOrgPermissions(
+      // Check if approver can approve events using the new RBAC system
+      const canApprove = await this.rolesHelperService.canApproveEvents(
         userId,
         event.organization_id,
-      );
-
-      // Check if user can approve this event based on hierarchy
-      const canApprove = await this.canApproveEventHierarchy(
-        userId,
-        event,
-        creatorProfile?.role,
-        creatorMembership?.relationship_type,
-        approverProfile?.role,
-        approverPermissions,
       );
 
       if (!canApprove) {
@@ -558,45 +532,19 @@ export class EventsService {
         );
       }
 
-      // Get creator's platform role
-      const { data: creatorProfile } = await this.supabaseService
-        .getClient()
-        .from('profiles')
-        .select('role')
-        .eq('id', event.created_by)
-        .single();
-
       // Get creator's org relationship
       const { data: creatorMembership } = await this.supabaseService
         .getClient()
         .from('organization_members')
         .select('relationship_type')
-        .eq('user_id', event.created_by)
+        .eq('user_id', event.created_by!)
         .eq('organization_id', event.organization_id)
         .single();
 
-      // Get approver's platform role
-      const { data: approverProfile } = await this.supabaseService
-        .getClient()
-        .from('profiles')
-        .select('role')
-        .eq('id', userId)
-        .single();
-
-      // Get approver's permissions
-      const approverPermissions = await this.permissionsService.getOrgPermissions(
+      // Check if approver can reject events using the new RBAC system
+      const canReject = await this.rolesHelperService.canApproveEvents(
         userId,
         event.organization_id,
-      );
-
-      // Check if user can reject this event based on hierarchy (same rules as approval)
-      const canReject = await this.canApproveEventHierarchy(
-        userId,
-        event,
-        creatorProfile?.role,
-        creatorMembership?.relationship_type,
-        approverProfile?.role,
-        approverPermissions,
       );
 
       if (!canReject) {
@@ -677,12 +625,16 @@ export class EventsService {
       // Fetch creator details for each event
       const eventsWithCreators = await Promise.all(
         (data || []).map(async (event) => {
-          const { data: creator } = await this.supabaseService
-            .getClient()
-            .from('profiles')
-            .select('id, name, email, avatar_url')
-            .eq('id', event.created_by)
-            .single();
+          let creator: any = null;
+          if (event.created_by) {
+            const { data: creatorData } = await this.supabaseService
+              .getClient()
+              .from('profiles')
+              .select('id, name, email, avatar_url')
+              .eq('id', event.created_by)
+              .single();
+            creator = creatorData;
+          }
 
           return {
             ...event,
@@ -746,7 +698,7 @@ export class EventsService {
 
   /**
    * Check if user can approve event based on hierarchy
-   * Platform roles: super_admin, org_super_admin, org_admin, organizer, attendee
+   * Platform roles: super_admin, org_owner, org_admin, organizer, user
    * Org relationships: owner, admin, member
    * 
    * NOTE: Admins can APPROVE events but cannot MANAGE them without explicit permission.
@@ -755,8 +707,8 @@ export class EventsService {
    * Rules:
    * - Cannot approve own events
    * - super_admin can approve anything
-   * - org_super_admin can approve events by org_admin, organizer, attendee
-   * - org_admin can approve events by organizer, attendee
+   * - org_super_admin can approve events by org_admin, organizer, user
+   * - org_admin can approve events by organizer, user
    * - Org owner can approve events by admin, member
    * - Org admin can approve events by member only
    */
@@ -789,14 +741,14 @@ export class EventsService {
       return true;
     }
 
-    // org_super_admin can approve events by org_admin, organizer, attendee
+    // org_super_admin can approve events by org_admin, organizer, user
     if (approverPlatformRole === 'org_super_admin') {
       const canApprove = ['org_admin', 'organizer', 'attendee'].includes(creatorPlatformRole);
       this.logger.log(`  Result: ${canApprove ? 'APPROVED' : 'DENIED'} - org_super_admin checking ${creatorPlatformRole}`);
       return canApprove;
     }
 
-    // org_admin can approve events by organizer, attendee
+    // org_admin can approve events by organizer, user
     if (approverPlatformRole === 'org_admin') {
       const canApprove = ['organizer', 'attendee'].includes(creatorPlatformRole);
       this.logger.log(`  Result: ${canApprove ? 'APPROVED' : 'DENIED'} - org_admin checking ${creatorPlatformRole}`);

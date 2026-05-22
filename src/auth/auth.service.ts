@@ -401,7 +401,7 @@ export class AuthService {
           await this.supabaseService
             .getClient()
             .auth.admin.updateUserById(profile.id, {
-              phone: profile.phone,
+              phone: profile.phone ?? undefined,
             });
           synced++;
         } catch (syncError) {
@@ -540,8 +540,8 @@ export class AuthService {
       const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
       // Store OTP in database
-      const { error } = await this.supabaseService
-        .getClient()
+      const { error } = await (this.supabaseService
+        .getClient() as any)
         .from('wallet_otps')
         .insert({
           user_id: userId,
@@ -679,8 +679,8 @@ export class AuthService {
   async verifyWalletOtp(userId: string, email: string, otp: string): Promise<{ token: string }> {
     try {
       // Get OTP from database
-      const { data: otpRecord, error } = await this.supabaseService
-        .getClient()
+      const { data: otpRecord, error } = await (this.supabaseService
+        .getClient() as any)
         .from('wallet_otps')
         .select('*')
         .eq('user_id', userId)
@@ -699,8 +699,8 @@ export class AuthService {
       }
 
       // Mark OTP as used
-      await this.supabaseService
-        .getClient()
+      await (this.supabaseService
+        .getClient() as any)
         .from('wallet_otps')
         .update({ used: true })
         .eq('id', otpRecord.id);
@@ -726,8 +726,8 @@ export class AuthService {
   ): Promise<void> {
     try {
       // Verify OTP token is valid and not used
-      const { data: otpRecord, error: otpError } = await this.supabaseService
-        .getClient()
+      const { data: otpRecord, error: otpError } = await (this.supabaseService
+        .getClient() as any)
         .from('wallet_otps')
         .select('*')
         .eq('user_id', userId)
@@ -749,8 +749,8 @@ export class AuthService {
       const hashedPasscode = await bcrypt.hash(passcode, 10);
 
       // Store hashed passcode in profile
-      const { error } = await this.supabaseService
-        .getClient()
+      const { error } = await (this.supabaseService
+        .getClient() as any)
         .from('profiles')
         .update({
           wallet_passcode: hashedPasscode,
@@ -782,8 +782,8 @@ export class AuthService {
   async verifyWalletPasscode(userId: string, passcode: string): Promise<boolean> {
     try {
       // Get hashed passcode from profile
-      const { data: profile, error } = await this.supabaseService
-        .getClient()
+      const { data: profile, error } = await (this.supabaseService
+        .getClient() as any)
         .from('profiles')
         .select('wallet_passcode')
         .eq('id', userId)
@@ -819,8 +819,8 @@ export class AuthService {
    */
   async hasWalletPasscode(userId: string): Promise<boolean> {
     try {
-      const { data: profile, error } = await this.supabaseService
-        .getClient()
+      const { data: profile, error } = await (this.supabaseService
+        .getClient() as any)
         .from('profiles')
         .select('wallet_passcode')
         .eq('id', userId)

@@ -36,13 +36,14 @@ export class TicketsService {
     const { data: collaborator } = await this.supabaseService
       .getClient()
       .from('event_collaborators')
-      .select('can_manage_tickets')
+      .select('permissions')
       .eq('event_id', eventId)
       .eq('user_id', userId)
       .eq('is_active', true)
       .single();
 
-    return collaborator?.can_manage_tickets === true;
+    // Check if 'manage_tickets' is in the permissions array
+    return collaborator?.permissions?.includes('manage_tickets') === true;
   }
 
   // ==========================================

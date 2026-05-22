@@ -10,7 +10,7 @@ export const OrgRole = RelationshipType;
 
 export enum PlatformRole {
   SUPER_ADMIN = 'super_admin',
-  ORG_SUPER_ADMIN = 'org_super_admin',
+  ORG_OWNER = 'org_super_admin',
   ORG_ADMIN = 'org_admin',
   ORGANIZER = 'organizer',
   ATTENDEE = 'attendee',

@@ -6,32 +6,22 @@ import {
   PlatformRole,
   UserOrgAccess,
 } from './interfaces/permission.interface';
+import { RolesHelperService } from '../roles/roles-helper.service';
 
 @Injectable()
 export class PermissionsService {
   private readonly logger = new Logger(PermissionsService.name);
 
-  constructor(private readonly supabaseService: SupabaseService) {}
+  constructor(
+    private readonly supabaseService: SupabaseService,
+    private readonly rolesHelperService: RolesHelperService,
+  ) {}
 
   /**
    * Check if user is Platform Super Admin
    */
   async isPlatformSuperAdmin(userId: string): Promise<boolean> {
-    try {
-      const { data: profile } = await this.supabaseService
-        .getClient()
-        .from('profiles')
-        .select('role')
-        .eq('id', userId)
-        .single();
-
-      return profile?.role === PlatformRole.SUPER_ADMIN;
-    } catch (error) {
-      this.logger.error(
-        `Error checking platform super admin: ${error.message}`,
-      );
-      return false;
-    }
+    return this.rolesHelperService.isSuperAdmin(userId);
   }
 
   /**
@@ -165,7 +155,7 @@ export class PermissionsService {
         .getClient()
         .rpc('get_user_accessible_orgs', {
           p_user_id: userId,
-          p_relationship_filter: roleFilter || null, // Changed from p_role_filter
+          p_relationship_filter: (roleFilter || null) as any, // Changed from p_role_filter
         });
 
       if (error) {

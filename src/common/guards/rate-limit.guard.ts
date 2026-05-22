@@ -67,7 +67,7 @@ export class RateLimitGuard implements CanActivate {
           p_endpoint: endpoint,
           p_max_requests: rateLimitOptions.maxRequests,
           p_window_minutes: rateLimitOptions.windowMinutes,
-        });
+        }) as { data: any, error: any };
 
       if (error) {
         this.logger.error('Rate limit check failed', error);
@@ -75,7 +75,7 @@ export class RateLimitGuard implements CanActivate {
         return true;
       }
 
-      if (!data.allowed) {
+      if (data && !data.allowed) {
         throw new HttpException(
           {
             statusCode: HttpStatus.TOO_MANY_REQUESTS,
@@ -95,9 +95,11 @@ export class RateLimitGuard implements CanActivate {
 
       // Add rate limit info to response headers
       const response = context.switchToHttp().getResponse();
-      response.setHeader('X-RateLimit-Limit', data.max_requests);
-      response.setHeader('X-RateLimit-Remaining', data.max_requests - data.current_count);
-      response.setHeader('X-RateLimit-Reset', new Date(data.window_end).toISOString());
+      if (data) {
+        response.setHeader('X-RateLimit-Limit', data.max_requests);
+        response.setHeader('X-RateLimit-Remaining', data.max_requests - data.current_count);
+        response.setHeader('X-RateLimit-Reset', new Date(data.window_end).toISOString());
+      }
 
       return true;
     } catch (error) {

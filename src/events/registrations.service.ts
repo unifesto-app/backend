@@ -87,7 +87,7 @@ export class RegistrationsService {
       }
 
       // 3. Check ticket availability
-      const availableQuantity = ticket.quantity_available - ticket.quantity_sold;
+      const availableQuantity = ticket.quantity_available - (ticket.quantity_sold ?? 0);
       const requiredQuantity = ticket.type === 'group' ? 1 : dto.quantity;
 
       if (availableQuantity < requiredQuantity) {
@@ -95,9 +95,9 @@ export class RegistrationsService {
       }
 
       // 4. Validate quantity constraints
-      if (dto.quantity < ticket.min_purchase || dto.quantity > ticket.max_purchase) {
+      if (dto.quantity < (ticket.min_purchase ?? 1) || dto.quantity > (ticket.max_purchase ?? 10)) {
         throw new BadRequestException(
-          `Quantity must be between ${ticket.min_purchase} and ${ticket.max_purchase}`,
+          `Quantity must be between ${ticket.min_purchase ?? 1} and ${ticket.max_purchase ?? 10}`,
         );
       }
 
@@ -189,7 +189,7 @@ export class RegistrationsService {
         const receiptId = `reg_${groupId || registrationIds[0]}`;
         razorpayOrder = await this.razorpayService.createOrder(
           totalAmount,
-          ticket.currency,
+          ticket.currency ?? 'INR',
           receiptId,
           {
             event_id: dto.eventId,
@@ -326,13 +326,13 @@ export class RegistrationsService {
       const { data: collaborator } = await this.supabaseService
         .getClient()
         .from('event_collaborators')
-        .select('can_manage_attendees')
+        .select('permissions')
         .eq('event_id', eventId)
         .eq('user_id', userId)
         .eq('is_active', true)
         .single();
 
-      const canView = isCreator || collaborator?.can_manage_attendees;
+      const canView = isCreator || collaborator?.permissions?.includes('manage_attendees');
 
       if (!canView) {
         throw new ForbiddenException('You do not have permission to view registrations');

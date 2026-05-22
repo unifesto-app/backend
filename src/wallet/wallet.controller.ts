@@ -10,12 +10,15 @@ import {
   Query,
   ParseIntPipe,
   DefaultValuePipe,
+  Param,
 } from '@nestjs/common';
 import { WalletService } from './wallet.service';
 import { SupabaseAuthGuard } from '../auth/guards/supabase-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { RequestUser } from '../auth/interfaces/user.interface';
 import { AddCoinsDto, SpendCoinsDto, ApplyReferralDto, ApplyRedeemCodeDto } from './dto/wallet.dto';
+import { AdminWalletQueryDto } from './dto/admin-wallet-query.dto';
+import { AdminCreateTransactionDto } from './dto/admin-transaction.dto';
 
 @Controller('wallet')
 @UseGuards(SupabaseAuthGuard)

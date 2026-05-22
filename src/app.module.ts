@@ -17,6 +17,9 @@ import { EventsModule } from './events/events.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { ContentRemovalModule } from './content-removal/content-removal.module';
 import { WhatsAppModule } from './whatsapp/whatsapp.module';
+import { AppAnalyticsModule } from './app-analytics/app-analytics.module';
+import { RolesModule } from './roles/roles.module';
+import { UsersModule } from './users/users.module';
 
 @Module({
   imports: [
@@ -38,12 +41,17 @@ import { WhatsAppModule } from './whatsapp/whatsapp.module';
     WalletModule,
     // RBAC Modules
     PermissionsModule,
+    RolesModule,
     OrganizationsModule,
     MembersModule,
     EventsModule,
     AnalyticsModule,
     ContentRemovalModule,
     WhatsAppModule,
+    // App Analytics (Apple, Google, Firebase)
+    AppAnalyticsModule,
+    // Admin Modules
+    UsersModule,
   ],
   controllers: [AppController],
   providers: [

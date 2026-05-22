@@ -80,7 +80,7 @@ export class EventAccessService {
         .from('event_collaborators')
         .select(`
           *,
-          user:profiles!user_id(id, name, email, avatar_url, role),
+          user:profiles!user_id(id, name, email, avatar_url),
           granted_by_user:profiles!granted_by(id, name, email)
         `)
         .eq('event_id', eventId)
@@ -430,7 +430,7 @@ export class EventAccessService {
         .from('event_access_requests')
         .select(`
           *,
-          user:profiles!user_id(id, name, email, avatar_url, role),
+          user:profiles!user_id(id, name, email, avatar_url),
           processed_by_user:profiles!processed_by(id, name, email)
         `)
         .eq('event_id', eventId);
@@ -505,9 +505,10 @@ export class EventAccessService {
 
       // If approved, grant access
       if (processDto.status === 'approved') {
+        const requestedPermissions = (request.requested_permissions as Record<string, any>) || {};
         await this.grantAccess(userId, request.event_id, {
           user_id: request.user_id,
-          ...request.requested_permissions,
+          ...requestedPermissions,
         });
       }
 

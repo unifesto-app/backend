@@ -220,7 +220,7 @@ export class OrganizationsService {
             can_view_analytics: true,
             can_export_reports: true,
             analytics_scope: 'hierarchy',
-          });
+          } as any);
       }
 
       this.logger.log(`Organization created: ${newOrg.id} by user ${userId}`);

@@ -40,7 +40,7 @@ export interface Profile {
   is_active: boolean;
   is_banned: boolean;
   preferences?: UserPreferences;
-  last_login?: Date;
-  created_at: Date;
-  updated_at: Date;
+  last_login?: Date | string | null;
+  created_at: Date | string;
+  updated_at: Date | string;
 }

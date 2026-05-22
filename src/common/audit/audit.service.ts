@@ -27,25 +27,28 @@ export class AuditService {
     try {
       const { data: result, error } = await this.supabaseService
         .getClient()
-        .rpc('log_audit_event', {
-          p_user_id: data.userId || null,
-          p_action: data.action,
-          p_resource_type: data.resourceType,
-          p_resource_id: data.resourceId || null,
-          p_details: data.details || {},
-          p_ip_address: data.ipAddress || null,
-          p_user_agent: data.userAgent || null,
-          p_status: data.status,
-          p_error_message: data.errorMessage || null,
-          p_project: data.project,
-        });
+        .from('audit_logs')
+        .insert({
+          actor_id: data.userId || null,
+          action: data.action as any,
+          resource_type: data.resourceType,
+          resource_id: data.resourceId || null,
+          details: data.details || {},
+          actor_ip: data.ipAddress || null,
+          actor_user_agent: data.userAgent || null,
+          status: data.status,
+          error_message: data.errorMessage || null,
+          project: data.project || 'backend',
+        })
+        .select('id')
+        .single();
 
       if (error) {
         this.logger.error('Failed to log audit event', error);
         throw error;
       }
 
-      return result;
+      return result?.id || null;
     } catch (error) {
       this.logger.error('Error logging audit event', error);
       // Don't throw - audit logging should not break the main flow
@@ -124,7 +127,7 @@ export class AuditService {
         .select('*', { count: 'exact' });
 
       if (filters?.userId) {
-        query = query.eq('user_id', filters.userId);
+        query = query.eq('actor_id', filters.userId);
       }
       if (filters?.action) {
         query = query.eq('action', filters.action);
@@ -185,7 +188,7 @@ export class AuditService {
         .select('action, status, project');
 
       if (filters?.userId) {
-        query = query.eq('user_id', filters.userId);
+        query = query.eq('actor_id', filters.userId);
       }
       if (filters?.project) {
         query = query.eq('project', filters.project);

@@ -12,9 +12,10 @@ import { RegistrationsService } from './registrations.service';
 import { DatabaseModule } from '../common/database/database.module';
 import { PermissionsModule } from '../permissions/permissions.module';
 import { AuthModule } from '../auth/auth.module';
+import { RolesModule } from '../roles/roles.module';
 
 @Module({
-  imports: [DatabaseModule, PermissionsModule, AuthModule],
+  imports: [DatabaseModule, PermissionsModule, AuthModule, RolesModule],
   controllers: [EventsController, PublicEventsController, RegistrationsController],
   providers: [
     EventsService,

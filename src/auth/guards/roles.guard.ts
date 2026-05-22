@@ -10,6 +10,7 @@ import { ROLES_KEY } from '../decorators/roles.decorator';
 import type { RequestUser } from '../interfaces/user.interface';
 import { UserRole } from '../interfaces/user.interface';
 import { AuthService } from '../auth.service';
+import { RolesHelperService } from '../../roles/roles-helper.service';
 
 @Injectable()
 export class RolesGuard implements CanActivate {
@@ -18,6 +19,7 @@ export class RolesGuard implements CanActivate {
   constructor(
     private reflector: Reflector,
     private authService: AuthService,
+    private rolesHelperService: RolesHelperService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -40,7 +42,7 @@ export class RolesGuard implements CanActivate {
     }
 
     try {
-      // Fetch user profile to get the actual role from database
+      // Fetch user profile to check if banned or inactive
       const profile = await this.authService.getProfile(user.sub);
 
       // Check if user is banned or inactive
@@ -54,18 +56,21 @@ export class RolesGuard implements CanActivate {
         throw new ForbiddenException('Account is inactive');
       }
 
+      // Get user's legacy role for backward compatibility with existing @Roles() decorators
+      const legacyRole = await this.rolesHelperService.getUserLegacyRole(user.sub);
+
       // Check if user has required role
-      const hasRole = requiredRoles.includes(profile.role);
+      const hasRole = requiredRoles.includes(legacyRole as UserRole);
 
       if (!hasRole) {
         this.logger.warn(
-          `User ${user.sub} with role ${profile.role} attempted to access resource requiring roles: ${requiredRoles.join(', ')}`,
+          `User ${user.sub} with role ${legacyRole} attempted to access resource requiring roles: ${requiredRoles.join(', ')}`,
         );
         throw new ForbiddenException('Insufficient permissions');
       }
 
       this.logger.debug(
-        `User ${user.sub} authorized with role: ${profile.role}`,
+        `User ${user.sub} authorized with role: ${legacyRole}`,
       );
       return true;
     } catch (error) {

@@ -156,11 +156,14 @@ export class WalletService {
       }
 
       // Get transaction details
+      const response = data as any[];
+      const result = response[0];
+      
       const { data: transaction, error: txError } = await this.supabaseService
         .getClient()
         .from('transactions')
         .select('*')
-        .eq('id', data.transaction_id)
+        .eq('id', result.transaction_id)
         .single();
 
       if (txError) {
@@ -170,7 +173,7 @@ export class WalletService {
       this.logger.log(`Added ${amount} coins to user ${userId}`);
 
       return {
-        balance: data.new_balance,
+        balance: result.new_balance,
         transaction: transaction as Transaction,
       };
     } catch (error) {
@@ -219,11 +222,14 @@ export class WalletService {
       }
 
       // Get transaction details
+      const response = data as any[];
+      const result = response[0];
+
       const { data: transaction, error: txError } = await this.supabaseService
         .getClient()
         .from('transactions')
         .select('*')
-        .eq('id', data.transaction_id)
+        .eq('id', result.transaction_id)
         .single();
 
       if (txError) {
@@ -233,7 +239,7 @@ export class WalletService {
       this.logger.log(`Spent ${amount} coins from user ${userId}`);
 
       return {
-        balance: data.new_balance,
+        balance: result.new_balance,
         transaction: transaction as Transaction,
       };
     } catch (error) {
@@ -430,8 +436,8 @@ export class WalletService {
         .getClient()
         .from('referral_codes')
         .update({
-          total_referrals: codeData.total_referrals + 1,
-          total_rewards: codeData.total_rewards + referrerReward,
+          total_referrals: (codeData.total_referrals || 0) + 1,
+          total_rewards: (codeData.total_rewards || 0) + referrerReward,
           updated_at: new Date().toISOString(),
         })
         .eq('user_id', referrerId);
@@ -532,8 +538,8 @@ export class WalletService {
    */
   async applyRedeemCode(userId: string, code: string): Promise<any> {
     try {
-      const { data, error } = await this.supabaseService
-        .getClient()
+      const { data, error } = await (this.supabaseService
+        .getClient() as any)
         .rpc('apply_redeem_code', {
           p_user_id: userId,
           p_code: code.toUpperCase(),
@@ -623,6 +629,106 @@ export class WalletService {
       }
       this.logger.error(`Unexpected error in updateSystemSetting: ${error.message}`);
       throw new InternalServerErrorException('Failed to update system setting');
+    }
+  }
+
+  /**
+   * Admin: Get all wallets with pagination
+   */
+  async getAllWallets(query: any) {
+    try {
+      const { page = 1, limit = 10, minBalance, maxBalance, search } = query;
+      const from = (page - 1) * limit;
+      const to = from + limit - 1;
+
+      let dbQuery = this.supabaseService
+        .getClient()
+        .from('wallets')
+        .select('*, profiles!inner(id, name, email, username)', { count: 'exact' });
+
+      if (minBalance !== undefined) {
+        dbQuery = dbQuery.gte('balance', minBalance);
+      }
+
+      if (maxBalance !== undefined) {
+        dbQuery = dbQuery.lte('balance', maxBalance);
+      }
+
+      if (search) {
+        dbQuery = dbQuery.or(`profiles.name.ilike.%${search}%,profiles.email.ilike.%${search}%,profiles.username.ilike.%${search}%`);
+      }
+
+      dbQuery = dbQuery
+        .order('balance', { ascending: false })
+        .range(from, to);
+
+      const { data: wallets, error, count } = await dbQuery;
+
+      if (error) {
+        this.logger.error(`Error fetching wallets: ${error.message}`);
+        throw new InternalServerErrorException('Failed to fetch wallets');
+      }
+
+      return {
+        wallets: wallets || [],
+        pagination: {
+          page,
+          limit,
+          total: count || 0,
+          totalPages: Math.ceil((count || 0) / limit),
+        },
+      };
+    } catch (error) {
+      if (error instanceof InternalServerErrorException) {
+        throw error;
+      }
+      this.logger.error(`Unexpected error in getAllWallets: ${error.message}`);
+      throw new InternalServerErrorException('Failed to fetch wallets');
+    }
+  }
+
+  /**
+   * Admin: Get user wallet by user ID
+   */
+  async getUserWallet(userId: string) {
+    try {
+      const wallet = await this.getOrCreateWallet(userId);
+      
+      const { data: profile } = await this.supabaseService
+        .getClient()
+        .from('profiles')
+        .select('id, name, email, username, avatar_url')
+        .eq('id', userId)
+        .single();
+
+      return {
+        ...wallet,
+        user: profile,
+      };
+    } catch (error) {
+      this.logger.error(`Unexpected error in getUserWallet: ${error.message}`);
+      throw new InternalServerErrorException('Failed to fetch user wallet');
+    }
+  }
+
+  /**
+   * Admin: Create transaction for user
+   */
+  async adminCreateTransaction(userId: string, dto: any) {
+    try {
+      const { amount, type, description, metadata } = dto;
+
+      if (amount > 0) {
+        return await this.addCoins(userId, amount, type, description || 'Admin adjustment', metadata || {});
+      } else {
+        return await this.spendCoins(userId, Math.abs(amount), type, description || 'Admin adjustment', metadata || {});
+      }
+    } catch (error) {
+      if (error instanceof BadRequestException || error instanceof InternalServerErrorException) {
+        throw error;
+      }
+      this.logger.error(`Unexpected error in adminCreateTransaction: ${error.message}`);
+      throw new InternalServerErrorException('Failed to create transaction');
     }
   }
 }

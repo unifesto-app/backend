@@ -61,7 +61,7 @@ export class MembersService {
           const { data: profile } = await this.supabaseService
             .getClient()
             .from('profiles')
-            .select('id, name, email, username, avatar_url')
+            .select('id, name, email, username, avatar_url, role')
             .eq('id', member.user_id)
             .single();
 
@@ -214,7 +214,7 @@ export class MembersService {
       }
 
       // Prevent self-demotion for owners
-      if (currentMember.user_id === userId && currentMember.role === 'owner') {
+      if (currentMember.user_id === userId && currentMember.relationship_type === 'owner') {
         throw new ForbiddenException('Cannot change your own owner role');
       }
 
@@ -285,7 +285,7 @@ export class MembersService {
       }
 
       // Prevent self-removal for owners
-      if (member.user_id === userId && member.role === 'owner') {
+      if (member.user_id === userId && member.relationship_type === 'owner') {
         throw new ForbiddenException('Cannot remove yourself as owner');
       }
 

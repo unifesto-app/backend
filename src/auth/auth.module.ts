@@ -5,11 +5,12 @@ import { AvatarService } from './avatar.service';
 import { SupabaseAuthGuard } from './guards/supabase-auth.guard';
 import { RolesGuard } from './guards/roles.guard';
 import { DatabaseModule } from '../common/database/database.module';
+import { RolesModule } from '../roles/roles.module';
 
 @Module({
-  imports: [DatabaseModule],
+  imports: [DatabaseModule, RolesModule],
   controllers: [AuthController],
   providers: [AuthService, AvatarService, SupabaseAuthGuard, RolesGuard],
-  exports: [AuthService, AvatarService, SupabaseAuthGuard, RolesGuard],
+  exports: [AuthService, AvatarService, SupabaseAuthGuard, RolesGuard, RolesModule],
 })
 export class AuthModule {}

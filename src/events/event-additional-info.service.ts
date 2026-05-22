@@ -33,14 +33,13 @@ export class EventAdditionalInfoService {
     // Check if user is collaborator with edit permissions
     const { data: collaborator } = await supabase
       .from('event_collaborators')
-      .select('can_edit_details, is_active')
+      .select('permissions, is_active')
       .eq('event_id', eventId)
       .eq('user_id', userId)
       .eq('is_active', true)
-      .eq('can_edit_details', true)
       .single();
 
-    if (!collaborator) {
+    if (!collaborator || !collaborator.permissions?.includes('edit_details')) {
       throw new ForbiddenException('You do not have permission to manage this event');
     }
   }

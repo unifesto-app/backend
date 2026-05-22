@@ -424,7 +424,7 @@ export class WhatsAppService {
           // Update existing template
           const { error } = await this.supabaseService.getClient()
             .from('whatsapp_templates')
-            .update(templateData)
+            .update(templateData as any)
             .eq('id', existing.id);
 
           if (!error) {
@@ -437,7 +437,7 @@ export class WhatsAppService {
           // Insert new template
           const { error } = await this.supabaseService.getClient()
             .from('whatsapp_templates')
-            .insert(templateData);
+            .insert(templateData as any);
 
           if (!error) {
             syncedTemplates.push({ ...template, action: 'created' });
@@ -611,7 +611,7 @@ export class WhatsAppService {
       }
 
       if (templateType) {
-        query = query.eq('template_type', templateType.toUpperCase());
+        query = query.eq('template_type' as any, templateType.toUpperCase());
       }
 
       const { data, error } = await query;
