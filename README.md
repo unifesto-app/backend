@@ -1,390 +1,407 @@
 # Unifesto Backend API
 
-Production-ready NestJS backend with Supabase authentication.
+Mobile-number-centric authentication and user management system built with NestJS, Prisma, and PostgreSQL.
 
-## Features
+## 🏗️ Architecture
 
-- ✅ Supabase JWT authentication
-- ✅ User profile management
-- ✅ Role-based access control (RBAC)
-- ✅ Input validation with class-validator
-- ✅ Clean architecture (modules, services, guards)
-- ✅ Comprehensive error handling
-- ✅ Logging with NestJS Logger
-- ✅ TypeScript strict mode
+### Tech Stack
+- **Framework**: NestJS
+- **Database**: PostgreSQL (Supabase)
+- **ORM**: Prisma
+- **Language**: TypeScript
+- **Authentication**: JWT + OAuth (Google, Apple)
+- **Storage**: Supabase Storage
 
-## Tech Stack
+### Core Principles
+1. **One person = One account = One verified mobile number**
+2. **Prisma as single source of truth** for database schema
+3. **Type-safe** database operations
+4. **Mobile-first** authentication flow
 
-- **Framework**: NestJS 11
-- **Database**: PostgreSQL (via Supabase)
-- **Authentication**: Supabase Auth (JWT)
-- **Validation**: class-validator, class-transformer
-- **Runtime**: Node.js 20+
+## 🚀 Quick Start
 
-## Project Structure
+### Prerequisites
+- Node.js 20+
+- PostgreSQL database (Supabase recommended)
+- npm or yarn
 
-```
-src/
-├── auth/
-│   ├── decorators/
-│   │   ├── current-user.decorator.ts    # Extract user from request
-│   │   └── roles.decorator.ts           # Role-based access decorator
-│   ├── dto/
-│   │   └── update-profile.dto.ts        # Profile update validation
-│   ├── guards/
-│   │   ├── supabase-auth.guard.ts       # JWT verification
-│   │   └── roles.guard.ts               # Role-based authorization
-│   ├── interfaces/
-│   │   └── user.interface.ts            # User types & enums
-│   ├── auth.controller.ts               # Auth endpoints
-│   ├── auth.service.ts                  # Auth business logic
-│   └── auth.module.ts                   # Auth module
-├── common/
-│   └── database/
-│       ├── supabase.service.ts          # Supabase client
-│       └── database.module.ts           # Database module
-├── app.module.ts                        # Root module
-└── main.ts                              # Application entry point
-```
-
-## Environment Variables
-
-Create a `.env` file in the root directory:
-
-```env
-# Server Configuration
-PORT=3000
-NODE_ENV=development
-
-# Supabase Configuration
-SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
-SUPABASE_JWT_SECRET=your-jwt-secret
-
-# CORS Configuration
-CORS_ORIGIN=http://localhost:3001
-```
-
-### Getting Supabase Credentials
-
-1. Go to your Supabase project dashboard
-2. Navigate to **Settings** → **API**
-3. Copy:
-   - **Project URL** → `SUPABASE_URL`
-   - **service_role key** → `SUPABASE_SERVICE_ROLE_KEY`
-   - **JWT Secret** → `SUPABASE_JWT_SECRET`
-
-## Installation
+### Installation
 
 ```bash
 # Install dependencies
 npm install
 
-# Copy environment variables
+# Configure environment variables
 cp .env.example .env
-# Edit .env with your Supabase credentials
-```
+# Edit .env with your configuration
 
-## Database Schema
+# Generate Prisma Client
+npm run prisma:generate
 
-The backend expects a `profiles` table in your Supabase database:
+# Run migrations
+npm run prisma:migrate
 
-```sql
-CREATE TABLE profiles (
-  id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-  name TEXT,
-  username TEXT UNIQUE,
-  avatar_url TEXT,
-  bio TEXT,
-  email TEXT,
-  phone TEXT,
-  role TEXT NOT NULL DEFAULT 'attendee' CHECK (role IN ('attendee', 'super_admin', 'support')),
-  is_verified BOOLEAN DEFAULT FALSE,
-  is_active BOOLEAN DEFAULT TRUE,
-  is_banned BOOLEAN DEFAULT FALSE,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
+# Seed database with default roles
+npm run prisma:seed
 
--- Create index on username for faster lookups
-CREATE INDEX idx_profiles_username ON profiles(username);
-
--- Create index on email for faster lookups
-CREATE INDEX idx_profiles_email ON profiles(email);
-
--- Enable Row Level Security
-ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
-
--- Policy: Users can read their own profile
-CREATE POLICY "Users can read own profile"
-  ON profiles FOR SELECT
-  USING (auth.uid() = id);
-
--- Policy: Users can update their own profile
-CREATE POLICY "Users can update own profile"
-  ON profiles FOR UPDATE
-  USING (auth.uid() = id);
-
--- Policy: Service role can do everything
-CREATE POLICY "Service role has full access"
-  ON profiles
-  USING (auth.jwt()->>'role' = 'service_role');
-```
-
-## Running the Application
-
-```bash
-# Development mode
+# Start development server
 npm run start:dev
-
-# Production mode
-npm run build
-npm run start:prod
-
-# Debug mode
-npm run start:debug
 ```
 
-## API Endpoints
+The API will be available at `http://localhost:3000`
+
+## 📁 Project Structure
+
+```
+backend/
+├── prisma/
+│   ├── schema.prisma          # Database schema (single source of truth)
+│   ├── seed.ts                # Database seeding script
+│   └── migrations/            # Database migrations
+├── src/
+│   ├── auth/                  # Authentication module
+│   │   ├── dto/              # Data transfer objects
+│   │   ├── guards/           # Auth guards (JWT)
+│   │   ├── decorators/       # Custom decorators
+│   │   ├── auth.controller.ts
+│   │   ├── auth.service.ts
+│   │   └── auth.module.ts
+│   ├── users/                 # User management module
+│   │   ├── dto/
+│   │   ├── users.controller.ts
+│   │   ├── users.service.ts
+│   │   └── users.module.ts
+│   ├── roles/                 # Role management module
+│   │   ├── dto/
+│   │   ├── roles.controller.ts
+│   │   ├── roles.service.ts
+│   │   └── roles.module.ts
+│   ├── prisma/                # Prisma module
+│   │   ├── prisma.service.ts
+│   │   └── prisma.module.ts
+│   ├── common/                # Shared utilities
+│   ├── types/                 # TypeScript types
+│   ├── app.module.ts
+│   └── main.ts
+├── docs/
+│   ├── AUTH_SYSTEM.md         # Authentication architecture
+│   ├── PRISMA_INTEGRATION.md  # Prisma usage guide
+│   └── openapi.yaml           # API specification
+├── migrations/
+│   └── 001_create_auth_system.sql  # Initial SQL migration
+├── scripts/
+│   └── migrate-auth.sh        # Migration helper script
+├── .env.example               # Environment variables template
+├── MIGRATION_GUIDE.md         # Migration instructions
+└── package.json
+```
+
+## 🔐 Authentication Flow
+
+### First-Time Login
+
+1. User signs in with **Google/Apple/Email**
+2. System checks if provider identity exists
+3. If new identity:
+   - Ask for mobile number
+   - Send OTP to mobile
+   - Verify OTP
+   - Check if mobile exists:
+     - **Exists**: Link identity to existing user
+     - **New**: Create user + identity
+
+### Returning User
+
+1. User signs in with any linked provider
+2. System finds existing identity
+3. User logged in immediately
+
+### Example: Multiple Login Methods
+
+```
+User Account: +919876543210
+├── Google: abhinav@gmail.com
+├── Apple: abhinav@icloud.com
+└── Email: abhinavtej@gmail.com
+
+All three methods access the same account!
+```
+
+## 📡 API Endpoints
 
 ### Authentication
 
-All protected endpoints require a Bearer token in the Authorization header:
-
 ```
-Authorization: Bearer <supabase_jwt_token>
-```
-
-#### GET /auth/me
-
-Get current user profile.
-
-**Headers:**
-```
-Authorization: Bearer <token>
+POST   /auth/google              # Login with Google
+POST   /auth/apple               # Login with Apple
+POST   /auth/email               # Send email OTP
+POST   /auth/email/verify        # Verify email OTP
+POST   /auth/mobile/send-otp     # Send mobile OTP
+POST   /auth/verify-mobile       # Verify mobile number
+GET    /auth/session             # Get current session
+POST   /auth/logout              # Logout
 ```
 
-**Response:**
-```json
-{
-  "id": "uuid",
-  "email": "user@example.com",
-  "profile": {
-    "name": "John Doe",
-    "username": "johndoe",
-    "avatar_url": "https://...",
-    "bio": "Software developer",
-    "phone": "+1234567890",
-    "role": "attendee",
-    "is_verified": false,
-    "is_active": true,
-    "created_at": "2024-01-01T00:00:00Z",
-    "updated_at": "2024-01-01T00:00:00Z"
-  }
-}
+### Users
+
+```
+GET    /users/me                 # Get current user
+PATCH  /users/me                 # Update profile
+POST   /users/me/onboard         # Complete onboarding
+POST   /users/me/avatar          # Upload avatar
+POST   /users/check-username     # Check username availability
+GET    /users/:username          # Get user by username
 ```
 
-#### POST /auth/sync
+### Roles
 
-Sync user profile (creates profile if it doesn't exist).
-
-**Headers:**
 ```
-Authorization: Bearer <token>
-```
-
-**Response:**
-```json
-{
-  "message": "Profile synced successfully",
-  "profile": {
-    "id": "uuid",
-    "email": "user@example.com",
-    "role": "attendee",
-    ...
-  }
-}
+GET    /roles                    # Get all roles
+GET    /roles/users/:userId      # Get user roles
+POST   /roles/assign             # Assign role to user
+DELETE /roles/:userRoleId        # Remove role
+GET    /roles/check/:userId/:roleCode  # Check if user has role
 ```
 
-#### PATCH /auth/profile
+## 🗄️ Database Schema
 
-Update user profile.
+### Users
+- One person = one account
+- Unique mobile number (canonical identity)
+- Optional username, profile info
 
-**Headers:**
-```
-Authorization: Bearer <token>
-Content-Type: application/json
-```
+### User Identities
+- Multiple auth methods per user
+- Providers: GOOGLE, APPLE, EMAIL, PHONE
+- Links to single user account
 
-**Body:**
-```json
-{
-  "name": "John Doe",
-  "username": "johndoe",
-  "avatar_url": "https://example.com/avatar.jpg",
-  "bio": "Software developer",
-  "phone": "+1234567890"
-}
-```
+### Roles
+- Platform scope: ADMIN
+- Space scope: SUPER_ORGANISER, ORGANISER, CO_ORGANISER, MEMBER
 
-**Validation Rules:**
-- `name`: 2-100 characters
-- `username`: 3-30 characters, alphanumeric + underscore/hyphen only
-- `avatar_url`: Valid URL, max 500 characters
-- `bio`: Max 500 characters
-- `phone`: Valid phone number format
+### User Roles
+- Role assignments to users
+- Optional space context
+- Audit trail (assigned_by)
 
-**Response:**
-```json
-{
-  "message": "Profile updated successfully",
-  "profile": {
-    "id": "uuid",
-    "email": "user@example.com",
-    "name": "John Doe",
-    "username": "johndoe",
-    ...
-  }
-}
-```
+## 🔧 Configuration
 
-## Guards & Decorators
+### Environment Variables
 
-### SupabaseAuthGuard
+```env
+# Database
+DATABASE_URL=postgresql://user:password@host:port/database
 
-Verifies Supabase JWT tokens and attaches user to request.
+# Supabase
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_ANON_KEY=your_anon_key
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
 
-```typescript
-@Get('protected')
-@UseGuards(SupabaseAuthGuard)
-async protectedRoute(@CurrentUser() user: RequestUser) {
-  return { userId: user.sub };
-}
+# JWT
+JWT_SECRET=your_secure_random_string
+JWT_EXPIRES_IN=7d
+
+# OAuth
+GOOGLE_CLIENT_ID=your_google_client_id
+APPLE_CLIENT_ID=your_apple_client_id
+
+# Server
+PORT=3000
+NODE_ENV=development
 ```
 
-### RolesGuard
-
-Checks user roles from database (requires SupabaseAuthGuard).
-
-```typescript
-@Get('admin-only')
-@UseGuards(SupabaseAuthGuard, RolesGuard)
-@Roles(UserRole.SUPER_ADMIN)
-async adminRoute() {
-  return { message: 'Admin access granted' };
-}
+Generate JWT secret:
+```bash
+node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
 ```
 
-### @CurrentUser() Decorator
-
-Extracts authenticated user from request.
-
-```typescript
-@Get('me')
-@UseGuards(SupabaseAuthGuard)
-async getMe(@CurrentUser() user: RequestUser) {
-  // user.sub = user ID
-  // user.email = user email
-  // user.role = user role (from JWT)
-}
-```
-
-## Error Handling
-
-The API returns consistent error responses:
-
-```json
-{
-  "statusCode": 401,
-  "message": "Invalid token",
-  "error": "Unauthorized"
-}
-```
-
-Common status codes:
-- `400` - Bad Request (validation errors)
-- `401` - Unauthorized (invalid/missing token)
-- `403` - Forbidden (insufficient permissions)
-- `404` - Not Found (resource doesn't exist)
-- `409` - Conflict (e.g., username already taken)
-- `500` - Internal Server Error
-
-## User Roles
-
-```typescript
-enum UserRole {
-  ATTENDEE = 'attendee',      // Default role for new users
-  SUPER_ADMIN = 'super_admin', // Full system access
-  SUPPORT = 'support',         // Customer support access
-}
-```
-
-## Development
+## 📜 Available Scripts
 
 ```bash
-# Format code
-npm run format
+# Development
+npm run start:dev          # Start with hot reload
+npm run start:debug        # Start with debugger
 
-# Lint code
-npm run lint
+# Production
+npm run build              # Build for production
+npm run start:prod         # Start production server
 
-# Run tests (when added)
+# Database
+npm run prisma:generate    # Generate Prisma Client
+npm run prisma:migrate     # Create and apply migration
+npm run prisma:migrate:deploy  # Apply migrations (production)
+npm run prisma:studio      # Open Prisma Studio GUI
+npm run prisma:seed        # Seed database
+npm run prisma:reset       # Reset database (dev only)
+
+# Testing
+npm run test               # Run unit tests
+npm run test:watch         # Run tests in watch mode
+npm run test:cov           # Run tests with coverage
+npm run test:e2e           # Run e2e tests
+
+# Code Quality
+npm run lint               # Lint code
+npm run format             # Format code with Prettier
+```
+
+## 🧪 Testing
+
+### Unit Tests
+
+```bash
 npm run test
 ```
 
-## Deployment
-
-### Railway
-
-1. Create a new project on Railway
-2. Connect your GitHub repository
-3. Add environment variables in Railway dashboard
-4. Railway will automatically detect and deploy using `npm run start:prod`
-
-### Docker (Optional)
-
-```dockerfile
-FROM node:20-alpine
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci --only=production
-COPY . .
-RUN npm run build
-CMD ["npm", "run", "start:prod"]
-```
-
-## Security Best Practices
-
-✅ JWT tokens are verified on every request  
-✅ Service role key is never exposed to clients  
-✅ Input validation on all endpoints  
-✅ CORS configured for specific origins  
-✅ Row Level Security enabled on database  
-✅ User status checks (banned/inactive)  
-✅ Comprehensive logging for security events  
-
-## Troubleshooting
-
-### "JWT secret not configured"
-
-Make sure `SUPABASE_JWT_SECRET` is set in your `.env` file.
-
-### "Profile not found"
-
-User needs to call `POST /auth/sync` after first login to create their profile.
-
-### "Username already taken"
-
-The username must be unique across all users. Try a different username.
-
-### Port already in use
-
-Change the `PORT` in your `.env` file or kill the process using the port:
+### E2E Tests
 
 ```bash
-lsof -ti:3000 | xargs kill -9
+npm run test:e2e
 ```
 
-## License
+### Manual Testing
+
+```bash
+# Test Google login
+curl -X POST http://localhost:3000/auth/google \
+  -H "Content-Type: application/json" \
+  -d '{"idToken": "google_id_token"}'
+
+# Test get current user
+curl -X GET http://localhost:3000/users/me \
+  -H "Authorization: Bearer your_jwt_token"
+```
+
+## 🚢 Deployment
+
+### Build
+
+```bash
+npm run build
+```
+
+### Run Migrations
+
+```bash
+npm run prisma:migrate:deploy
+```
+
+### Start Server
+
+```bash
+npm run start:prod
+```
+
+### Environment
+
+Ensure all environment variables are set in production:
+- `DATABASE_URL`
+- `JWT_SECRET`
+- `GOOGLE_CLIENT_ID`
+- `APPLE_CLIENT_ID`
+- `SUPABASE_URL`
+- `SUPABASE_ANON_KEY`
+
+## 📚 Documentation
+
+- **[Authentication System](docs/AUTH_SYSTEM.md)** - Complete auth architecture
+- **[Prisma Integration](docs/PRISMA_INTEGRATION.md)** - ORM usage guide
+- **[OpenAPI Spec](docs/openapi.yaml)** - API specification
+- **[Migration Guide](MIGRATION_GUIDE.md)** - Migration instructions
+
+## 🔒 Security
+
+### Authentication
+- JWT tokens with configurable expiration
+- Temporary tokens for mobile verification (15 min)
+- OAuth integration (Google, Apple)
+- OTP verification for mobile numbers
+
+### Authorization
+- Role-based access control (RBAC)
+- Platform and space-scoped roles
+- JWT guard for protected routes
+
+### Data Protection
+- Row Level Security (RLS) in database
+- Input validation with class-validator
+- SQL injection prevention via Prisma
+- Secure password hashing (if implemented)
+
+## 🐛 Troubleshooting
+
+### Database Connection Issues
+
+```bash
+# Test connection
+npx prisma db pull
+
+# Check DATABASE_URL format
+postgresql://user:password@host:port/database
+```
+
+### Prisma Client Not Generated
+
+```bash
+npm run prisma:generate
+```
+
+### Migration Conflicts
+
+```bash
+# Reset database (dev only)
+npm run prisma:reset
+
+# Or manually resolve
+npx prisma migrate resolve --applied "migration_name"
+```
+
+### JWT Errors
+
+- Ensure `JWT_SECRET` is set
+- Check token expiration
+- Verify token format: `Bearer <token>`
+
+## 📈 Performance
+
+### Database
+- Indexes on frequently queried fields
+- Connection pooling via Prisma
+- Efficient queries with Prisma Client
+
+### API
+- Rate limiting (100 req/min default)
+- Request throttling
+- Caching strategies (implement as needed)
+
+## 🤝 Contributing
+
+1. Create feature branch
+2. Make changes
+3. Write/update tests
+4. Update documentation
+5. Submit pull request
+
+## 📄 License
 
 UNLICENSED - Private project
+
+## 👥 Team
+
+Unifesto Development Team
+
+## 🔗 Related Projects
+
+- **[auth.unifesto.app](../auth)** - Authentication frontend
+- **[app.unifesto.app]** - Main application
+
+## 📞 Support
+
+For issues or questions:
+- Check documentation in `/docs`
+- Review error logs
+- Contact development team
+
+---
+
+Built with ❤️ using NestJS, Prisma, and PostgreSQL

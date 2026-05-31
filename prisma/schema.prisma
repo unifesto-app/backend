@@ -1,0 +1,166 @@
+// Unifesto Authentication & User System
+// Prisma Schema - Single Source of Truth
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// =====================================================
+// ENUMS
+// =====================================================
+
+enum Provider {
+  GOOGLE
+  APPLE
+  EMAIL
+  PHONE
+
+  @@map("provider")
+}
+
+enum RoleScope {
+  PLATFORM
+  SPACE
+
+  @@map("role_scope")
+}
+
+enum RoleCode {
+  ADMIN
+  SUPER_ORGANISER
+  ORGANISER
+  CO_ORGANISER
+  MEMBER
+
+  @@map("role_code")
+}
+
+// =====================================================
+// USER MODEL
+// Core user entity - one person = one account
+// =====================================================
+
+model User {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  // Identity (Canonical)
+  mobileNumber   String  @unique @map("mobile_number") @db.VarChar(20)
+  mobileVerified Boolean @default(false) @map("mobile_verified")
+
+  // Profile
+  username   String? @unique @db.VarChar(50)
+  fullName   String? @map("full_name") @db.VarChar(255)
+  avatarUrl  String? @map("avatar_url") @db.Text
+  bio        String? @db.Text
+
+  // Social Links
+  linkedinUrl   String? @map("linkedin_url") @db.Text
+  instagramUrl  String? @map("instagram_url") @db.Text
+  githubUrl     String? @map("github_url") @db.Text
+  websiteUrl    String? @map("website_url") @db.Text
+
+  // Onboarding
+  isOnboarded Boolean @default(false) @map("is_onboarded")
+
+  // Timestamps
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  // Relations
+  identities      UserIdentity[]
+  roles           UserRole[]     @relation("UserRoles")
+  assignedRoles   UserRole[]     @relation("AssignedBy")
+
+  @@map("users")
+}
+
+// =====================================================
+// USER IDENTITY MODEL
+// Authentication methods linked to a single user
+// =====================================================
+
+model UserIdentity {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  // User Reference
+  userId String @map("user_id") @db.Uuid
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Provider Information
+  provider       Provider
+  providerUserId String   @map("provider_user_id") @db.Text
+
+  // Email (may be null for phone provider)
+  email         String?  @db.VarChar(255)
+  emailVerified Boolean? @default(false) @map("email_verified")
+
+  // Metadata
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  // Constraints
+  @@unique([provider, providerUserId], name: "unique_provider_user")
+  @@unique([provider, email], name: "unique_provider_email")
+  @@index([userId])
+  @@index([provider])
+  @@index([email])
+  @@map("user_identities")
+}
+
+// =====================================================
+// ROLE MODEL
+// Simple role definitions
+// =====================================================
+
+model Role {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  code  RoleCode @unique
+  name  String   @db.VarChar(100)
+  scope RoleScope
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  // Relations
+  userRoles UserRole[]
+
+  @@map("roles")
+}
+
+// =====================================================
+// USER ROLE MODEL
+// Role assignments to users
+// =====================================================
+
+model UserRole {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  // User Reference
+  userId String @map("user_id") @db.Uuid
+  user   User   @relation("UserRoles", fields: [userId], references: [id], onDelete: Cascade)
+
+  // Role Reference
+  roleId String @map("role_id") @db.Uuid
+  role   Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  // Space context (null for platform roles)
+  spaceId String? @map("space_id") @db.Uuid
+
+  // Audit
+  assignedBy   String?  @map("assigned_by") @db.Uuid
+  assignedByUser User?  @relation("AssignedBy", fields: [assignedBy], references: [id])
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  // Constraints
+  @@unique([userId, roleId, spaceId], name: "unique_user_role_space")
+  @@index([userId])
+  @@index([roleId])
+  @@index([spaceId])
+  @@map("user_roles")
+}

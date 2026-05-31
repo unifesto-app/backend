@@ -1,97 +1,105 @@
 import {
   Controller,
   Get,
-  Post,
   Patch,
-  Delete,
+  Post,
   Body,
   Param,
-  Query,
   UseGuards,
-  HttpCode,
-  HttpStatus,
+  UseInterceptors,
+  UploadedFile,
+  ParseFilePipe,
+  MaxFileSizeValidator,
+  FileTypeValidator,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { UsersService } from './users.service';
-import { UserQueryDto } from './dto/user-query.dto';
-import { CreateUserDto } from './dto/create-user.dto';
-import { UpdateUserDto } from './dto/update-user.dto';
-import { BulkOperationDto } from './dto/bulk-operation.dto';
-import { SupabaseAuthGuard } from '../auth/guards/supabase-auth.guard';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
-import type { RequestUser } from '../auth/interfaces/user.interface';
+import { UpdateProfileDto, CheckUsernameDto } from './dto';
+import type { User } from '@prisma/client';
+import { UserProfileDto } from '../auth/dto';
 
-@Controller('admin/users')
-@UseGuards(SupabaseAuthGuard)
+@Controller('users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   /**
-   * GET /admin/users
-   * List all users with pagination and filters
+   * Get current user profile
+   * GET /users/me
    */
-  @Get()
-  async findAll(@CurrentUser() user: RequestUser, @Query() query: UserQueryDto) {
-    return this.usersService.findAll(user.sub, query);
+  @Get('me')
+  @UseGuards(JwtAuthGuard)
+  async getMe(@CurrentUser() user: User): Promise<UserProfileDto> {
+    return this.usersService.getMe(user.id);
   }
 
   /**
-   * GET /admin/users/stats
-   * Get user statistics
+   * Update current user profile
+   * PATCH /users/me
    */
-  @Get('stats')
-  async getStats(@CurrentUser() user: RequestUser) {
-    return this.usersService.getStats(user.sub);
+  @Patch('me')
+  @UseGuards(JwtAuthGuard)
+  async updateMe(
+    @CurrentUser() user: User,
+    @Body() dto: UpdateProfileDto,
+  ): Promise<UserProfileDto> {
+    return this.usersService.updateMe(user.id, dto);
   }
 
   /**
-   * GET /admin/users/:id
-   * Get user by ID
+   * Complete onboarding
+   * POST /users/me/onboard
    */
-  @Get(':id')
-  async findOne(@CurrentUser() user: RequestUser, @Param('id') id: string) {
-    return this.usersService.findOne(user.sub, id);
+  @Post('me/onboard')
+  @UseGuards(JwtAuthGuard)
+  async completeOnboarding(
+    @CurrentUser() user: User,
+  ): Promise<UserProfileDto> {
+    return this.usersService.completeOnboarding(user.id);
   }
 
   /**
-   * POST /admin/users
-   * Create a new user
+   * Upload avatar
+   * POST /users/me/avatar
    */
-  @Post()
-  @HttpCode(HttpStatus.CREATED)
-  async create(@CurrentUser() user: RequestUser, @Body() createDto: CreateUserDto) {
-    return this.usersService.create(user.sub, createDto);
+  @Post('me/avatar')
+  @UseGuards(JwtAuthGuard)
+  @UseInterceptors(FileInterceptor('avatar'))
+  async uploadAvatar(
+    @CurrentUser() user: User,
+    @UploadedFile(
+      new ParseFilePipe({
+        validators: [
+          new MaxFileSizeValidator({ maxSize: 5 * 1024 * 1024 }), // 5MB
+          new FileTypeValidator({ fileType: /(jpg|jpeg|png|webp)$/ }),
+        ],
+      }),
+    )
+    file: Express.Multer.File,
+  ): Promise<{ avatarUrl: string }> {
+    return this.usersService.uploadAvatar(user.id, file);
   }
 
   /**
-   * POST /admin/users/bulk
-   * Bulk operations on users
+   * Check username availability
+   * POST /users/check-username
    */
-  @Post('bulk')
-  @HttpCode(HttpStatus.OK)
-  async bulkOperation(@CurrentUser() user: RequestUser, @Body() bulkDto: BulkOperationDto) {
-    return this.usersService.bulkOperation(user.sub, bulkDto);
+  @Post('check-username')
+  async checkUsername(
+    @Body() dto: CheckUsernameDto,
+  ): Promise<{ available: boolean }> {
+    return this.usersService.checkUsernameAvailability(dto.username);
   }
 
   /**
-   * PATCH /admin/users/:id
-   * Update user
+   * Get user by username
+   * GET /users/:username
    */
-  @Patch(':id')
-  async update(
-    @CurrentUser() user: RequestUser,
-    @Param('id') id: string,
-    @Body() updateDto: UpdateUserDto,
-  ) {
-    return this.usersService.update(user.sub, id, updateDto);
-  }
-
-  /**
-   * DELETE /admin/users/:id
-   * Delete user
-   */
-  @Delete(':id')
-  @HttpCode(HttpStatus.OK)
-  async remove(@CurrentUser() user: RequestUser, @Param('id') id: string) {
-    return this.usersService.remove(user.sub, id);
+  @Get(':username')
+  async getUserByUsername(
+    @Param('username') username: string,
+  ): Promise<UserProfileDto> {
+    return this.usersService.getUserByUsername(username);
   }
 }

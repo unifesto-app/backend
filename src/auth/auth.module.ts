@@ -1,16 +1,17 @@
 import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
-import { AvatarService } from './avatar.service';
-import { SupabaseAuthGuard } from './guards/supabase-auth.guard';
-import { RolesGuard } from './guards/roles.guard';
-import { DatabaseModule } from '../common/database/database.module';
-import { RolesModule } from '../roles/roles.module';
+import { OtpService } from './otp.service';
+import { PrismaModule } from '../prisma/prisma.module';
+import { EmailModule } from '../email/email.module';
+import { WhatsAppModule } from '../whatsapp/whatsapp.module';
+import { JwtAuthGuard } from './guards/jwt-auth.guard';
 
 @Module({
-  imports: [DatabaseModule, RolesModule],
+  imports: [ConfigModule, PrismaModule, EmailModule, WhatsAppModule],
   controllers: [AuthController],
-  providers: [AuthService, AvatarService, SupabaseAuthGuard, RolesGuard],
-  exports: [AuthService, AvatarService, SupabaseAuthGuard, RolesGuard, RolesModule],
+  providers: [AuthService, OtpService, JwtAuthGuard],
+  exports: [AuthService, JwtAuthGuard],
 })
 export class AuthModule {}

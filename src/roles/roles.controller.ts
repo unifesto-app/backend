@@ -2,54 +2,68 @@ import {
   Controller,
   Get,
   Post,
-  Put,
   Delete,
   Body,
   Param,
-  Query,
   UseGuards,
-  Request,
 } from '@nestjs/common';
 import { RolesService } from './roles.service';
-import { CreateRoleDto, UpdateRoleDto } from './dto/role.dto';
-import { SupabaseAuthGuard } from '../auth/guards/supabase-auth.guard';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { AssignRoleDto } from './dto';
+import type { User } from '@prisma/client';
 
 @Controller('roles')
-@UseGuards(SupabaseAuthGuard)
+@UseGuards(JwtAuthGuard)
 export class RolesController {
   constructor(private readonly rolesService: RolesService) {}
 
+  /**
+   * Get all available roles
+   * GET /roles
+   */
   @Get()
-  async findAll(@Request() req) {
-    return this.rolesService.findAll(req.user.id);
+  async getAllRoles() {
+    return this.rolesService.getAllRoles();
   }
 
-  @Get('scope/:scope')
-  async findByScope(@Request() req, @Param('scope') scope: string) {
-    return this.rolesService.findByScope(req.user.id, scope);
+  /**
+   * Get user roles
+   * GET /roles/users/:userId
+   */
+  @Get('users/:userId')
+  async getUserRoles(@Param('userId') userId: string) {
+    return this.rolesService.getUserRoles(userId);
   }
 
-  @Get(':id')
-  async findOne(@Request() req, @Param('id') id: string) {
-    return this.rolesService.findOne(req.user.id, id);
+  /**
+   * Assign role to user
+   * POST /roles/assign
+   */
+  @Post('assign')
+  async assignRole(@Body() dto: AssignRoleDto, @CurrentUser() user: User) {
+    return this.rolesService.assignRole(dto, user.id);
   }
 
-  @Post()
-  async create(@Request() req, @Body() createRoleDto: CreateRoleDto) {
-    return this.rolesService.create(req.user.id, createRoleDto);
+  /**
+   * Remove role from user
+   * DELETE /roles/:userRoleId
+   */
+  @Delete(':userRoleId')
+  async removeRole(@Param('userRoleId') userRoleId: string) {
+    return this.rolesService.removeRole(userRoleId);
   }
 
-  @Put(':id')
-  async update(
-    @Request() req,
-    @Param('id') id: string,
-    @Body() updateRoleDto: UpdateRoleDto,
+  /**
+   * Check if user has specific role
+   * GET /roles/check/:userId/:roleCode
+   */
+  @Get('check/:userId/:roleCode')
+  async checkRole(
+    @Param('userId') userId: string,
+    @Param('roleCode') roleCode: string,
   ) {
-    return this.rolesService.update(req.user.id, id, updateRoleDto);
-  }
-
-  @Delete(':id')
-  async remove(@Request() req, @Param('id') id: string) {
-    return this.rolesService.remove(req.user.id, id);
+    const hasRole = await this.rolesService.hasRole(userId, roleCode as any);
+    return { hasRole };
   }
 }

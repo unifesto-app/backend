@@ -1,467 +1,116 @@
 import {
   Controller,
-  Get,
   Post,
-  Patch,
-  Delete,
+  Get,
   Body,
   UseGuards,
-  UseInterceptors,
-  UploadedFile,
+  Request,
   HttpCode,
   HttpStatus,
-  Logger,
-  BadRequestException,
-  Param,
-  Req,
-  Inject,
 } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
-import type { Request } from 'express';
 import { AuthService } from './auth.service';
-import { AvatarService } from './avatar.service';
-import { SupabaseAuthGuard } from './guards/supabase-auth.guard';
-import { CurrentUser } from './decorators/current-user.decorator';
-import type { RequestUser } from './interfaces/user.interface';
-import { UpdateProfileDto } from './dto/update-profile.dto';
-import { UpdatePreferencesDto } from './dto/update-preferences.dto';
+import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import {
-  RequestOtpDto,
-  VerifyOtpDto,
-  SetWalletPasscodeDto,
-  VerifyWalletPasscodeDto,
-} from './dto/wallet-passcode.dto';
-import { RateLimit } from '../common/guards/rate-limit.guard';
-import { RolesHelperService } from '../roles/roles-helper.service';
+  GoogleLoginDto,
+  AppleLoginDto,
+  EmailLoginDto,
+  SendMobileOtpDto,
+  VerifyMobileDto,
+  AuthResponseDto,
+} from './dto';
 
 @Controller('auth')
 export class AuthController {
-  private readonly logger = new Logger(AuthController.name);
-
-  constructor(
-    private readonly authService: AuthService,
-    private readonly avatarService: AvatarService,
-    private readonly rolesHelperService: RolesHelperService,
-  ) { }
+  constructor(private readonly authService: AuthService) {}
 
   /**
-   * GET /auth/check-username
-   * Check if username is available
+   * Login with Google
+   * POST /auth/google
    */
-  @Get('check-username')
-  @RateLimit({ maxRequests: 20, windowMinutes: 5 })
-  async checkUsername(@Req() request: Request) {
-    const username = (request.query as any).username as string;
-
-    if (!username) {
-      throw new BadRequestException('Username is required');
-    }
-
-    // Validate username format
-    const usernameRegex = /^[a-z][a-z0-9_-]{2,19}$/;
-    if (!usernameRegex.test(username)) {
-      throw new BadRequestException('Invalid username format');
-    }
-
-    this.logger.debug(`Checking username availability: ${username}`);
-
-    const available = await this.authService.checkUsernameAvailability(username);
-
-    return {
-      username,
-      available,
-    };
-  }
-
-  /**
-   * GET /auth/check-email
-   * Check if email exists
-   */
-  @Get('check-email')
-  @RateLimit({ maxRequests: 20, windowMinutes: 5 })
-  async checkEmail(@Req() request: Request) {
-    const email = (request.query as any).email as string;
-
-    if (!email) {
-      throw new BadRequestException('Email is required');
-    }
-
-    // Basic email validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      throw new BadRequestException('Invalid email format');
-    }
-
-    this.logger.debug(`Checking email existence: ${email}`);
-
-    const exists = await this.authService.checkEmailExistence(email);
-
-    return {
-      email,
-      exists,
-    };
-  }
-
-  /**
-   * GET /auth/health
-   * Health check endpoint (no auth required)
-   */
-  @Get('health')
-  healthCheck() {
-    return {
-      status: 'ok',
-      timestamp: new Date().toISOString(),
-      environment: process.env.NODE_ENV || 'development',
-      supabaseConfigured: !!(
-        process.env.SUPABASE_URL &&
-        process.env.SUPABASE_SERVICE_ROLE_KEY &&
-        process.env.SUPABASE_JWT_SECRET
-      ),
-      supabaseUrl: process.env.SUPABASE_URL || 'not configured',
-    };
-  }
-
-  /**
-   * GET /auth/me
-   * Get current user profile
-   */
-  @Get('me')
-  @UseGuards(SupabaseAuthGuard)
-  async getMe(@CurrentUser() user: RequestUser) {
-    this.logger.debug(`Fetching profile for user: ${user.sub}`);
-
-    const profile = await this.authService.getProfile(user.sub);
-
-    return {
-      id: profile.id,
-      email: profile.email,
-      profile: {
-        name: profile.name,
-        username: profile.username,
-        avatar_url: profile.avatar_url,
-        bio: profile.bio,
-        phone: profile.phone,
-        is_verified: profile.is_verified,
-        is_active: profile.is_active,
-        preferences: profile.preferences,
-        last_login: profile.last_login,
-        created_at: profile.created_at,
-        updated_at: profile.updated_at,
-      },
-    };
-  }
-
-  /**
-   * POST /auth/sync
-   * Sync user profile (create if not exists)
-   */
-  @Post('sync')
+  @Post('google')
   @HttpCode(HttpStatus.OK)
-  @UseGuards(SupabaseAuthGuard)
-  @RateLimit({ maxRequests: 10, windowMinutes: 5 })
-  async syncProfile(@CurrentUser() user: RequestUser) {
-    this.logger.log(`Syncing profile for user: ${user.sub}`);
-
-    const profile = await this.authService.createProfileIfNotExists(user);
-
-    return {
-      message: 'Profile synced successfully',
-      profile: {
-        id: profile.id,
-        email: profile.email,
-        name: profile.name,
-        username: profile.username,
-        avatar_url: profile.avatar_url,
-        bio: profile.bio,
-        phone: profile.phone,
-        is_verified: profile.is_verified,
-        is_active: profile.is_active,
-        created_at: profile.created_at,
-        updated_at: profile.updated_at,
-      },
-    };
+  async loginWithGoogle(
+    @Body() dto: GoogleLoginDto,
+  ): Promise<AuthResponseDto> {
+    return this.authService.loginWithGoogle(dto);
   }
 
   /**
-   * PATCH /auth/profile
-   * Update user profile
+   * Login with Apple
+   * POST /auth/apple
    */
-  @Patch('profile')
-  @UseGuards(SupabaseAuthGuard)
-  @RateLimit({ maxRequests: 20, windowMinutes: 5 })
-  async updateProfile(
-    @CurrentUser() user: RequestUser,
-    @Body() updateDto: UpdateProfileDto,
-  ) {
-    this.logger.log(`Updating profile for user: ${user.sub}`);
-
-    const profile = await this.authService.updateProfile(user.sub, updateDto);
-
-    return {
-      message: 'Profile updated successfully',
-      profile: {
-        id: profile.id,
-        email: profile.email,
-        name: profile.name,
-        username: profile.username,
-        avatar_url: profile.avatar_url,
-        bio: profile.bio,
-        phone: profile.phone,
-        is_verified: profile.is_verified,
-        is_active: profile.is_active,
-        updated_at: profile.updated_at,
-      },
-    };
-  }
-
-  /**
-   * POST /auth/avatar
-   * Upload user avatar
-   */
-  @Post('avatar')
-  @UseGuards(SupabaseAuthGuard)
-  @UseInterceptors(FileInterceptor('avatar'))
-  @RateLimit({ maxRequests: 5, windowMinutes: 10 })
-  async uploadAvatar(
-    @CurrentUser() user: RequestUser,
-    @UploadedFile() file: Express.Multer.File,
-  ) {
-    if (!file) {
-      throw new BadRequestException('No file uploaded');
-    }
-
-    this.logger.log(`Uploading avatar for user: ${user.sub}`);
-
-    // Upload avatar and get URL
-    const avatarUrl = await this.avatarService.uploadAvatar(user.sub, file);
-
-    // Update profile with new avatar URL
-    await this.authService.updateProfile(user.sub, {
-      avatar_url: avatarUrl,
-    });
-
-    return {
-      message: 'Avatar uploaded successfully',
-      avatar_url: avatarUrl,
-    };
-  }
-
-  /**
-   * DELETE /auth/avatar
-   * Delete user avatar
-   */
-  @Delete('avatar')
+  @Post('apple')
   @HttpCode(HttpStatus.OK)
-  @UseGuards(SupabaseAuthGuard)
-  async deleteAvatar(@CurrentUser() user: RequestUser) {
-    this.logger.log(`Deleting avatar for user: ${user.sub}`);
-
-    // Delete avatar files
-    await this.avatarService.deleteUserAvatars(user.sub);
-
-    // Update profile to remove avatar URL
-    await this.authService.updateProfile(user.sub, {
-      avatar_url: null,
-    });
-
-    return {
-      message: 'Avatar deleted successfully',
-    };
+  async loginWithApple(@Body() dto: AppleLoginDto): Promise<AuthResponseDto> {
+    return this.authService.loginWithApple(dto);
   }
 
   /**
-   * POST /auth/sync-phone
-   * Sync phone number from profile to auth.users
+   * Send Email OTP
+   * POST /auth/email
    */
-  @Post('sync-phone')
+  @Post('email')
   @HttpCode(HttpStatus.OK)
-  @UseGuards(SupabaseAuthGuard)
-  async syncPhone(@CurrentUser() user: RequestUser) {
-    this.logger.log(`Syncing phone to auth.users for user: ${user.sub}`);
-
-    await this.authService.syncPhoneToAuthUsers(user.sub);
-
-    return {
-      message: 'Phone number synced to auth.users successfully',
-    };
+  async loginWithEmail(
+    @Body() dto: EmailLoginDto,
+  ): Promise<{ message: string }> {
+    return this.authService.loginWithEmail(dto);
   }
 
   /**
-   * POST /auth/bulk-sync-phones
-   * Bulk sync all phone numbers from profiles to auth.users
-   * Admin only - requires super_admin role
+   * Verify Email OTP
+   * POST /auth/email/verify
    */
-  @Post('bulk-sync-phones')
+  @Post('email/verify')
   @HttpCode(HttpStatus.OK)
-  @UseGuards(SupabaseAuthGuard)
-  async bulkSyncPhones(@CurrentUser() user: RequestUser) {
-    this.logger.log(`Bulk phone sync requested by user: ${user.sub}`);
-
-    // Check if user is super_admin using new roles system
-    const isSuperAdmin = await this.rolesHelperService.isSuperAdmin(user.sub);
-    if (!isSuperAdmin) {
-      throw new BadRequestException('Only super_admin can perform bulk sync');
-    }
-
-    const result = await this.authService.bulkSyncPhonesToAuthUsers();
-
-    return {
-      message: 'Bulk phone sync completed',
-      ...result,
-    };
+  async verifyEmailOtp(
+    @Body() body: { email: string; otp: string },
+  ): Promise<AuthResponseDto> {
+    return this.authService.verifyEmailOtp(body.email, body.otp);
   }
 
   /**
-   * GET /auth/preferences
-   * Get user preferences
+   * Send Mobile OTP
+   * POST /auth/mobile/send-otp
    */
-  @Get('preferences')
-  @UseGuards(SupabaseAuthGuard)
-  async getPreferences(@CurrentUser() user: RequestUser) {
-    this.logger.debug(`Fetching preferences for user: ${user.sub}`);
-
-    const preferences = await this.authService.getPreferences(user.sub);
-
-    return {
-      preferences,
-    };
-  }
-
-  /**
-   * PATCH /auth/preferences
-   * Update user preferences
-   */
-  @Patch('preferences')
-  @UseGuards(SupabaseAuthGuard)
-  async updatePreferences(
-    @CurrentUser() user: RequestUser,
-    @Body() preferencesDto: UpdatePreferencesDto,
-  ) {
-    this.logger.log(`Updating preferences for user: ${user.sub}`);
-
-    const preferences = await this.authService.updatePreferences(
-      user.sub,
-      preferencesDto,
-    );
-
-    return {
-      message: 'Preferences updated successfully',
-      preferences,
-    };
-  }
-
-  /**
-   * POST /auth/wallet/request-otp
-   * Request OTP for wallet passcode change
-   */
-  @Post('wallet/request-otp')
+  @Post('mobile/send-otp')
   @HttpCode(HttpStatus.OK)
-  @UseGuards(SupabaseAuthGuard)
-  @RateLimit({ maxRequests: 3, windowMinutes: 15 })
-  async requestWalletOtp(
-    @CurrentUser() user: RequestUser,
-    @Body() requestOtpDto: RequestOtpDto,
-  ) {
-    this.logger.log(`Requesting wallet OTP for user: ${user.sub}`);
-
-    const result = await this.authService.requestWalletOtp(
-      user.sub,
-      requestOtpDto.email,
-    );
-
-    return {
-      message: 'OTP sent to your email',
-      token: result.token,
-    };
+  async sendMobileOtp(
+    @Body() dto: SendMobileOtpDto,
+  ): Promise<{ message: string }> {
+    return this.authService.sendMobileOtp(dto);
   }
 
   /**
-   * POST /auth/wallet/verify-otp
-   * Verify OTP for wallet passcode change
+   * Verify Mobile Number
+   * POST /auth/verify-mobile
    */
-  @Post('wallet/verify-otp')
+  @Post('verify-mobile')
   @HttpCode(HttpStatus.OK)
-  @UseGuards(SupabaseAuthGuard)
-  @RateLimit({ maxRequests: 5, windowMinutes: 15 })
-  async verifyWalletOtp(
-    @CurrentUser() user: RequestUser,
-    @Body() verifyOtpDto: VerifyOtpDto,
-  ) {
-    this.logger.log(`Verifying wallet OTP for user: ${user.sub}`);
+  async verifyMobile(@Body() dto: VerifyMobileDto): Promise<AuthResponseDto> {
+    return this.authService.verifyMobile(dto);
+  }
 
-    const result = await this.authService.verifyWalletOtp(
-      user.sub,
-      verifyOtpDto.email,
-      verifyOtpDto.otp,
-    );
-
+  /**
+   * Get Current Session
+   * GET /auth/session
+   */
+  @Get('session')
+  @UseGuards(JwtAuthGuard)
+  async getSession(@Request() req) {
     return {
-      message: 'OTP verified successfully',
-      token: result.token,
+      user: req.user,
     };
   }
 
   /**
-   * POST /auth/wallet/set-passcode
-   * Set wallet passcode
+   * Logout
+   * POST /auth/logout
    */
-  @Post('wallet/set-passcode')
+  @Post('logout')
+  @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
-  @UseGuards(SupabaseAuthGuard)
-  async setWalletPasscode(
-    @CurrentUser() user: RequestUser,
-    @Body() setPasscodeDto: SetWalletPasscodeDto,
-  ) {
-    this.logger.log(`Setting wallet passcode for user: ${user.sub}`);
-
-    await this.authService.setWalletPasscode(
-      user.sub,
-      setPasscodeDto.passcode,
-      setPasscodeDto.otp_token,
-    );
-
-    return {
-      message: 'Wallet passcode set successfully',
-    };
-  }
-
-  /**
-   * POST /auth/wallet/verify-passcode
-   * Verify wallet passcode
-   */
-  @Post('wallet/verify-passcode')
-  @HttpCode(HttpStatus.OK)
-  @UseGuards(SupabaseAuthGuard)
-  async verifyWalletPasscode(
-    @CurrentUser() user: RequestUser,
-    @Body() verifyPasscodeDto: VerifyWalletPasscodeDto,
-  ) {
-    this.logger.log(`Verifying wallet passcode for user: ${user.sub}`);
-
-    await this.authService.verifyWalletPasscode(
-      user.sub,
-      verifyPasscodeDto.passcode,
-    );
-
-    return {
-      message: 'Passcode verified successfully',
-      valid: true,
-    };
-  }
-
-  /**
-   * GET /auth/wallet/has-passcode
-   * Check if user has wallet passcode set
-   */
-  @Get('wallet/has-passcode')
-  @UseGuards(SupabaseAuthGuard)
-  async hasWalletPasscode(@CurrentUser() user: RequestUser) {
-    this.logger.debug(`Checking wallet passcode for user: ${user.sub}`);
-
-    const hasPasscode = await this.authService.hasWalletPasscode(user.sub);
-
-    return {
-      has_passcode: hasPasscode,
-    };
+  async logout(@Request() req): Promise<{ message: string }> {
+    return this.authService.logout(req.user.id);
   }
 }
