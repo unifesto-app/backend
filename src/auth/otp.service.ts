@@ -47,12 +47,21 @@ export class OtpService {
    * Verify OTP
    */
   verifyOtp(identifier: string, otp: string): boolean {
+    this.logger.log(`Verifying OTP for identifier: ${identifier}`);
+    this.logger.log(`Received OTP: ${otp}`);
+    
     const data = this.otpStore.get(identifier);
 
     if (!data) {
       this.logger.warn(`No OTP found for ${identifier}`);
+      this.logger.log(`Available identifiers: ${Array.from(this.otpStore.keys()).join(', ')}`);
       return false;
     }
+
+    this.logger.log(`Stored OTP: ${data.otp}`);
+    this.logger.log(`Expires at: ${new Date(data.expiresAt).toISOString()}`);
+    this.logger.log(`Current time: ${new Date().toISOString()}`);
+    this.logger.log(`Attempts: ${data.attempts}/${this.MAX_ATTEMPTS}`);
 
     // Check expiry
     if (Date.now() > data.expiresAt) {
@@ -79,6 +88,7 @@ export class OtpService {
     }
 
     this.logger.warn(`Invalid OTP attempt ${data.attempts}/${this.MAX_ATTEMPTS} for ${identifier}`);
+    this.logger.warn(`Expected: ${data.otp}, Received: ${otp}`);
     return false;
   }
 

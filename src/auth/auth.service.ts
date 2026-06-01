@@ -187,13 +187,20 @@ export class AuthService {
 
   async verifyEmailOtp(email: string, otp: string): Promise<AuthResponseDto> {
     try {
+      this.logger.log(`Verifying email OTP for: ${email}`);
+      this.logger.log(`OTP received: ${otp}`);
+      
       // Verify OTP
       const isValid = this.otpService.verifyOtp(email, otp);
+      
+      this.logger.log(`OTP validation result: ${isValid}`);
       
       if (!isValid) {
         throw new UnauthorizedException('Invalid or expired OTP');
       }
 
+      this.logger.log(`Handling provider login for email: ${email}`);
+      
       return await this.handleProviderLogin(
         Provider.EMAIL,
         email, // Use email as provider user ID for email auth
@@ -202,6 +209,9 @@ export class AuthService {
       );
     } catch (error) {
       this.logger.error('Email OTP verification failed', error);
+      if (error instanceof UnauthorizedException) {
+        throw error;
+      }
       throw new UnauthorizedException('Invalid OTP');
     }
   }

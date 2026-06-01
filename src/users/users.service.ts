@@ -167,4 +167,25 @@ export class UsersService {
 
     return { avatarUrl: publicUrl };
   }
+
+  /**
+   * Get user's linked accounts (identities)
+   */
+  async getUserIdentities(userId: string) {
+    const identities = await this.prisma.userIdentity.findMany({
+      where: { userId },
+      select: {
+        id: true,
+        provider: true,
+        email: true,
+        emailVerified: true,
+        createdAt: true,
+      },
+      orderBy: {
+        createdAt: 'asc',
+      },
+    });
+
+    return identities;
+  }
 }

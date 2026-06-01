@@ -102,4 +102,14 @@ export class UsersController {
   ): Promise<UserProfileDto> {
     return this.usersService.getUserByUsername(username);
   }
+
+  /**
+   * Get current user's linked accounts (identities)
+   * GET /users/me/identities
+   */
+  @Get('me/identities')
+  @UseGuards(JwtAuthGuard)
+  async getMyIdentities(@CurrentUser() user: User) {
+    return this.usersService.getUserIdentities(user.id);
+  }
 }
