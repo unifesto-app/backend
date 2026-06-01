@@ -10,6 +10,7 @@ import { ConfigService } from '@nestjs/config';
 import { UpdateProfileDto } from './dto';
 import { User } from '@prisma/client';
 import { UserProfileDto } from '../auth/dto';
+import WebSocket from 'ws';
 
 @Injectable()
 export class UsersService {
@@ -21,8 +22,16 @@ export class UsersService {
     private readonly configService: ConfigService,
   ) {
     const supabaseUrl = this.configService.get<string>('SUPABASE_URL')!;
-    const supabaseKey = this.configService.get<string>('SUPABASE_ANON_KEY')!;
-    this.supabase = createClient(supabaseUrl, supabaseKey);
+    // Use SERVICE_ROLE_KEY for server-side operations with full permissions
+    const supabaseKey = this.configService.get<string>('SUPABASE_SERVICE_ROLE_KEY')!;
+    this.supabase = createClient(supabaseUrl, supabaseKey, {
+      auth: {
+        persistSession: false,
+      },
+      realtime: {
+        transport: WebSocket as any,
+      },
+    });
   }
 
   /**
@@ -141,6 +150,8 @@ export class UsersService {
     const fileName = `${userId}-${Date.now()}.${file.mimetype.split('/')[1]}`;
     const filePath = `avatars/${fileName}`;
 
+    this.logger.log(`Uploading avatar for user ${userId}: ${filePath}`);
+
     // Upload to Supabase Storage
     const { error: uploadError } = await this.supabase.storage
       .from('user-avatars')
@@ -150,14 +161,24 @@ export class UsersService {
       });
 
     if (uploadError) {
-      this.logger.error('Failed to upload avatar', uploadError);
-      throw new ConflictException('Failed to upload avatar');
+      this.logger.error('Failed to upload avatar to Supabase Storage', {
+        error: uploadError,
+        userId,
+        filePath,
+        fileSize: file.size,
+        mimeType: file.mimetype,
+      });
+      throw new ConflictException(
+        `Failed to upload avatar: ${uploadError.message || 'Storage error'}`,
+      );
     }
 
     // Get public URL
     const {
       data: { publicUrl },
     } = this.supabase.storage.from('user-avatars').getPublicUrl(filePath);
+
+    this.logger.log(`Avatar uploaded successfully: ${publicUrl}`);
 
     // Update user avatar URL
     await this.prisma.user.update({

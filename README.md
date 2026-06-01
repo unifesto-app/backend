@@ -44,11 +44,16 @@ npm run prisma:migrate
 # Seed database with default roles
 npm run prisma:seed
 
+# Set up Supabase Storage (run once)
+node setup-storage.js
+
 # Start development server
 npm run start:dev
 ```
 
 The API will be available at `http://localhost:3000`
+
+> **Note:** After running `setup-storage.js`, you need to create storage policies in Supabase Dashboard. See [docs/STORAGE_SETUP.md](docs/STORAGE_SETUP.md) for detailed instructions.
 
 ## 📁 Project Structure
 
