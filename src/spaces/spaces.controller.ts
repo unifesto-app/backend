@@ -23,7 +23,6 @@ import { RoleCode, SpaceStatus, SpaceVisibility } from '@prisma/client';
 import type { User } from '@prisma/client';
 
 @Controller('spaces')
-@UseGuards(JwtAuthGuard)
 export class SpacesController {
   constructor(private readonly spacesService: SpacesService) {}
 
@@ -32,7 +31,7 @@ export class SpacesController {
    * POST /spaces
    */
   @Post()
-  @UseGuards(RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(RoleCode.ADMIN)
   async createSpace(
     @Body() dto: CreateSpaceDto,
@@ -85,7 +84,7 @@ export class SpacesController {
    * PATCH /spaces/:id
    */
   @Patch(':id')
-  @UseGuards(RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(RoleCode.ADMIN)
   async updateSpace(
     @Param('id') id: string,
@@ -99,7 +98,7 @@ export class SpacesController {
    * PATCH /spaces/:id/status
    */
   @Patch(':id/status')
-  @UseGuards(RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(RoleCode.ADMIN)
   async updateSpaceStatus(
     @Param('id') id: string,
@@ -114,7 +113,7 @@ export class SpacesController {
    * DELETE /spaces/:id
    */
   @Delete(':id')
-  @UseGuards(RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(RoleCode.ADMIN)
   async deleteSpace(@Param('id') id: string) {
     return this.spacesService.deleteSpace(id);
@@ -125,7 +124,7 @@ export class SpacesController {
    * POST /spaces/:id/logo
    */
   @Post(':id/logo')
-  @UseGuards(RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(RoleCode.ADMIN)
   @UseInterceptors(FileInterceptor('logo'))
   async uploadLogo(
@@ -148,7 +147,7 @@ export class SpacesController {
    * POST /spaces/:id/banner
    */
   @Post(':id/banner')
-  @UseGuards(RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(RoleCode.ADMIN)
   @UseInterceptors(FileInterceptor('banner'))
   async uploadBanner(
@@ -171,7 +170,7 @@ export class SpacesController {
    * GET /spaces/:id/members
    */
   @Get(':id/members')
-  @UseGuards(RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(RoleCode.ADMIN)
   async getSpaceMembers(@Param('id') id: string) {
     return this.spacesService.getSpaceMembers(id);
