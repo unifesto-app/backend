@@ -80,6 +80,32 @@ export class SpacesController {
   }
 
   /**
+   * Join a space (Authenticated users)
+   * POST /spaces/:id/join
+   */
+  @Post(':id/join')
+  @UseGuards(JwtAuthGuard)
+  async joinSpace(
+    @Param('id') id: string,
+    @CurrentUser() user: User,
+  ) {
+    return this.spacesService.joinSpace(id, user.id);
+  }
+
+  /**
+   * Leave a space (Authenticated users)
+   * POST /spaces/:id/leave
+   */
+  @Post(':id/leave')
+  @UseGuards(JwtAuthGuard)
+  async leaveSpace(
+    @Param('id') id: string,
+    @CurrentUser() user: User,
+  ) {
+    return this.spacesService.leaveSpace(id, user.id);
+  }
+
+  /**
    * Update space (ADMIN only)
    * PATCH /spaces/:id
    */

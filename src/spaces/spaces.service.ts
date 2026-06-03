@@ -421,4 +421,113 @@ export class SpacesService {
 
     return members;
   }
+
+  /**
+   * Join a space (become a member)
+   */
+  async joinSpace(spaceId: string, userId: string) {
+    // Check if space exists and is active
+    const space = await this.prisma.space.findUnique({
+      where: { id: spaceId },
+    });
+
+    if (!space) {
+      throw new NotFoundException('Space not found');
+    }
+
+    if (space.status !== SpaceStatus.ACTIVE) {
+      throw new BadRequestException('Space is not active');
+    }
+
+    // Check if user is already a member
+    const existingMember = await this.prisma.userRole.findFirst({
+      where: {
+        userId,
+        spaceId,
+      },
+    });
+
+    if (existingMember) {
+      throw new ConflictException('You are already a member of this space');
+    }
+
+    // Get the MEMBER role for this space
+    const memberRole = await this.prisma.role.findFirst({
+      where: {
+        code: 'MEMBER',
+        scope: 'SPACE',
+      },
+    });
+
+    if (!memberRole) {
+      throw new NotFoundException('Member role not found');
+    }
+
+    // Add user as a member
+    const userRole = await this.prisma.userRole.create({
+      data: {
+        userId,
+        roleId: memberRole.id,
+        spaceId,
+      },
+      include: {
+        role: true,
+        space: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+          },
+        },
+      },
+    });
+
+    return {
+      message: 'Successfully joined the space',
+      userRole,
+    };
+  }
+
+  /**
+   * Leave a space (remove membership)
+   */
+  async leaveSpace(spaceId: string, userId: string) {
+    // Check if space exists
+    const space = await this.prisma.space.findUnique({
+      where: { id: spaceId },
+    });
+
+    if (!space) {
+      throw new NotFoundException('Space not found');
+    }
+
+    // Check if user is a member
+    const membership = await this.prisma.userRole.findFirst({
+      where: {
+        userId,
+        spaceId,
+      },
+      include: {
+        role: true,
+      },
+    });
+
+    if (!membership) {
+      throw new NotFoundException('You are not a member of this space');
+    }
+
+    // Don't allow space creator to leave
+    if (space.createdBy === userId) {
+      throw new BadRequestException('Space creator cannot leave the space');
+    }
+
+    // Remove membership
+    await this.prisma.userRole.delete({
+      where: { id: membership.id },
+    });
+
+    return {
+      message: 'Successfully left the space',
+    };
+  }
 }

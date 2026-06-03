@@ -434,4 +434,74 @@ export class UsersService {
 
     return identities;
   }
+
+  /**
+   * Get user's spaces (where user is a member)
+   */
+  async getUserSpaces(userId: string) {
+    const userRoles = await this.prisma.userRole.findMany({
+      where: {
+        userId,
+        space: {
+          status: 'ACTIVE',
+        },
+      },
+      include: {
+        space: {
+          include: {
+            creator: {
+              select: {
+                id: true,
+                fullName: true,
+                username: true,
+              },
+            },
+            _count: {
+              select: {
+                userRoles: true,
+              },
+            },
+          },
+        },
+        role: {
+          select: {
+            id: true,
+            code: true,
+            name: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    // Transform to match Space interface expected by frontend
+    // Filter out any UserRoles without spaces (shouldn't happen due to where clause, but needed for TypeScript)
+    return userRoles
+      .filter((ur) => ur.space !== null)
+      .map((ur) => ({
+        id: ur.space!.id,
+        name: ur.space!.name,
+        slug: ur.space!.slug,
+        description: ur.space!.description,
+        logo_url: ur.space!.logoUrl,
+        banner_url: ur.space!.bannerUrl,
+        city: ur.space!.city,
+        state: ur.space!.state,
+        country: ur.space!.country,
+        visibility: ur.space!.visibility,
+        status: ur.space!.status,
+        member_count: ur.space!._count.userRoles,
+        event_count: 0, // Events not yet implemented
+        creator: ur.space!.creator,
+        userRole: {
+          id: ur.role.id,
+          code: ur.role.code,
+          name: ur.role.name,
+        },
+        createdAt: ur.space!.createdAt,
+        updatedAt: ur.space!.updatedAt,
+      }));
+  }
 }

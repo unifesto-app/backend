@@ -94,6 +94,16 @@ export class UsersController {
   }
 
   /**
+   * Get current user's spaces (where user is a member)
+   * GET /users/me/spaces
+   */
+  @Get('me/spaces')
+  @UseGuards(JwtAuthGuard)
+  async getMySpaces(@CurrentUser() user: User) {
+    return this.usersService.getUserSpaces(user.id);
+  }
+
+  /**
    * Check username availability
    * POST /users/check-username
    */
