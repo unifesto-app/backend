@@ -10,6 +10,7 @@ import { AssignRoleDto } from './dto';
 import { Role, UserRole, RoleCode, RoleScope } from '@prisma/client';
 
 export interface UserRoleDetails {
+  id: string; // UserRole assignment ID
   roleId: string;
   roleCode: RoleCode;
   roleName: string;
@@ -46,6 +47,7 @@ export class RolesService {
     });
 
     return userRoles.map((ur) => ({
+      id: ur.id, // UserRole assignment ID
       roleId: ur.role.id,
       roleCode: ur.role.code,
       roleName: ur.role.name,
@@ -75,6 +77,51 @@ export class RolesService {
 
     if (role.scope === RoleScope.SPACE && !dto.spaceId) {
       throw new BadRequestException('Space roles must have a space_id');
+    }
+
+    // Validate space role limits
+    if (role.scope === RoleScope.SPACE && dto.spaceId) {
+      const space = await this.prisma.space.findUnique({
+        where: { id: dto.spaceId },
+      });
+
+      if (!space) {
+        throw new NotFoundException('Space not found');
+      }
+
+      // Check role limits
+      const currentRoleCount = await this.prisma.userRole.count({
+        where: {
+          spaceId: dto.spaceId,
+          role: { code: role.code },
+        },
+      });
+
+      // Super Organiser limit: 1
+      if (role.code === RoleCode.SUPER_ORGANISER && currentRoleCount >= 1) {
+        throw new BadRequestException(
+          'Space already has a Super Organiser. Only one Super Organiser is allowed per space.',
+        );
+      }
+
+      // Organiser limit: 1
+      if (role.code === RoleCode.ORGANISER && currentRoleCount >= 1) {
+        throw new BadRequestException(
+          'Space already has an Organiser. Only one Organiser is allowed per space.',
+        );
+      }
+
+      // Co-Organiser limit: defined by space
+      if (
+        role.code === RoleCode.CO_ORGANISER &&
+        currentRoleCount >= space.coOrganiserLimit
+      ) {
+        throw new BadRequestException(
+          `Space has reached the Co-Organiser limit of ${space.coOrganiserLimit}.`,
+        );
+      }
+
+      // MEMBER role: unlimited (no check needed)
     }
 
     // Check if role assignment already exists
@@ -168,6 +215,7 @@ export class RolesService {
     });
 
     return userRoles.map((ur) => ({
+      id: ur.id, // UserRole assignment ID
       roleId: ur.role.id,
       roleCode: ur.role.code,
       roleName: ur.role.name,

@@ -1,0 +1,183 @@
+import {
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Delete,
+  Body,
+  Param,
+  Query,
+  UseGuards,
+  UseInterceptors,
+  UploadedFile,
+  ParseFilePipe,
+  MaxFileSizeValidator,
+  FileTypeValidator,
+} from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { SpacesService } from './spaces.service';
+import { JwtAuthGuard, RolesGuard } from '../auth/guards';
+import { Roles, CurrentUser } from '../auth/decorators';
+import { CreateSpaceDto, UpdateSpaceDto, UpdateSpaceStatusDto } from './dto';
+import { RoleCode, SpaceStatus, SpaceVisibility } from '@prisma/client';
+import type { User } from '@prisma/client';
+
+@Controller('spaces')
+@UseGuards(JwtAuthGuard)
+export class SpacesController {
+  constructor(private readonly spacesService: SpacesService) {}
+
+  /**
+   * Create a new space (ADMIN only)
+   * POST /spaces
+   */
+  @Post()
+  @UseGuards(RolesGuard)
+  @Roles(RoleCode.ADMIN)
+  async createSpace(
+    @Body() dto: CreateSpaceDto,
+    @CurrentUser() user: User,
+  ) {
+    return this.spacesService.createSpace(dto, user.id);
+  }
+
+  /**
+   * Get all spaces with filters (ADMIN only)
+   * GET /spaces?page=1&limit=10&status=ACTIVE&visibility=PUBLIC&search=tech
+   */
+  @Get()
+  @UseGuards(RolesGuard)
+  @Roles(RoleCode.ADMIN)
+  async getAllSpaces(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('status') status?: SpaceStatus,
+    @Query('visibility') visibility?: SpaceVisibility,
+    @Query('search') search?: string,
+  ) {
+    return this.spacesService.getAllSpaces({
+      page: page ? parseInt(page, 10) : 1,
+      limit: limit ? parseInt(limit, 10) : 10,
+      status,
+      visibility,
+      search,
+    });
+  }
+
+  /**
+   * Get space by ID (ADMIN only)
+   * GET /spaces/:id
+   */
+  @Get(':id')
+  @UseGuards(RolesGuard)
+  @Roles(RoleCode.ADMIN)
+  async getSpaceById(@Param('id') id: string) {
+    return this.spacesService.getSpaceById(id);
+  }
+
+  /**
+   * Get space by slug
+   * GET /spaces/slug/:slug
+   */
+  @Get('slug/:slug')
+  async getSpaceBySlug(@Param('slug') slug: string) {
+    return this.spacesService.getSpaceBySlug(slug);
+  }
+
+  /**
+   * Update space (ADMIN only)
+   * PATCH /spaces/:id
+   */
+  @Patch(':id')
+  @UseGuards(RolesGuard)
+  @Roles(RoleCode.ADMIN)
+  async updateSpace(
+    @Param('id') id: string,
+    @Body() dto: UpdateSpaceDto,
+  ) {
+    return this.spacesService.updateSpace(id, dto);
+  }
+
+  /**
+   * Update space status (ADMIN only)
+   * PATCH /spaces/:id/status
+   */
+  @Patch(':id/status')
+  @UseGuards(RolesGuard)
+  @Roles(RoleCode.ADMIN)
+  async updateSpaceStatus(
+    @Param('id') id: string,
+    @Body() dto: UpdateSpaceStatusDto,
+    @CurrentUser() user: User,
+  ) {
+    return this.spacesService.updateSpaceStatus(id, dto, user.id);
+  }
+
+  /**
+   * Delete space (ADMIN only)
+   * DELETE /spaces/:id
+   */
+  @Delete(':id')
+  @UseGuards(RolesGuard)
+  @Roles(RoleCode.ADMIN)
+  async deleteSpace(@Param('id') id: string) {
+    return this.spacesService.deleteSpace(id);
+  }
+
+  /**
+   * Upload space logo (ADMIN only)
+   * POST /spaces/:id/logo
+   */
+  @Post(':id/logo')
+  @UseGuards(RolesGuard)
+  @Roles(RoleCode.ADMIN)
+  @UseInterceptors(FileInterceptor('logo'))
+  async uploadLogo(
+    @Param('id') id: string,
+    @UploadedFile(
+      new ParseFilePipe({
+        validators: [
+          new MaxFileSizeValidator({ maxSize: 2 * 1024 * 1024 }), // 2MB
+          new FileTypeValidator({ fileType: /(jpg|jpeg|png|webp)$/ }),
+        ],
+      }),
+    )
+    file: Express.Multer.File,
+  ) {
+    return this.spacesService.uploadLogo(id, file);
+  }
+
+  /**
+   * Upload space banner (ADMIN only)
+   * POST /spaces/:id/banner
+   */
+  @Post(':id/banner')
+  @UseGuards(RolesGuard)
+  @Roles(RoleCode.ADMIN)
+  @UseInterceptors(FileInterceptor('banner'))
+  async uploadBanner(
+    @Param('id') id: string,
+    @UploadedFile(
+      new ParseFilePipe({
+        validators: [
+          new MaxFileSizeValidator({ maxSize: 5 * 1024 * 1024 }), // 5MB
+          new FileTypeValidator({ fileType: /(jpg|jpeg|png|webp)$/ }),
+        ],
+      }),
+    )
+    file: Express.Multer.File,
+  ) {
+    return this.spacesService.uploadBanner(id, file);
+  }
+
+  /**
+   * Get space members (ADMIN only)
+   * GET /spaces/:id/members
+   */
+  @Get(':id/members')
+  @UseGuards(RolesGuard)
+  @Roles(RoleCode.ADMIN)
+  async getSpaceMembers(@Param('id') id: string) {
+    return this.spacesService.getSpaceMembers(id);
+  }
+}

@@ -24,6 +24,7 @@ import {
   AuthResponseDto,
   UserProfileDto,
 } from './dto';
+import WebSocket from 'ws';
 
 interface DecodedToken {
   userId?: string;
@@ -67,7 +68,11 @@ export class AuthService {
     // Initialize Supabase client
     const supabaseUrl = this.configService.get<string>('SUPABASE_URL')!;
     const supabaseKey = this.configService.get<string>('SUPABASE_ANON_KEY')!;
-    this.supabase = createClient(supabaseUrl, supabaseKey);
+    this.supabase = createClient(supabaseUrl, supabaseKey, {
+      realtime: {
+        transport: WebSocket as any,
+      },
+    });
     
     this.jwtSecret = this.configService.get<string>('JWT_SECRET')!;
     this.jwtExpiresIn = this.configService.get<string>('JWT_EXPIRES_IN', '7d');

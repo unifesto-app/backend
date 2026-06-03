@@ -13,6 +13,15 @@ Used for storing user profile avatars.
 - **File size limit:** 5MB
 - **Allowed MIME types:** image/jpeg, image/jpg, image/png, image/webp
 
+### 2. space-assets
+Used for storing space logos and banners.
+
+**Configuration:**
+- **Name:** `space-assets`
+- **Public:** Yes (publicly accessible)
+- **File size limit:** 10MB
+- **Allowed MIME types:** image/jpeg, image/jpg, image/png, image/webp
+
 ## Setup Instructions
 
 ### Option 1: Using Supabase Dashboard (Recommended)
@@ -75,6 +84,8 @@ USING (
 
 Run the following SQL in your Supabase SQL Editor:
 
+#### For user-avatars bucket:
+
 ```sql
 -- Create the storage bucket
 INSERT INTO storage.buckets (id, name, public)
@@ -112,6 +123,42 @@ USING (
 );
 ```
 
+#### For space-assets bucket:
+
+```sql
+-- Create the storage bucket for space assets
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('space-assets', 'space-assets', true)
+ON CONFLICT (id) DO NOTHING;
+
+-- Create storage policies for space assets
+CREATE POLICY "Authenticated users can upload space assets"
+ON storage.objects FOR INSERT
+TO authenticated
+WITH CHECK (
+  bucket_id = 'space-assets'
+);
+
+CREATE POLICY "Public read access to space assets"
+ON storage.objects FOR SELECT
+TO public
+USING (bucket_id = 'space-assets');
+
+CREATE POLICY "Authenticated users can update space assets"
+ON storage.objects FOR UPDATE
+TO authenticated
+USING (
+  bucket_id = 'space-assets'
+);
+
+CREATE POLICY "Authenticated users can delete space assets"
+ON storage.objects FOR DELETE
+TO authenticated
+USING (
+  bucket_id = 'space-assets'
+);
+```
+
 ## Verification
 
 After setup, verify the bucket is working:
@@ -141,6 +188,7 @@ After setup, verify the bucket is working:
 
 ## File Structure
 
+### User Avatars
 Avatars are stored with the following structure:
 ```
 user-avatars/
@@ -150,10 +198,33 @@ user-avatars/
       └── {userId}-{timestamp}.webp
 ```
 
+### Space Assets
+Space logos and banners are stored with the following structure:
+```
+space-assets/
+  ├── logos/
+  │   ├── {spaceId}-{timestamp}.jpg
+  │   ├── {spaceId}-{timestamp}.png
+  │   └── {spaceId}-{timestamp}.webp
+  └── banners/
+      ├── {spaceId}-{timestamp}.jpg
+      ├── {spaceId}-{timestamp}.png
+      └── {spaceId}-{timestamp}.webp
+```
+
 ## Security Notes
 
+### User Avatars
 - Avatars are stored in a public bucket for easy access
 - File size is limited to 5MB to prevent abuse
 - Only authenticated users can upload/update/delete avatars
 - File types are restricted to common image formats
 - Each avatar filename includes the user ID and timestamp for uniqueness
+
+### Space Assets
+- Space assets (logos and banners) are stored in a public bucket
+- File size is limited to 10MB for banners (logos are usually smaller)
+- Only authenticated users (admins) can upload/update/delete space assets
+- File types are restricted to common image formats
+- Each asset filename includes the space ID and timestamp for uniqueness
+- Images are automatically cropped and compressed on the client side before upload

@@ -41,6 +41,25 @@ enum RoleCode {
   @@map("role_code")
 }
 
+enum SpaceStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+  ARCHIVED
+
+  @@map("space_status")
+}
+
+enum SpaceVisibility {
+  PUBLIC
+  PRIVATE
+
+  @@map("space_visibility")
+}
+
 // =====================================================
 // USER MODEL
 // Core user entity - one person = one account
@@ -73,9 +92,12 @@ model User {
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   // Relations
-  identities      UserIdentity[]
-  roles           UserRole[]     @relation("UserRoles")
-  assignedRoles   UserRole[]     @relation("AssignedBy")
+  identities       UserIdentity[]
+  roles            UserRole[]        @relation("UserRoles")
+  assignedRoles    UserRole[]        @relation("AssignedBy")
+  createdSpaces    Space[]           @relation("SpaceCreator")
+  discussions      Discussion[]
+  discussionReplies DiscussionReply[]
 
   @@map("users")
 }
@@ -150,10 +172,11 @@ model UserRole {
 
   // Space context (null for platform roles)
   spaceId String? @map("space_id") @db.Uuid
+  space   Space?  @relation(fields: [spaceId], references: [id], onDelete: Cascade)
 
   // Audit
-  assignedBy   String?  @map("assigned_by") @db.Uuid
-  assignedByUser User?  @relation("AssignedBy", fields: [assignedBy], references: [id])
+  assignedBy     String? @map("assigned_by") @db.Uuid
+  assignedByUser User?   @relation("AssignedBy", fields: [assignedBy], references: [id])
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
@@ -163,4 +186,137 @@ model UserRole {
   @@index([roleId])
   @@index([spaceId])
   @@map("user_roles")
+}
+
+// =====================================================
+// SPACE MODEL
+// Community spaces (formerly organizations)
+// =====================================================
+
+model Space {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  // Basic Information
+  name        String             @db.VarChar(255)
+  slug        String             @unique @db.VarChar(100) // Like username, e.g., @tech-community
+  description String?            @db.Text
+  websiteUrl  String?            @map("website_url") @db.Text
+  
+  // Images
+  logoUrl   String? @map("logo_url") @db.Text
+  bannerUrl String? @map("banner_url") @db.Text
+
+  // Location
+  city    String? @db.VarChar(100)
+  state   String? @db.VarChar(100)
+  country String? @db.VarChar(100)
+
+  // Configuration
+  tags       String[] // Array of tags
+  visibility SpaceVisibility @default(PUBLIC)
+  
+  // Limits
+  coOrganiserLimit Int @default(5) @map("co_organiser_limit") // Set by admin
+
+  // Status & Workflow
+  status        SpaceStatus @default(PENDING)
+  submittedAt   DateTime?   @map("submitted_at") @db.Timestamptz(6)
+  approvedAt    DateTime?   @map("approved_at") @db.Timestamptz(6)
+  rejectedAt    DateTime?   @map("rejected_at") @db.Timestamptz(6)
+  approvedBy    String?     @map("approved_by") @db.Uuid
+  rejectionReason String?   @map("rejection_reason") @db.Text
+
+  // Creator
+  createdBy String @map("created_by") @db.Uuid
+  creator   User   @relation("SpaceCreator", fields: [createdBy], references: [id])
+
+  // Timestamps
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  // Relations
+  userRoles   UserRole[]
+  discussions Discussion[]
+  // events Event[] // Placeholder for future
+
+  @@index([slug])
+  @@index([status])
+  @@index([createdBy])
+  @@map("spaces")
+}
+
+// =====================================================
+// DISCUSSION MODEL
+// Forum discussions within spaces
+// =====================================================
+
+model Discussion {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  // Content
+  title   String @db.VarChar(500)
+  content String @db.Text
+
+  // Space context
+  spaceId String @map("space_id") @db.Uuid
+  space   Space  @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+
+  // Author
+  authorId String @map("author_id") @db.Uuid
+  author   User   @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  // Status
+  isPinned  Boolean @default(false) @map("is_pinned")
+  isLocked  Boolean @default(false) @map("is_locked")
+  isDeleted Boolean @default(false) @map("is_deleted")
+
+  // Engagement
+  viewCount  Int @default(0) @map("view_count")
+  replyCount Int @default(0) @map("reply_count")
+
+  // Timestamps
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  lastActivityAt DateTime @default(now()) @map("last_activity_at") @db.Timestamptz(6)
+
+  // Relations
+  replies DiscussionReply[]
+
+  @@index([spaceId])
+  @@index([authorId])
+  @@index([createdAt])
+  @@index([lastActivityAt])
+  @@map("discussions")
+}
+
+// =====================================================
+// DISCUSSION REPLY MODEL
+// Replies to discussions
+// =====================================================
+
+model DiscussionReply {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  // Content
+  content String @db.Text
+
+  // Discussion context
+  discussionId String     @map("discussion_id") @db.Uuid
+  discussion   Discussion @relation(fields: [discussionId], references: [id], onDelete: Cascade)
+
+  // Author
+  authorId String @map("author_id") @db.Uuid
+  author   User   @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  // Status
+  isDeleted Boolean @default(false) @map("is_deleted")
+
+  // Timestamps
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([discussionId])
+  @@index([authorId])
+  @@index([createdAt])
+  @@map("discussion_replies")
 }

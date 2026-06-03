@@ -8,6 +8,7 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
+import { SkipThrottle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import {
@@ -94,9 +95,11 @@ export class AuthController {
   /**
    * Get Current Session
    * GET /auth/session
+   * Skip throttling for session validation endpoint
    */
   @Get('session')
   @UseGuards(JwtAuthGuard)
+  @SkipThrottle()
   async getSession(@Request() req) {
     return {
       user: req.user,

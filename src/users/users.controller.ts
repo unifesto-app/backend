@@ -11,14 +11,16 @@ import {
   ParseFilePipe,
   MaxFileSizeValidator,
   FileTypeValidator,
+  Query,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { UsersService } from './users.service';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { JwtAuthGuard, RolesGuard } from '../auth/guards';
+import { CurrentUser, Roles } from '../auth/decorators';
 import { UpdateProfileDto, CheckUsernameDto } from './dto';
 import type { User } from '@prisma/client';
 import { UserProfileDto } from '../auth/dto';
+import { RoleCode } from '@prisma/client';
 
 @Controller('users')
 export class UsersController {
@@ -82,6 +84,16 @@ export class UsersController {
   }
 
   /**
+   * Get current user's linked accounts (identities)
+   * GET /users/me/identities
+   */
+  @Get('me/identities')
+  @UseGuards(JwtAuthGuard)
+  async getMyIdentities(@CurrentUser() user: User) {
+    return this.usersService.getUserIdentities(user.id);
+  }
+
+  /**
    * Check username availability
    * POST /users/check-username
    */
@@ -93,23 +105,67 @@ export class UsersController {
   }
 
   /**
-   * Get user by username
-   * GET /users/:username
+   * Get all users (ADMIN only)
+   * GET /users?page=1&limit=10&search=query
    */
-  @Get(':username')
-  async getUserByUsername(
-    @Param('username') username: string,
-  ): Promise<UserProfileDto> {
-    return this.usersService.getUserByUsername(username);
+  @Get()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(RoleCode.ADMIN)
+  async getAllUsers(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('search') search?: string,
+  ) {
+    const pageNum = page ? parseInt(page, 10) : 1;
+    const limitNum = limit ? parseInt(limit, 10) : 10;
+
+    return this.usersService.getAllUsers({
+      page: pageNum,
+      limit: limitNum,
+      search,
+    });
   }
 
   /**
-   * Get current user's linked accounts (identities)
-   * GET /users/me/identities
+   * Get user by ID (ADMIN only)
+   * GET /users/:id (UUID format)
    */
-  @Get('me/identities')
-  @UseGuards(JwtAuthGuard)
-  async getMyIdentities(@CurrentUser() user: User) {
-    return this.usersService.getUserIdentities(user.id);
+  @Get(':id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(RoleCode.ADMIN)
+  async getUserById(@Param('id') id: string) {
+    // Check if it's a UUID (for admin lookup) or username (for public profile)
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+    
+    if (isUUID) {
+      return this.usersService.getUserByIdAdmin(id);
+    } else {
+      return this.usersService.getUserByUsername(id);
+    }
   }
+
+  /**
+   * Update user by ID (ADMIN only)
+   * PATCH /users/:id
+   */
+  @Patch(':id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(RoleCode.ADMIN)
+  async updateUserById(
+    @Param('id') id: string,
+    @Body() dto: UpdateProfileDto,
+  ) {
+    return this.usersService.updateUserByIdAdmin(id, dto);
+  }
+
+  /**
+   * Delete user by ID (ADMIN only)
+   * DELETE /users/:id
+   */
+  // @Delete(':id')
+  // @UseGuards(JwtAuthGuard, RolesGuard)
+  // @Roles(RoleCode.ADMIN)
+  // async deleteUserById(@Param('id') id: string) {
+  //   return this.usersService.deleteUserByIdAdmin(id);
+  // }
 }

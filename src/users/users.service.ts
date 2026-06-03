@@ -35,6 +35,231 @@ export class UsersService {
   }
 
   /**
+   * Get all users with pagination (ADMIN only)
+   */
+  async getAllUsers(params: {
+    page: number;
+    limit: number;
+    search?: string;
+  }) {
+    const { page, limit, search } = params;
+    const skip = (page - 1) * limit;
+
+    // Build where clause for search
+    const where = search
+      ? {
+          OR: [
+            { fullName: { contains: search, mode: 'insensitive' as const } },
+            { username: { contains: search, mode: 'insensitive' as const } },
+            { mobileNumber: { contains: search } },
+            {
+              identities: {
+                some: {
+                  email: { contains: search, mode: 'insensitive' as const },
+                },
+              },
+            },
+          ],
+        }
+      : {};
+
+    // Fetch users with pagination
+    const [users, total] = await Promise.all([
+      this.prisma.user.findMany({
+        where,
+        skip,
+        take: limit,
+        include: {
+          identities: {
+            select: {
+              id: true,
+              provider: true,
+              email: true,
+              emailVerified: true,
+            },
+          },
+          roles: {
+            include: {
+              role: true,
+            },
+          },
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+      }),
+      this.prisma.user.count({ where }),
+    ]);
+
+    // Transform users to include computed fields
+    const transformedUsers = users.map((user) => ({
+      id: user.id,
+      mobileNumber: user.mobileNumber,
+      mobileVerified: user.mobileVerified,
+      username: user.username,
+      fullName: user.fullName,
+      avatarUrl: user.avatarUrl,
+      bio: user.bio,
+      linkedinUrl: user.linkedinUrl,
+      instagramUrl: user.instagramUrl,
+      githubUrl: user.githubUrl,
+      websiteUrl: user.websiteUrl,
+      isOnboarded: user.isOnboarded,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+      email: user.identities.find((i) => i.email)?.email || null,
+      emailVerified:
+        user.identities.find((i) => i.email)?.emailVerified || false,
+      roles: user.roles.map((ur) => ur.role.code),
+      identitiesCount: user.identities.length,
+    }));
+
+    return {
+      users: transformedUsers,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  }
+
+  /**
+   * Get user by ID (ADMIN only)
+   */
+  async getUserByIdAdmin(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        identities: {
+          select: {
+            id: true,
+            provider: true,
+            email: true,
+            emailVerified: true,
+            createdAt: true,
+          },
+        },
+        roles: {
+          include: {
+            role: true,
+            assignedByUser: {
+              select: {
+                id: true,
+                fullName: true,
+                username: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    // Transform user data
+    return {
+      user: {
+        id: user.id,
+        mobileNumber: user.mobileNumber,
+        mobileVerified: user.mobileVerified,
+        username: user.username,
+        fullName: user.fullName,
+        avatarUrl: user.avatarUrl,
+        bio: user.bio,
+        linkedinUrl: user.linkedinUrl,
+        instagramUrl: user.instagramUrl,
+        githubUrl: user.githubUrl,
+        websiteUrl: user.websiteUrl,
+        isOnboarded: user.isOnboarded,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+        email: user.identities.find((i) => i.email)?.email || null,
+        emailVerified:
+          user.identities.find((i) => i.email)?.emailVerified || false,
+        roles: user.roles.map((ur) => ({
+          id: ur.id,
+          code: ur.role.code,
+          name: ur.role.name,
+          scope: ur.role.scope,
+          spaceId: ur.spaceId,
+          assignedBy: ur.assignedByUser,
+          assignedAt: ur.createdAt,
+        })),
+        identities: user.identities,
+      },
+    };
+  }
+
+  /**
+   * Update user by ID (ADMIN only)
+   */
+  async updateUserByIdAdmin(userId: string, dto: UpdateProfileDto) {
+    // Check if username is being updated and is available
+    if (dto.username) {
+      const isAvailable = await this.isUsernameAvailable(dto.username, userId);
+      if (!isAvailable) {
+        throw new ConflictException('Username is already taken');
+      }
+    }
+
+    const user = await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        username: dto.username,
+        fullName: dto.fullName,
+        bio: dto.bio,
+        linkedinUrl: dto.linkedinUrl,
+        instagramUrl: dto.instagramUrl,
+        githubUrl: dto.githubUrl,
+        websiteUrl: dto.websiteUrl,
+      },
+      include: {
+        identities: {
+          select: {
+            id: true,
+            provider: true,
+            email: true,
+            emailVerified: true,
+          },
+        },
+        roles: {
+          include: {
+            role: true,
+          },
+        },
+      },
+    });
+
+    return {
+      user: {
+        id: user.id,
+        mobileNumber: user.mobileNumber,
+        mobileVerified: user.mobileVerified,
+        username: user.username,
+        fullName: user.fullName,
+        avatarUrl: user.avatarUrl,
+        bio: user.bio,
+        linkedinUrl: user.linkedinUrl,
+        instagramUrl: user.instagramUrl,
+        githubUrl: user.githubUrl,
+        websiteUrl: user.websiteUrl,
+        isOnboarded: user.isOnboarded,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+        email: user.identities.find((i) => i.email)?.email || null,
+        emailVerified:
+          user.identities.find((i) => i.email)?.emailVerified || false,
+        roles: user.roles.map((ur) => ur.role.code),
+      },
+      message: 'User updated successfully',
+    };
+  }
+
+  /**
    * Get current user profile
    */
   async getMe(userId: string): Promise<UserProfileDto> {
