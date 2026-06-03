@@ -42,12 +42,10 @@ export class SpacesController {
   }
 
   /**
-   * Get all spaces with filters (ADMIN only)
+   * Get all spaces with filters (PUBLIC - no auth required)
    * GET /spaces?page=1&limit=10&status=ACTIVE&visibility=PUBLIC&search=tech
    */
   @Get()
-  @UseGuards(RolesGuard)
-  @Roles(RoleCode.ADMIN)
   async getAllSpaces(
     @Query('page') page?: string,
     @Query('limit') limit?: string,
@@ -65,23 +63,21 @@ export class SpacesController {
   }
 
   /**
-   * Get space by ID (ADMIN only)
-   * GET /spaces/:id
-   */
-  @Get(':id')
-  @UseGuards(RolesGuard)
-  @Roles(RoleCode.ADMIN)
-  async getSpaceById(@Param('id') id: string) {
-    return this.spacesService.getSpaceById(id);
-  }
-
-  /**
-   * Get space by slug
+   * Get space by slug (PUBLIC - for mobile view)
    * GET /spaces/slug/:slug
    */
   @Get('slug/:slug')
   async getSpaceBySlug(@Param('slug') slug: string) {
     return this.spacesService.getSpaceBySlug(slug);
+  }
+
+  /**
+   * Get space by ID (PUBLIC - for mobile view)
+   * GET /spaces/:id
+   */
+  @Get(':id')
+  async getSpaceById(@Param('id') id: string) {
+    return this.spacesService.getSpaceById(id);
   }
 
   /**
