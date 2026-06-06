@@ -233,10 +233,13 @@ export class RegistrationsService {
       return reg;
     });
 
-    await this.emailService.sendOtpEmail(
-      event.space.creator.identities[0]?.email || '',
-      `You have successfully registered for ${event.title}`,
-    );
+    const creatorEmail = event.space?.creator?.identities?.[0]?.email;
+    if (creatorEmail) {
+      await this.emailService.sendOtpEmail(
+        creatorEmail,
+        `You have successfully registered for ${event.title}`,
+      );
+    }
 
     this.logger.log(`RSVP completed for user ${userId}, event ${eventId}`);
 
