@@ -60,6 +60,122 @@ enum SpaceVisibility {
   @@map("space_visibility")
 }
 
+enum SpaceType {
+  SUPER
+  REGULAR
+
+  @@map("space_type")
+}
+
+enum OrgPlan {
+  STARTER
+  GROWTH
+  PRO
+  ENTERPRISE
+
+  @@map("org_plan")
+}
+
+enum BillingCycle {
+  MONTHLY
+  ANNUAL
+
+  @@map("billing_cycle")
+}
+
+enum EventType {
+  IN_PERSON
+  ONLINE
+  HYBRID
+
+  @@map("event_type")
+}
+
+enum EventStatus {
+  DRAFT
+  PUBLISHED
+  ONGOING
+  COMPLETED
+  CANCELLED
+
+  @@map("event_status")
+}
+
+enum EventVisibility {
+  PUBLIC
+  PRIVATE
+  SPACE_ONLY
+
+  @@map("event_visibility")
+}
+
+enum RegistrationType {
+  RSVP
+  TICKETED
+
+  @@map("registration_type")
+}
+
+enum FormFieldType {
+  TEXT
+  TEXTAREA
+  SELECT
+  RADIO
+  CHECKBOX
+  NUMBER
+  EMAIL
+  PHONE
+
+  @@map("form_field_type")
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+
+  @@map("payment_status")
+}
+
+enum RegistrationStatus {
+  REGISTERED
+  CANCELLED
+  ATTENDED
+  NO_SHOW
+
+  @@map("registration_status")
+}
+
+enum TicketStatus {
+  ACTIVE
+  USED
+  CANCELLED
+  REFUNDED
+
+  @@map("ticket_status")
+}
+
+enum TransactionType {
+  CREDIT
+  DEBIT
+
+  @@map("transaction_type")
+}
+
+enum CoinSource {
+  EVENT_ATTENDANCE
+  REFERRAL
+  REDEEM_CODE
+  ADMIN_GRANT
+  PARTNER_REDEEM
+  EVENT_REGISTRATION
+  REFUND
+  SUBSCRIPTION_PURCHASE
+
+  @@map("coin_source")
+}
+
 // =====================================================
 // USER MODEL
 // Core user entity - one person = one account
@@ -73,31 +189,42 @@ model User {
   mobileVerified Boolean @default(false) @map("mobile_verified")
 
   // Profile
-  username   String? @unique @db.VarChar(50)
-  fullName   String? @map("full_name") @db.VarChar(255)
-  avatarUrl  String? @map("avatar_url") @db.Text
-  bio        String? @db.Text
+  username  String? @unique @db.VarChar(50)
+  fullName  String? @map("full_name") @db.VarChar(255)
+  avatarUrl String? @map("avatar_url") @db.Text
+  bio       String? @db.Text
 
   // Social Links
-  linkedinUrl   String? @map("linkedin_url") @db.Text
-  instagramUrl  String? @map("instagram_url") @db.Text
-  githubUrl     String? @map("github_url") @db.Text
-  websiteUrl    String? @map("website_url") @db.Text
+  linkedinUrl  String? @map("linkedin_url") @db.Text
+  instagramUrl String? @map("instagram_url") @db.Text
+  githubUrl    String? @map("github_url") @db.Text
+  websiteUrl   String? @map("website_url") @db.Text
 
   // Onboarding
   isOnboarded Boolean @default(false) @map("is_onboarded")
+
+  // Referral
+  referralCode String? @unique @map("referral_code") @db.VarChar(20)
 
   // Timestamps
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   // Relations
-  identities       UserIdentity[]
-  roles            UserRole[]        @relation("UserRoles")
-  assignedRoles    UserRole[]        @relation("AssignedBy")
-  createdSpaces    Space[]           @relation("SpaceCreator")
-  discussions      Discussion[]
-  discussionReplies DiscussionReply[]
+  identities         UserIdentity[]
+  roles              UserRole[]          @relation("UserRoles")
+  assignedRoles      UserRole[]          @relation("AssignedBy")
+  createdSpaces      Space[]             @relation("SpaceCreator")
+  discussions        Discussion[]
+  discussionReplies  DiscussionReply[]
+  wallet             Wallet?
+  subscription       OrgSubscription?
+  referredBy         Referral?           @relation("ReferredBy")
+  referralsMade      Referral[]          @relation("ReferralsMade")
+  createdEvents      Event[]             @relation("EventCreator")
+  registrations      EventRegistration[]
+  createdRedeemCodes RedeemCode[]
+  redeemCodeUsages   RedeemCodeUsage[]
 
   @@map("users")
 }
@@ -142,8 +269,8 @@ model UserIdentity {
 model Role {
   id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
 
-  code  RoleCode @unique
-  name  String   @db.VarChar(100)
+  code  RoleCode  @unique
+  name  String    @db.VarChar(100)
   scope RoleScope
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
@@ -197,11 +324,11 @@ model Space {
   id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
 
   // Basic Information
-  name        String             @db.VarChar(255)
-  slug        String             @unique @db.VarChar(100) // Like username, e.g., @tech-community
-  description String?            @db.Text
-  websiteUrl  String?            @map("website_url") @db.Text
-  
+  name        String  @db.VarChar(255)
+  slug        String  @unique @db.VarChar(100) // Like username, e.g., @tech-community
+  description String? @db.Text
+  websiteUrl  String? @map("website_url") @db.Text
+
   // Images
   logoUrl   String? @map("logo_url") @db.Text
   bannerUrl String? @map("banner_url") @db.Text
@@ -214,17 +341,30 @@ model Space {
   // Configuration
   tags       String[] // Array of tags
   visibility SpaceVisibility @default(PUBLIC)
-  
+
+  // Type & Hierarchy
+  type                 SpaceType @default(REGULAR) @map("type")
+  parentSpaceId        String?   @map("parent_space_id") @db.Uuid
+  parentSpace          Space?    @relation("SpaceHierarchy", fields: [parentSpaceId], references: [id])
+  childSpaces          Space[]   @relation("SpaceHierarchy")
+  parentRequestPending Boolean   @default(false) @map("parent_request_pending")
+  requestedParentId    String?   @map("requested_parent_id") @db.Uuid
+
+  // Plan
+  plan            OrgPlan   @default(STARTER)
+  planActivatedAt DateTime? @map("plan_activated_at") @db.Timestamptz(6)
+  planExpiresAt   DateTime? @map("plan_expires_at") @db.Timestamptz(6)
+
   // Limits
   coOrganiserLimit Int @default(5) @map("co_organiser_limit") // Set by admin
 
   // Status & Workflow
-  status        SpaceStatus @default(PENDING)
-  submittedAt   DateTime?   @map("submitted_at") @db.Timestamptz(6)
-  approvedAt    DateTime?   @map("approved_at") @db.Timestamptz(6)
-  rejectedAt    DateTime?   @map("rejected_at") @db.Timestamptz(6)
-  approvedBy    String?     @map("approved_by") @db.Uuid
-  rejectionReason String?   @map("rejection_reason") @db.Text
+  status          SpaceStatus @default(PENDING)
+  submittedAt     DateTime?   @map("submitted_at") @db.Timestamptz(6)
+  approvedAt      DateTime?   @map("approved_at") @db.Timestamptz(6)
+  rejectedAt      DateTime?   @map("rejected_at") @db.Timestamptz(6)
+  approvedBy      String?     @map("approved_by") @db.Uuid
+  rejectionReason String?     @map("rejection_reason") @db.Text
 
   // Creator
   createdBy String @map("created_by") @db.Uuid
@@ -237,11 +377,13 @@ model Space {
   // Relations
   userRoles   UserRole[]
   discussions Discussion[]
-  // events Event[] // Placeholder for future
+  events      Event[]
 
   @@index([slug])
   @@index([status])
   @@index([createdBy])
+  @@index([type])
+  @@index([parentSpaceId])
   @@map("spaces")
 }
 
@@ -319,4 +461,437 @@ model DiscussionReply {
   @@index([authorId])
   @@index([createdAt])
   @@map("discussion_replies")
+}
+
+// =====================================================
+// SUBSCRIPTION MODEL
+// Organization subscription plans
+// =====================================================
+
+model OrgSubscription {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  userId String @unique @map("user_id") @db.Uuid
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  plan         OrgPlan      @default(STARTER)
+  billingCycle BillingCycle @default(MONTHLY) @map("billing_cycle")
+  amount       Decimal      @default(0) @db.Decimal(10, 2)
+  currency     String       @default("INR") @db.VarChar(3)
+  isActive     Boolean      @default(true) @map("is_active")
+
+  startedAt   DateTime  @default(now()) @map("started_at") @db.Timestamptz(6)
+  expiresAt   DateTime? @map("expires_at") @db.Timestamptz(6)
+  cancelledAt DateTime? @map("cancelled_at") @db.Timestamptz(6)
+
+  razorpaySubId String?   @map("razorpay_sub_id") @db.VarChar(255)
+  lastPaymentAt DateTime? @map("last_payment_at") @db.Timestamptz(6)
+  nextPaymentAt DateTime? @map("next_payment_at") @db.Timestamptz(6)
+
+  eventsThisMonth Int      @default(0) @map("events_this_month")
+  usageResetAt    DateTime @default(now()) @map("usage_reset_at") @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  history SubscriptionHistory[]
+
+  @@map("org_subscriptions")
+}
+
+model SubscriptionHistory {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  subscriptionId String          @map("subscription_id") @db.Uuid
+  subscription   OrgSubscription @relation(fields: [subscriptionId], references: [id])
+
+  fromPlan  OrgPlan  @map("from_plan")
+  toPlan    OrgPlan  @map("to_plan")
+  reason    String?  @db.VarChar(500)
+  changedAt DateTime @default(now()) @map("changed_at") @db.Timestamptz(6)
+
+  @@map("subscription_history")
+}
+
+// =====================================================
+// EVENT MODELS
+// Event management system
+// =====================================================
+
+model Event {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  title         String  @db.VarChar(500)
+  slug          String  @unique @db.VarChar(200)
+  description   String? @db.Text
+  coverImageUrl String? @map("cover_image_url") @db.Text
+
+  type             EventType        @default(IN_PERSON)
+  registrationType RegistrationType @default(RSVP) @map("registration_type")
+
+  startDateTime DateTime @map("start_date_time") @db.Timestamptz(6)
+  endDateTime   DateTime @map("end_date_time") @db.Timestamptz(6)
+  timezone      String   @default("Asia/Kolkata") @db.VarChar(100)
+
+  // Venue (IN_PERSON or HYBRID)
+  venueName    String? @map("venue_name") @db.VarChar(255)
+  venueAddress String? @map("venue_address") @db.Text
+  city         String? @db.VarChar(100)
+  state        String? @db.VarChar(100)
+  country      String? @default("India") @db.VarChar(100)
+  latitude     Float?
+  longitude    Float?
+
+  // Online (ONLINE or HYBRID)
+  onlineUrl      String? @map("online_url") @db.Text
+  onlinePlatform String? @map("online_platform") @db.VarChar(100)
+
+  // Registration
+  capacity        Int?
+  registeredCount Int     @default(0) @map("registered_count")
+  waitlistEnabled Boolean @default(false) @map("waitlist_enabled")
+  waitlistCount   Int     @default(0) @map("waitlist_count")
+  isFree          Boolean @default(true) @map("is_free")
+
+  // Metadata
+  tags       String[]
+  category   String?         @db.VarChar(100)
+  visibility EventVisibility @default(PUBLIC)
+  status     EventStatus     @default(DRAFT)
+
+  // Recurring
+  isRecurring   Boolean @default(false) @map("is_recurring")
+  recurringRule String? @map("recurring_rule") @db.Text
+
+  // Space
+  spaceId String @map("space_id") @db.Uuid
+  space   Space  @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+
+  // Creator
+  createdBy String @map("created_by") @db.Uuid
+  creator   User   @relation("EventCreator", fields: [createdBy], references: [id])
+
+  // Status timestamps
+  publishedAt        DateTime? @map("published_at") @db.Timestamptz(6)
+  cancelledAt        DateTime? @map("cancelled_at") @db.Timestamptz(6)
+  cancellationReason String?   @map("cancellation_reason") @db.Text
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  ticketTypes   EventTicketType[]
+  registrations EventRegistration[]
+  agenda        EventAgenda[]
+  speakers      EventSpeaker[]
+  formFields    EventFormField[]
+
+  @@index([spaceId])
+  @@index([status])
+  @@index([startDateTime])
+  @@index([slug])
+  @@index([createdBy])
+  @@map("events")
+}
+
+model EventTicketType {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  eventId String @map("event_id") @db.Uuid
+  event   Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  name          String  @db.VarChar(255)
+  description   String? @db.Text
+  price         Decimal @db.Decimal(10, 2)
+  currency      String  @default("INR") @db.VarChar(3)
+  totalQuantity Int     @map("total_quantity")
+  soldCount     Int     @default(0) @map("sold_count")
+
+  saleStartsAt DateTime? @map("sale_starts_at") @db.Timestamptz(6)
+  saleEndsAt   DateTime? @map("sale_ends_at") @db.Timestamptz(6)
+  perUserLimit Int       @default(1) @map("per_user_limit")
+
+  isVisible Boolean @default(true) @map("is_visible")
+  isActive  Boolean @default(true) @map("is_active")
+  order     Int     @default(0)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  registrations EventRegistration[]
+
+  @@index([eventId])
+  @@map("event_ticket_types")
+}
+
+model EventAgenda {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  eventId String @map("event_id") @db.Uuid
+  event   Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  title       String   @db.VarChar(500)
+  description String?  @db.Text
+  startTime   DateTime @map("start_time") @db.Timestamptz(6)
+  endTime     DateTime @map("end_time") @db.Timestamptz(6)
+  speakerName String?  @map("speaker_name") @db.VarChar(255)
+  order       Int      @default(0)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([eventId])
+  @@map("event_agenda")
+}
+
+model EventSpeaker {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  eventId String @map("event_id") @db.Uuid
+  event   Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  name        String  @db.VarChar(255)
+  bio         String? @db.Text
+  avatarUrl   String? @map("avatar_url") @db.Text
+  designation String? @db.VarChar(255)
+  company     String? @db.VarChar(255)
+  linkedinUrl String? @map("linkedin_url") @db.Text
+  order       Int     @default(0)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([eventId])
+  @@map("event_speakers")
+}
+
+model EventFormField {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  eventId String @map("event_id") @db.Uuid
+  event   Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  label      String        @db.VarChar(255)
+  type       FormFieldType
+  options    String[]
+  isRequired Boolean       @default(false) @map("is_required")
+  order      Int           @default(0)
+
+  @@index([eventId])
+  @@map("event_form_fields")
+}
+
+// =====================================================
+// REGISTRATION & TICKETING MODELS
+// Event registration and ticket management
+// =====================================================
+
+model EventRegistration {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  eventId String @map("event_id") @db.Uuid
+  event   Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  userId String @map("user_id") @db.Uuid
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  ticketTypeId String?          @map("ticket_type_id") @db.Uuid
+  ticketType   EventTicketType? @relation(fields: [ticketTypeId], references: [id])
+
+  quantity Int @default(1)
+
+  // Payment
+  totalAmount    Decimal       @default(0) @map("total_amount") @db.Decimal(10, 2)
+  coinsUsed      Int           @default(0) @map("coins_used")
+  coinValueINR   Decimal       @default(0) @map("coin_value_inr") @db.Decimal(10, 2)
+  razorpayAmount Decimal       @default(0) @map("razorpay_amount") @db.Decimal(10, 2)
+  processingFee  Decimal       @default(0) @map("processing_fee") @db.Decimal(10, 2)
+  paymentStatus  PaymentStatus @default(PENDING) @map("payment_status")
+  paymentId      String?       @map("payment_id") @db.VarChar(255)
+  orderId        String?       @map("order_id") @db.VarChar(255)
+  paidAt         DateTime?     @map("paid_at") @db.Timestamptz(6)
+
+  // Registration status
+  status       RegistrationStatus @default(REGISTERED)
+  isWaitlisted Boolean            @default(false) @map("is_waitlisted")
+
+  // QR Code for check-in
+  qrCode String @unique @map("qr_code") @db.VarChar(100)
+
+  // Check-in
+  checkedInAt DateTime? @map("checked_in_at") @db.Timestamptz(6)
+  checkedInBy String?   @map("checked_in_by") @db.Uuid
+
+  // Form responses
+  formResponses Json? @map("form_responses")
+
+  registeredAt DateTime  @default(now()) @map("registered_at") @db.Timestamptz(6)
+  cancelledAt  DateTime? @map("cancelled_at") @db.Timestamptz(6)
+
+  tickets EventTicket[]
+
+  @@unique([eventId, userId])
+  @@index([eventId])
+  @@index([userId])
+  @@index([qrCode])
+  @@index([paymentStatus])
+  @@map("event_registrations")
+}
+
+model EventTicket {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  registrationId String            @map("registration_id") @db.Uuid
+  registration   EventRegistration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+
+  ticketCode    String       @unique @map("ticket_code") @db.VarChar(50)
+  qrCode        String       @unique @map("qr_code") @db.VarChar(100)
+  attendeeName  String?      @map("attendee_name") @db.VarChar(255)
+  attendeeEmail String?      @map("attendee_email") @db.VarChar(255)
+  status        TicketStatus @default(ACTIVE)
+  checkedInAt   DateTime?    @map("checked_in_at") @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([registrationId])
+  @@map("event_tickets")
+}
+
+// =====================================================
+// WALLET MODELS
+// Coin wallet system
+// =====================================================
+
+model Wallet {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  userId String @unique @map("user_id") @db.Uuid
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  balance     Int @default(0)
+  totalEarned Int @default(0) @map("total_earned")
+  totalSpent  Int @default(0) @map("total_spent")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  transactions WalletTransaction[]
+
+  @@map("wallets")
+}
+
+model WalletTransaction {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  walletId String @map("wallet_id") @db.Uuid
+  wallet   Wallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
+
+  type   TransactionType
+  source CoinSource
+  coins  Int
+
+  balanceBefore Int @map("balance_before")
+  balanceAfter  Int @map("balance_after")
+
+  referenceId   String? @map("reference_id") @db.VarChar(255)
+  referenceType String? @map("reference_type") @db.VarChar(100)
+  description   String  @db.VarChar(500)
+  note          String? @db.Text
+
+  redeemCodeId String?     @map("redeem_code_id") @db.Uuid
+  redeemCode   RedeemCode? @relation(fields: [redeemCodeId], references: [id])
+
+  partnerId    String?  @map("partner_id") @db.Uuid
+  partner      Partner? @relation(fields: [partnerId], references: [id])
+  partnerTxnId String?  @map("partner_txn_id") @db.VarChar(255)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([walletId])
+  @@index([source])
+  @@index([createdAt])
+  @@map("wallet_transactions")
+}
+
+model RedeemCode {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  code  String @unique @db.VarChar(50)
+  coins Int
+
+  totalUses    Int?      @map("total_uses")
+  usedCount    Int       @default(0) @map("used_count")
+  perUserLimit Int       @default(1) @map("per_user_limit")
+  isActive     Boolean   @default(true) @map("is_active")
+  expiresAt    DateTime? @map("expires_at") @db.Timestamptz(6)
+
+  createdBy String @map("created_by") @db.Uuid
+  creator   User   @relation(fields: [createdBy], references: [id])
+
+  restrictToUsers String[] @map("restrict_to_users") @db.Uuid
+  description     String?  @db.VarChar(500)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  redemptions     WalletTransaction[]
+  userRedemptions RedeemCodeUsage[]
+
+  @@map("redeem_codes")
+}
+
+model RedeemCodeUsage {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  codeId String     @map("code_id") @db.Uuid
+  code   RedeemCode @relation(fields: [codeId], references: [id])
+
+  userId String @map("user_id") @db.Uuid
+  user   User   @relation(fields: [userId], references: [id])
+
+  redeemedAt DateTime @default(now()) @map("redeemed_at") @db.Timestamptz(6)
+
+  @@unique([codeId, userId])
+  @@map("redeem_code_usage")
+}
+
+model Partner {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  name        String  @db.VarChar(255)
+  slug        String  @unique @db.VarChar(100)
+  description String? @db.Text
+  logoUrl     String? @map("logo_url") @db.Text
+  websiteUrl  String? @map("website_url") @db.Text
+
+  apiKey   String  @unique @map("api_key") @db.VarChar(255)
+  isActive Boolean @default(true) @map("is_active")
+
+  maxCoinsPerTxn Int? @map("max_coins_per_txn")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  transactions WalletTransaction[]
+
+  @@map("partners")
+}
+
+// =====================================================
+// REFERRAL MODEL
+// User referral system
+// =====================================================
+
+model Referral {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  referrerId String @map("referrer_id") @db.Uuid
+  referrer   User   @relation("ReferralsMade", fields: [referrerId], references: [id])
+
+  referredId String @unique @map("referred_id") @db.Uuid
+  referred   User   @relation("ReferredBy", fields: [referredId], references: [id])
+
+  coinsAwarded Int       @default(0) @map("coins_awarded")
+  awardedAt    DateTime? @map("awarded_at") @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([referrerId])
+  @@map("referrals")
 }

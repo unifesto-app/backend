@@ -10,9 +10,10 @@ import { WhatsAppModule } from '../whatsapp/whatsapp.module';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RedisModule } from '../redis/redis.module';
 import { RolesGuard } from './guards/roles.guard';
+import { CacheModule } from '../cache/cache.module';
 
 @Module({
-  imports: [ConfigModule, PrismaModule, EmailModule, WhatsAppModule, RedisModule],
+  imports: [ConfigModule, PrismaModule, EmailModule, WhatsAppModule, RedisModule, CacheModule],
   controllers: [AuthController],
   providers: [AuthService, OtpService, CognitoJwtService, JwtAuthGuard, RolesGuard],
   exports: [AuthService, CognitoJwtService, JwtAuthGuard],

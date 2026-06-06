@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
+import { CacheService } from '../cache/cache.service';
 import * as jwt from 'jsonwebtoken';
 import { OAuth2Client } from 'google-auth-library';
 import jwksClient from 'jwks-rsa';
@@ -87,8 +88,11 @@ export class AuthService {
     private readonly emailService: EmailService,
     private readonly whatsappService: WhatsAppService,
     private readonly otpService: OtpService,
+    private readonly cache: CacheService,
     private readonly cognitoJwtService?: CognitoJwtService, // Optional injection for future Cognito flows
   ) {
+    // Note: WalletService, SubscriptionService, and ReferralsService are injected via lazy loading pattern
+    // to avoid circular dependencies
     this.jwtSecret = this.configService.get<string>('JWT_SECRET')!;
     this.jwtExpiresIn = this.configService.get<string>('JWT_EXPIRES_IN', '7d');
 
@@ -211,6 +215,12 @@ export class AuthService {
     try {
       this.logger.log(`Verifying email OTP for: ${email}`);
       this.logger.log(`OTP received: ${otp}`);
+
+      // Check if OTP attempts are blocked
+      const isBlocked = await this.cache.isOtpBlocked(email);
+      if (isBlocked) {
+        throw new UnauthorizedException('Too many failed attempts. Please try again in 15 minutes.');
+      }
       
       // Verify OTP
       const isValid = await this.otpService.verifyOtp(email, otp);
@@ -218,8 +228,14 @@ export class AuthService {
       this.logger.log(`OTP validation result: ${isValid}`);
       
       if (!isValid) {
+        // Track failed attempt
+        const failCount = await this.cache.trackFailedOtp(email);
+        this.logger.warn(`Failed OTP attempt ${failCount} for ${email}`);
         throw new UnauthorizedException('Invalid or expired OTP');
       }
+
+      // Clear failed attempts on success
+      await this.cache.clearFailedOtp(email);
 
       this.logger.log(`Handling provider login for email: ${email}`);
       
@@ -269,12 +285,24 @@ export class AuthService {
       // Verify temp token
       const decoded = this.verifyTempToken(dto.tempToken);
 
+      // Check if OTP attempts are blocked
+      const isBlocked = await this.cache.isOtpBlocked(dto.mobileNumber);
+      if (isBlocked) {
+        throw new UnauthorizedException('Too many failed attempts. Please try again in 15 minutes.');
+      }
+
       // Verify OTP
       const isValid = await this.otpService.verifyOtp(dto.mobileNumber, dto.otp);
       
       if (!isValid) {
+        // Track failed attempt
+        const failCount = await this.cache.trackFailedOtp(dto.mobileNumber);
+        this.logger.warn(`Failed mobile OTP attempt ${failCount} for ${dto.mobileNumber}`);
         throw new UnauthorizedException('Invalid or expired OTP');
       }
+
+      // Clear failed attempts on success
+      await this.cache.clearFailedOtp(dto.mobileNumber);
 
       // Check if mobile number already exists
       const existingUser = await this.prisma.user.findUnique({
@@ -325,6 +353,9 @@ export class AuthService {
       }
     } catch (error) {
       this.logger.error('Mobile verification failed', error);
+      if (error instanceof UnauthorizedException) {
+        throw error;
+      }
       throw new UnauthorizedException('Mobile verification failed');
     }
   }
@@ -395,22 +426,68 @@ export class AuthService {
     providerUserId: string,
     email?: string,
   ): Promise<User> {
-    const user = await this.prisma.user.create({
-      data: {
-        mobileNumber,
-        mobileVerified: true,
-        identities: {
-          create: {
-            provider,
-            providerUserId,
-            email,
-            emailVerified: !!email,
+    const user = await this.prisma.$transaction(async (tx) => {
+      // Create user
+      const newUser = await tx.user.create({
+        data: {
+          mobileNumber,
+          mobileVerified: true,
+          identities: {
+            create: {
+              provider,
+              providerUserId,
+              email,
+              emailVerified: !!email,
+            },
           },
         },
-      },
+      });
+
+      // Create wallet with initial balance 0
+      await tx.wallet.create({
+        data: {
+          userId: newUser.id,
+          balance: 0,
+        },
+      });
+
+      // Create STARTER subscription
+      await tx.orgSubscription.create({
+        data: {
+          userId: newUser.id,
+          plan: 'STARTER',
+          billingCycle: 'MONTHLY',
+          isActive: true,
+          usageResetAt: this.getNextMonthStart(),
+        },
+      });
+
+      // Generate referral code using lazy-loaded service
+      const referralCode = this.generateReferralCode();
+      await tx.user.update({
+        where: { id: newUser.id },
+        data: { referralCode },
+      });
+
+      return newUser;
     });
 
+    this.logger.log(`Created new user ${user.id} with wallet, subscription, and referral code`);
+
     return user;
+  }
+
+  private generateReferralCode(): string {
+    const crypto = require('crypto');
+    return crypto.randomBytes(4).toString('hex').toUpperCase();
+  }
+
+  private getNextMonthStart(): Date {
+    const date = new Date();
+    date.setMonth(date.getMonth() + 1);
+    date.setDate(1);
+    date.setHours(0, 0, 0, 0);
+    return date;
   }
 
   private async linkIdentityToUser(

@@ -17,6 +17,12 @@ import { RedisModule } from './redis/redis.module';
 import { RedisService } from './redis/redis.service';
 import { AdminModule } from './admin/admin.module';
 import { AwsModule } from './aws/aws.module';
+import { SubscriptionModule } from './subscription/subscription.module';
+import { WalletModule } from './wallet/wallet.module';
+import { ReferralsModule } from './referrals/referrals.module';
+import { EventsModule } from './events/events.module';
+import { RegistrationsModule } from './registrations/registrations.module';
+import { CheckinModule } from './checkin/checkin.module';
 
 @Module({
   imports: [
@@ -74,6 +80,13 @@ import { AwsModule } from './aws/aws.module';
     DiscussionsModule,
     AdminModule,
     AwsModule,
+    // Event Tech Platform Modules
+    SubscriptionModule,
+    WalletModule,
+    ReferralsModule,
+    EventsModule,
+    RegistrationsModule,
+    CheckinModule,
   ],
   controllers: [AppController],
   providers: [
