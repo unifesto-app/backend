@@ -9,11 +9,12 @@ import { EmailModule } from '../email/email.module';
 import { WhatsAppModule } from '../whatsapp/whatsapp.module';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RedisModule } from '../redis/redis.module';
+import { RolesGuard } from './guards/roles.guard';
 
 @Module({
   imports: [ConfigModule, PrismaModule, EmailModule, WhatsAppModule, RedisModule],
   controllers: [AuthController],
-  providers: [AuthService, OtpService, CognitoJwtService, JwtAuthGuard],
+  providers: [AuthService, OtpService, CognitoJwtService, JwtAuthGuard, RolesGuard],
   exports: [AuthService, CognitoJwtService, JwtAuthGuard],
 })
 export class AuthModule {}
