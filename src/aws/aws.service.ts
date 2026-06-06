@@ -499,13 +499,24 @@ export class AwsService {
     const counts = await Promise.all(
       tables.map(async (table) => {
         try {
-          const result: any = await this.prisma.$queryRawUnsafe(
-            `SELECT COUNT(*) as count FROM "${table}"`,
-          );
-          return { name: table, rowCount: parseInt(result[0].count) };
+          const [countResult, sizeResult]: any = await Promise.all([
+            this.prisma.$queryRawUnsafe(
+              `SELECT COUNT(*) as count FROM "${table}"`,
+            ),
+            this.prisma.$queryRawUnsafe(
+              `SELECT pg_total_relation_size('"${table}"') as size`,
+            ),
+          ]);
+          
+          const rowCount = parseInt(countResult[0].count);
+          const sizeMB = sizeResult[0].size 
+            ? parseFloat((parseInt(sizeResult[0].size) / 1024 / 1024).toFixed(2))
+            : 0;
+            
+          return { name: table, rowCount, sizeMB };
         } catch (error) {
           this.logger.error(`Failed to count ${table}`, error);
-          return { name: table, rowCount: 0 };
+          return { name: table, rowCount: 0, sizeMB: 0 };
         }
       }),
     );
@@ -529,6 +540,78 @@ export class AwsService {
     } catch (error) {
       this.logger.error('Failed to get migrations', error);
       return [];
+    }
+  }
+
+  // =====================================================
+  // TABLE DETAILS
+  // =====================================================
+  async getTableDetails(tableName: string) {
+    try {
+      // Get table schema
+      const schema: any = await this.prisma.$queryRawUnsafe(`
+        SELECT 
+          column_name as "columnName",
+          data_type as "dataType",
+          is_nullable as "isNullable",
+          column_default as "columnDefault",
+          CASE 
+            WHEN column_name IN (
+              SELECT a.attname
+              FROM pg_index i
+              JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = ANY(i.indkey)
+              WHERE i.indrelid = '${tableName}'::regclass AND i.indisprimary
+            ) THEN 'PRI'
+            WHEN column_name IN (
+              SELECT a.attname
+              FROM pg_index i
+              JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = ANY(i.indkey)
+              WHERE i.indrelid = '${tableName}'::regclass AND i.indisunique AND NOT i.indisprimary
+            ) THEN 'UNI'
+            WHEN column_name IN (
+              SELECT a.attname
+              FROM pg_index i
+              JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = ANY(i.indkey)
+              WHERE i.indrelid = '${tableName}'::regclass AND NOT i.indisunique AND NOT i.indisprimary
+            ) THEN 'MUL'
+            ELSE ''
+          END as "columnKey"
+        FROM information_schema.columns
+        WHERE table_name = '${tableName}'
+        ORDER BY ordinal_position
+      `);
+
+      // Get row count
+      const countResult: any = await this.prisma.$queryRawUnsafe(
+        `SELECT COUNT(*) as count FROM "${tableName}"`,
+      );
+      const rowCount = parseInt(countResult[0].count);
+
+      // Get table size
+      const sizeResult: any = await this.prisma.$queryRawUnsafe(`
+        SELECT pg_total_relation_size('"${tableName}"') as size
+      `);
+      const sizeMB = sizeResult[0].size 
+        ? parseFloat((parseInt(sizeResult[0].size) / 1024 / 1024).toFixed(2))
+        : 0;
+
+      // Get sample data (first 50 rows)
+      const rows = await this.prisma.$queryRawUnsafe(
+        `SELECT * FROM "${tableName}" LIMIT 50`,
+      );
+
+      return {
+        tableName,
+        schema,
+        rows,
+        stats: {
+          rowCount,
+          sizeMB,
+        },
+      };
+    } catch (error) {
+      this.logger.error(`Failed to get table details for ${tableName}`, error);
+      throw error;
     }
   }
 

@@ -1,4 +1,4 @@
-import { Controller, Get, UseGuards } from '@nestjs/common';
+import { Controller, Get, UseGuards, Param } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -28,6 +28,11 @@ export class AwsController {
   @Get('database')
   async getDatabase() {
     return this.awsService.getDatabase();
+  }
+
+  @Get('database/table/:tableName')
+  async getTableDetails(@Param('tableName') tableName: string) {
+    return this.awsService.getTableDetails(tableName);
   }
 
   @Get('cache')
