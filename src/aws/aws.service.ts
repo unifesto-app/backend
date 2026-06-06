@@ -152,12 +152,11 @@ export class AwsService {
   // OVERVIEW
   // =====================================================
   async getOverview() {
-    const [ec2Data, rdsData, cacheData, s3Data, iamData] = await Promise.allSettled([
+    const [ec2Data, rdsData, cacheData, s3Data] = await Promise.allSettled([
       this.getEC2Instance(),
       this.getRDSInstance(),
       this.getElastiCacheCluster(),
       this.getS3BucketInfo(),
-      this.getIAMRole(),
     ]);
 
     return {
@@ -167,7 +166,6 @@ export class AwsService {
         rds: rdsData.status === 'fulfilled' ? rdsData.value : { error: 'Failed to fetch' },
         elasticache: cacheData.status === 'fulfilled' ? cacheData.value : { error: 'Failed to fetch' },
         s3: s3Data.status === 'fulfilled' ? s3Data.value : { error: 'Failed to fetch' },
-        iam: iamData.status === 'fulfilled' ? iamData.value : { error: 'Failed to fetch' },
       },
     };
   }
