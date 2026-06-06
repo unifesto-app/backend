@@ -169,13 +169,6 @@ export class AwsService {
         s3: s3Data.status === 'fulfilled' ? s3Data.value : { error: 'Failed to fetch' },
         iam: iamData.status === 'fulfilled' ? iamData.value : { error: 'Failed to fetch' },
       },
-      estimatedMonthlyCost: {
-        ec2: 15,
-        rds: 33,
-        elasticache: 12,
-        s3: 5,
-        total: 65,
-      },
     };
   }
 
