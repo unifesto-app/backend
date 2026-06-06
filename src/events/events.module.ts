@@ -1,3 +1,4 @@
+import { AuthModule } from '../auth/auth.module';
 import { Module } from '@nestjs/common';
 import { EventsService } from './events.service';
 import { EventsController } from './events.controller';
@@ -7,7 +8,7 @@ import { SubscriptionModule } from '../subscription/subscription.module';
 import { CacheModule } from '../cache/cache.module';
 
 @Module({
-  imports: [PrismaModule, StorageModule, SubscriptionModule, CacheModule],
+  imports: [AuthModule, AuthModule, PrismaModule, StorageModule, SubscriptionModule, CacheModule],
   controllers: [EventsController],
   providers: [EventsService],
   exports: [EventsService],
