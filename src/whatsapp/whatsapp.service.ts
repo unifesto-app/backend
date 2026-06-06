@@ -39,11 +39,11 @@ const TEMPLATES = {
   NEW_SPACE_SUBMITTED: 'new_space_submitted', // id: 1011838481193096 (PENDING)
 } as const;
 
-// Approved header images from Meta
+// Header images from S3 bucket
 const HEADER_IMAGES = {
-  EVENT_REGISTRATION: 'https://scontent.whatsapp.net/v/t61.29466-34/658495959_1543620653785161_4507759536497903699_n.png',
-  SPACE_APPROVED: 'https://scontent.whatsapp.net/v/t61.29466-34/643124212_1603977187366683_3396009505852384687_n.png',
-  CHECKIN_CONFIRMED: 'https://scontent.whatsapp.net/v/t61.29466-34/661614727_1687119159107188_2503243351217042100_n.png',
+  EVENT_REGISTRATION: 'https://unifesto-storage-bucket.s3.ap-south-1.amazonaws.com/whatsapp-headers/registration_confirmed.png',
+  SPACE_APPROVED: 'https://unifesto-storage-bucket.s3.ap-south-1.amazonaws.com/whatsapp-headers/space_approved.png',
+  CHECKIN_CONFIRMED: 'https://unifesto-storage-bucket.s3.ap-south-1.amazonaws.com/whatsapp-headers/checkin.png',
 } as const;
 
 @Injectable()
