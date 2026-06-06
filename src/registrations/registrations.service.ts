@@ -58,6 +58,35 @@ export class RegistrationsService {
       .toUpperCase();
   }
 
+  /**
+   * Format event date for display
+   * Output: "1 July 2026"
+   */
+  private formatEventDate(dateTime: Date, timezone = 'Asia/Kolkata'): string {
+    return new Intl.DateTimeFormat('en-GB', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+      timeZone: timezone,
+    }).format(dateTime);
+  }
+
+  /**
+   * Format event time range
+   * Output: "10:00 AM - 01:00 PM IST"
+   */
+  private formatEventTime(startTime: Date, endTime: Date, timezone = 'Asia/Kolkata'): string {
+    const formatTime = (date: Date) =>
+      new Intl.DateTimeFormat('en-US', {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+        timeZone: timezone,
+      }).format(date);
+
+    return `${formatTime(startTime)} - ${formatTime(endTime)} IST`;
+  }
+
   async registerForEvent(userId: string, eventId: string, dto: RegisterForEventDto) {
     const event = await this.prisma.event.findUnique({
       where: { id: eventId },
@@ -288,6 +317,42 @@ export class RegistrationsService {
 
       return reg;
     });
+
+    // Fetch full registration with user and event for notifications
+    const fullRegistration = await this.prisma.eventRegistration.findUnique({
+      where: { id: registration.id },
+      include: {
+        user: true,
+        event: true,
+      },
+    });
+
+    // Send WhatsApp notification
+    try {
+      if (fullRegistration?.user?.mobileNumber) {
+        const eventDate = this.formatEventDate(fullRegistration.event.startDateTime);
+        const eventTime = this.formatEventTime(
+          fullRegistration.event.startDateTime,
+          fullRegistration.event.endDateTime,
+        );
+
+        await this.whatsappService.sendRegistrationConfirmation(
+          fullRegistration.user.mobileNumber,
+          {
+            userName: fullRegistration.user.fullName || fullRegistration.user.username || 'there',
+            eventTitle: fullRegistration.event.title,
+            eventDate,
+            eventTime,
+            venueName: fullRegistration.event.venueName || undefined,
+            city: fullRegistration.event.city || undefined,
+            isOnline: fullRegistration.event.type === 'ONLINE',
+            onlineUrl: fullRegistration.event.onlineUrl || undefined,
+          },
+        );
+      }
+    } catch (error) {
+      this.logger.error('Failed to send RSVP WhatsApp notification', error);
+    }
 
     const creatorEmail = event.space?.creator?.identities?.[0]?.email;
     if (creatorEmail) {
