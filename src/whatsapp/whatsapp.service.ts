@@ -2,6 +2,17 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
 
+interface WhatsAppTemplateComponent {
+  type: string;
+  sub_type?: string;
+  index?: string;
+  parameters: Array<{
+    type: string;
+    text?: string;
+    image?: { link: string };
+  }>;
+}
+
 interface WhatsAppTemplateMessage {
   messaging_product: 'whatsapp';
   to: string;
@@ -11,17 +22,29 @@ interface WhatsAppTemplateMessage {
     language: {
       code: string;
     };
-    components: Array<{
-      type: string;
-      sub_type?: string;
-      index?: string;
-      parameters: Array<{
-        type: string;
-        text: string;
-      }>;
-    }>;
+    components: WhatsAppTemplateComponent[];
   };
 }
+
+// Approved template IDs from Meta
+const TEMPLATES = {
+  OTP: 'otp', // id: 2217845882320700
+  EVENT_REGISTRATION: 'event_registration_confirmation', // id: 1543620650451828
+  EVENT_REMINDER: 'event_reminder_24h', // id: 1597512415277975
+  REGISTRATION_CANCELLED: 'registration_cancelled', // id: 1972305506770198
+  SPACE_APPROVED: 'space_approved', // id: 1603977184033350
+  SPACE_REJECTED: 'space_rejected', // id: 973091392100936
+  CHECKIN_CONFIRMED: 'checkin_confirmed', // id: 1687119155773855
+  PAYMENT_CONFIRMED: 'payment_confirmed', // id: 4462855363943057
+  NEW_SPACE_SUBMITTED: 'new_space_submitted', // id: 1011838481193096 (PENDING)
+} as const;
+
+// Approved header images from Meta
+const HEADER_IMAGES = {
+  EVENT_REGISTRATION: 'https://scontent.whatsapp.net/v/t61.29466-34/658495959_1543620653785161_4507759536497903699_n.png',
+  SPACE_APPROVED: 'https://scontent.whatsapp.net/v/t61.29466-34/643124212_1603977187366683_3396009505852384687_n.png',
+  CHECKIN_CONFIRMED: 'https://scontent.whatsapp.net/v/t61.29466-34/661614727_1687119159107188_2503243351217042100_n.png',
+} as const;
 
 @Injectable()
 export class WhatsAppService {
@@ -36,76 +59,150 @@ export class WhatsAppService {
     this.apiUrl = `https://graph.facebook.com/v18.0/${this.phoneNumberId}/messages`;
 
     if (!this.phoneNumberId || !this.accessToken) {
-      this.logger.warn('WhatsApp credentials not configured. WhatsApp OTP will not work.');
+      this.logger.warn('WhatsApp credentials not configured. WhatsApp notifications will not work.');
     }
   }
 
+  // =====================================================
+  // UTILITY FUNCTIONS
+  // =====================================================
+
   /**
-   * Send OTP via WhatsApp
-   * Uses template message only (required for WhatsApp Business API)
+   * Format phone number for WhatsApp API
+   * Ensures country code and removes invalid characters
    */
-  async sendOtp(phoneNumber: string, otp: string): Promise<void> {
+  private formatPhoneNumber(phoneNumber: string): string {
+    if (!phoneNumber) return '';
+    
+    // Remove all non-digit characters except leading +
+    let cleaned = phoneNumber.replace(/[^\d+]/g, '');
+    
+    // If starts with +, keep it; otherwise add country code if needed
+    if (!cleaned.startsWith('+')) {
+      // Assume Indian number if no country code
+      cleaned = '+91' + cleaned.replace(/^0+/, '');
+    }
+    
+    return cleaned;
+  }
+
+  /**
+   * Format event date
+   * Output: "1 July 2026"
+   */
+  private formatEventDate(dateTime: Date, timezone = 'Asia/Kolkata'): string {
+    return new Intl.DateTimeFormat('en-GB', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+      timeZone: timezone,
+    }).format(dateTime);
+  }
+
+  /**
+   * Format event time range
+   * Output: "10:00 AM - 01:00 PM IST"
+   */
+  private formatEventTime(startTime: Date, endTime: Date, timezone = 'Asia/Kolkata'): string {
+    const formatTime = (date: Date) => 
+      new Intl.DateTimeFormat('en-US', {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+        timeZone: timezone,
+      }).format(date);
+
+    return `${formatTime(startTime)} - ${formatTime(endTime)} IST`;
+  }
+
+  /**
+   * Format venue string based on event type
+   */
+  private formatVenue(event: {
+    type: string;
+    venueName?: string;
+    city?: string;
+    onlineUrl?: string;
+  }): string {
+    if (event.type === 'ONLINE') {
+      return `Online - ${event.onlineUrl || 'Link will be shared'}`;
+    } else if (event.type === 'HYBRID') {
+      const physical = event.venueName && event.city 
+        ? `${event.venueName}, ${event.city}` 
+        : 'Venue TBA';
+      return `${physical} + Online`;
+    } else {
+      // IN_PERSON
+      return event.venueName && event.city 
+        ? `${event.venueName}, ${event.city}` 
+        : 'Venue TBA';
+    }
+  }
+
+  // =====================================================
+  // CORE MESSAGING FUNCTIONS
+  // =====================================================
+
+  /**
+   * Send template message via WhatsApp API
+   */
+  private async sendTemplateMessage(
+    to: string,
+    templateName: string,
+    bodyParameters: string[],
+    hasImageHeader = false,
+    imageUrl?: string,
+  ): Promise<void> {
+    // Skip if phone number is empty
+    if (!to) {
+      this.logger.warn('Skipping WhatsApp send - empty phone number');
+      return;
+    }
+
+    const formattedPhone = this.formatPhoneNumber(to);
+    if (!formattedPhone) {
+      this.logger.warn(`Invalid phone number format: ${to}`);
+      return;
+    }
+
     try {
-      // Clean phone number (remove + and spaces)
-      const cleanNumber = phoneNumber.replace(/[^0-9]/g, '');
+      const components: WhatsAppTemplateComponent[] = [];
 
-      // Send using template (only option)
-      await this.sendTemplateOtp(cleanNumber, otp);
+      // Add header component if image is required
+      if (hasImageHeader && imageUrl) {
+        components.push({
+          type: 'header',
+          parameters: [
+            {
+              type: 'image',
+              image: { link: imageUrl },
+            },
+          ],
+        });
+      }
 
-      this.logger.log(`WhatsApp OTP sent to ${phoneNumber}`);
-    } catch (error) {
-      this.logger.error('Failed to send WhatsApp OTP', error);
-      throw new Error('Failed to send WhatsApp OTP');
-    }
-  }
+      // Add body component with text parameters
+      components.push({
+        type: 'body',
+        parameters: bodyParameters.map((text) => ({
+          type: 'text',
+          text,
+        })),
+      });
 
-  /**
-   * Send OTP using WhatsApp template
-   * Template must be pre-approved by Meta
-   */
-  private async sendTemplateOtp(phoneNumber: string, otp: string): Promise<void> {
-    const message: WhatsAppTemplateMessage = {
-      messaging_product: 'whatsapp',
-      to: phoneNumber,
-      type: 'template',
-      template: {
-        name: 'otp', // Your template name in Meta Business
-        language: {
-          code: 'en',
+      const message: WhatsAppTemplateMessage = {
+        messaging_product: 'whatsapp',
+        to: formattedPhone,
+        type: 'template',
+        template: {
+          name: templateName,
+          language: {
+            code: 'en',
+          },
+          components,
         },
-        components: [
-          {
-            type: 'body',
-            parameters: [
-              {
-                type: 'text',
-                text: otp,
-              },
-            ],
-          },
-          {
-            type: 'button',
-            sub_type: 'url',
-            index: '0',
-            parameters: [
-              {
-                type: 'text',
-                text: otp,
-              },
-            ],
-          },
-        ],
-      },
-    };
+      };
 
-    await this.sendMessage(message);
-  }
-
-  /**
-   * Send WhatsApp message via Meta API
-   */
-  private async sendMessage(message: WhatsAppTemplateMessage): Promise<void> {
-    try {
       const response = await axios.post(this.apiUrl, message, {
         headers: {
           'Authorization': `Bearer ${this.accessToken}`,
@@ -113,22 +210,49 @@ export class WhatsAppService {
         },
       });
 
-      this.logger.log(`WhatsApp message sent successfully: ${response.data.messages[0].id}`);
+      const messageId = response.data.messages?.[0]?.id;
+      this.logger.log(`WhatsApp template sent: ${templateName} to ${formattedPhone}, ID: ${messageId}`);
     } catch (error: any) {
       if (error.response) {
-        this.logger.error('WhatsApp API error', {
+        this.logger.error(`WhatsApp API error for template ${templateName}`, {
           status: error.response.status,
-          data: error.response.data,
+          error: error.response.data?.error,
+          phone: formattedPhone,
         });
-        throw new Error(error.response.data.error?.message || 'WhatsApp API error');
+      } else {
+        this.logger.error(`WhatsApp send error for template ${templateName}`, error);
       }
-      throw error;
+      // DO NOT throw - notification failures must never break main flow
+    }
+  }
+
+  // =====================================================
+  // EXISTING METHODS (Keep unchanged signatures)
+  // =====================================================
+
+  /**
+   * Send OTP via WhatsApp using approved template
+   * Template: otp (id: 2217845882320700)
+   * Has "Copy code" button
+   */
+  async sendOtp(phoneNumber: string, otp: string): Promise<void> {
+    try {
+      await this.sendTemplateMessage(
+        phoneNumber,
+        TEMPLATES.OTP,
+        [otp], // {{1}} = OTP code
+        false,
+      );
+      this.logger.log(`WhatsApp OTP sent to ${phoneNumber}`);
+    } catch (error) {
+      this.logger.error('Failed to send WhatsApp OTP', error);
+      // Don't throw - let calling code handle fallback
     }
   }
 
   /**
    * Send welcome message via WhatsApp
-   * Note: Requires approved template for production
+   * Note: Currently not configured - requires template approval
    */
   async sendWelcomeMessage(phoneNumber: string, username: string): Promise<void> {
     try {
@@ -167,4 +291,467 @@ export class WhatsAppService {
   isConfigured(): boolean {
     return !!(this.phoneNumberId && this.accessToken);
   }
+
+  // =====================================================
+  // TEMPLATE-BASED NOTIFICATIONS
+  // =====================================================
+
+  /**
+   * 1. Event Registration Confirmation
+   * Template: event_registration_confirmation (id: 1543620650451828)
+   * Header: IMAGE
+   * Body: {{1}}=userName, {{2}}=eventTitle, {{3}}=eventDate, {{4}}=eventTime, {{5}}=venue
+   */
+  async sendRegistrationConfirmation(
+    mobileNumber: string,
+    data: {
+      userName: string;
+      eventTitle: string;
+      eventDate: string;
+      eventTime: string;
+      venueName?: string;
+      city?: string;
+      isOnline: boolean;
+      onlineUrl?: string;
+    },
+  ): Promise<void> {
+    try {
+      if (!mobileNumber) return;
+
+      const venue = this.formatVenue({
+        type: data.isOnline ? 'ONLINE' : 'IN_PERSON',
+        venueName: data.venueName,
+        city: data.city,
+        onlineUrl: data.onlineUrl,
+      });
+
+      await this.sendTemplateMessage(
+        mobileNumber,
+        TEMPLATES.EVENT_REGISTRATION,
+        [
+          data.userName,
+          data.eventTitle,
+          data.eventDate,
+          data.eventTime,
+          venue,
+        ],
+        true, // has image header
+        HEADER_IMAGES.EVENT_REGISTRATION,
+      );
+    } catch (error) {
+      this.logger.error('Failed to send registration confirmation', error);
+    }
+  }
+
+  /**
+   * 2. Event Reminder (24 hours before)
+   * Template: event_reminder_24h (id: 1597512415277975)
+   * Header: none
+   * Body: {{1}}=userName, {{2}}=eventTitle, {{3}}=eventDate, {{4}}=eventTime, {{5}}=venue
+   */
+  async sendEventReminder(
+    mobileNumber: string,
+    data: {
+      userName: string;
+      eventTitle: string;
+      eventDate: string;
+      eventTime: string;
+      venueName?: string;
+      city?: string;
+      isOnline: boolean;
+      onlineUrl?: string;
+    },
+  ): Promise<void> {
+    try {
+      if (!mobileNumber) return;
+
+      const venue = this.formatVenue({
+        type: data.isOnline ? 'ONLINE' : 'IN_PERSON',
+        venueName: data.venueName,
+        city: data.city,
+        onlineUrl: data.onlineUrl,
+      });
+
+      await this.sendTemplateMessage(
+        mobileNumber,
+        TEMPLATES.EVENT_REMINDER,
+        [
+          data.userName,
+          data.eventTitle,
+          data.eventDate,
+          data.eventTime,
+          venue,
+        ],
+        false, // no image header
+      );
+    } catch (error) {
+      this.logger.error('Failed to send event reminder', error);
+    }
+  }
+
+  /**
+   * 3. Registration Cancelled
+   * Template: registration_cancelled (id: 1972305506770198)
+   * Header: TEXT
+   * Body: {{1}}=userName, {{2}}=eventTitle, {{3}}=refundInfo
+   */
+  async sendRegistrationCancelled(
+    mobileNumber: string,
+    data: {
+      userName: string;
+      eventTitle: string;
+      coinsRefunded?: number;
+      razorpayRefundInitiated?: boolean;
+    },
+  ): Promise<void> {
+    try {
+      if (!mobileNumber) return;
+
+      let refundInfo = 'No refunds applicable.';
+      const refundParts: string[] = [];
+
+      if (data.coinsRefunded && data.coinsRefunded > 0) {
+        refundParts.push(`${data.coinsRefunded} coins refunded to wallet`);
+      }
+      if (data.razorpayRefundInitiated) {
+        refundParts.push('Payment refund initiated (5-7 business days)');
+      }
+
+      if (refundParts.length > 0) {
+        refundInfo = refundParts.join('. ');
+      }
+
+      await this.sendTemplateMessage(
+        mobileNumber,
+        TEMPLATES.REGISTRATION_CANCELLED,
+        [
+          data.userName,
+          data.eventTitle,
+          refundInfo,
+        ],
+        false, // TEXT header (handled by template)
+      );
+    } catch (error) {
+      this.logger.error('Failed to send cancellation notification', error);
+    }
+  }
+
+  /**
+   * 4. Space Approved
+   * Template: space_approved (id: 1603977184033350)
+   * Header: IMAGE
+   * Body: {{1}}=organizerName, {{2}}=spaceName
+   */
+  async sendSpaceApproved(
+    mobileNumber: string,
+    data: {
+      organizerName: string;
+      spaceName: string;
+    },
+  ): Promise<void> {
+    try {
+      if (!mobileNumber) return;
+
+      await this.sendTemplateMessage(
+        mobileNumber,
+        TEMPLATES.SPACE_APPROVED,
+        [
+          data.organizerName,
+          data.spaceName,
+        ],
+        true, // has image header
+        HEADER_IMAGES.SPACE_APPROVED,
+      );
+    } catch (error) {
+      this.logger.error('Failed to send space approved notification', error);
+    }
+  }
+
+  /**
+   * 5. Space Rejected
+   * Template: space_rejected (id: 973091392100936)
+   * Header: TEXT
+   * Body: {{1}}=organizerName, {{2}}=spaceName, {{3}}=rejectionReason
+   */
+  async sendSpaceRejected(
+    mobileNumber: string,
+    data: {
+      organizerName: string;
+      spaceName: string;
+      rejectionReason: string;
+    },
+  ): Promise<void> {
+    try {
+      if (!mobileNumber) return;
+
+      await this.sendTemplateMessage(
+        mobileNumber,
+        TEMPLATES.SPACE_REJECTED,
+        [
+          data.organizerName,
+          data.spaceName,
+          data.rejectionReason || 'Not specified',
+        ],
+        false, // TEXT header (handled by template)
+      );
+    } catch (error) {
+      this.logger.error('Failed to send space rejected notification', error);
+    }
+  }
+
+  /**
+   * 6. Check-in Confirmed
+   * Template: checkin_confirmed (id: 1687119155773855)
+   * Header: IMAGE
+   * Body: {{1}}=userName, {{2}}=eventTitle, {{3}}=coinsAwarded
+   */
+  async sendCheckinConfirmed(
+    mobileNumber: string,
+    data: {
+      userName: string;
+      eventTitle: string;
+      coinsAwarded: number;
+    },
+  ): Promise<void> {
+    try {
+      if (!mobileNumber) return;
+
+      await this.sendTemplateMessage(
+        mobileNumber,
+        TEMPLATES.CHECKIN_CONFIRMED,
+        [
+          data.userName,
+          data.eventTitle,
+          data.coinsAwarded.toString(),
+        ],
+        true, // has image header
+        HEADER_IMAGES.CHECKIN_CONFIRMED,
+      );
+    } catch (error) {
+      this.logger.error('Failed to send check-in confirmation', error);
+    }
+  }
+
+  /**
+   * 7. Payment Confirmed
+   * Template: payment_confirmed (id: 4462855363943057)
+   * Header: TEXT
+   * Body: {{1}}=userName, {{2}}=eventTitle, {{3}}=amount, {{4}}=coinsInfo
+   */
+  async sendPaymentConfirmed(
+    mobileNumber: string,
+    data: {
+      userName: string;
+      eventTitle: string;
+      amount: number;
+      coinsUsed?: number;
+    },
+  ): Promise<void> {
+    try {
+      if (!mobileNumber) return;
+
+      const coinsInfo = data.coinsUsed && data.coinsUsed > 0
+        ? `${data.coinsUsed} coins used`
+        : 'No coins used';
+
+      await this.sendTemplateMessage(
+        mobileNumber,
+        TEMPLATES.PAYMENT_CONFIRMED,
+        [
+          data.userName,
+          data.eventTitle,
+          `₹${data.amount.toFixed(2)}`,
+          coinsInfo,
+        ],
+        false, // TEXT header (handled by template)
+      );
+    } catch (error) {
+      this.logger.error('Failed to send payment confirmation', error);
+    }
+  }
+
+  /**
+   * 8. New Space Submitted (to admin)
+   * Template: new_space_submitted (id: 1011838481193096) - PENDING APPROVAL
+   * Header: TEXT
+   * Body: {{1}}=spaceName, {{2}}=organizerName
+   */
+  async sendNewSpaceSubmitted(
+    adminMobileNumber: string,
+    data: {
+      spaceName: string;
+      organizerName: string;
+    },
+  ): Promise<void> {
+    try {
+      if (!adminMobileNumber) return;
+
+      await this.sendTemplateMessage(
+        adminMobileNumber,
+        TEMPLATES.NEW_SPACE_SUBMITTED,
+        [
+          data.spaceName,
+          data.organizerName,
+        ],
+        false, // TEXT header (handled by template)
+      );
+    } catch (error) {
+      this.logger.error('Failed to send new space notification', error);
+    }
+  }
+
+  // =====================================================
+  // LEGACY METHOD ALIASES (for backward compatibility)
+  // =====================================================
+
+  /**
+   * Alias for sendRegistrationCancelled
+   * @deprecated Use sendRegistrationCancelled instead
+   */
+  async sendCancellationNotification(
+    mobileNumber: string,
+    data: {
+      userName: string;
+      eventTitle: string;
+      coinsRefunded?: number;
+      razorpayRefundInitiated?: boolean;
+    },
+  ): Promise<void> {
+    return this.sendRegistrationCancelled(mobileNumber, data);
+  }
+
+  /**
+   * Alias for sendSpaceApproved
+   * @deprecated Use sendSpaceApproved instead
+   */
+  async sendSpaceApprovedNotification(
+    mobileNumber: string,
+    data: {
+      userName: string;
+      spaceName: string;
+      spaceSlug: string;
+    },
+  ): Promise<void> {
+    return this.sendSpaceApproved(mobileNumber, {
+      organizerName: data.userName,
+      spaceName: data.spaceName,
+    });
+  }
+
+  /**
+   * Alias for sendSpaceRejected
+   * @deprecated Use sendSpaceRejected instead
+   */
+  async sendSpaceRejectedNotification(
+    mobileNumber: string,
+    data: {
+      userName: string;
+      spaceName: string;
+      rejectionReason?: string;
+    },
+  ): Promise<void> {
+    return this.sendSpaceRejected(mobileNumber, {
+      organizerName: data.userName,
+      spaceName: data.spaceName,
+      rejectionReason: data.rejectionReason || 'Not specified',
+    });
+  }
+
+  /**
+   * Alias for sendCheckinConfirmed
+   * @deprecated Use sendCheckinConfirmed instead
+   */
+  async sendCheckinConfirmation(
+    mobileNumber: string,
+    data: {
+      userName: string;
+      eventTitle: string;
+      coinsAwarded: number;
+    },
+  ): Promise<void> {
+    return this.sendCheckinConfirmed(mobileNumber, data);
+  }
+
+  /**
+   * Alias for sendPaymentConfirmed
+   * @deprecated Use sendPaymentConfirmed instead
+   */
+  async sendPaymentConfirmation(
+    mobileNumber: string,
+    data: {
+      userName: string;
+      eventTitle: string;
+      amount: number;
+      coinsUsed?: number;
+      ticketCode: string;
+    },
+  ): Promise<void> {
+    return this.sendPaymentConfirmed(mobileNumber, {
+      userName: data.userName,
+      eventTitle: data.eventTitle,
+      amount: data.amount,
+      coinsUsed: data.coinsUsed,
+    });
+  }
+
+  /**
+   * Alias for sendNewSpaceSubmitted
+   * @deprecated Use sendNewSpaceSubmitted instead
+   */
+  async sendNewSpaceSubmittedNotification(
+    adminMobileNumber: string,
+    data: {
+      spaceName: string;
+      organiserName: string;
+      spaceSlug: string;
+    },
+  ): Promise<void> {
+    return this.sendNewSpaceSubmitted(adminMobileNumber, {
+      spaceName: data.spaceName,
+      organizerName: data.organiserName,
+    });
+  }
+
+  /**
+   * Coins received notification
+   * Note: No approved template yet - logs only
+   */
+  async sendCoinsReceivedNotification(
+    mobileNumber: string,
+    data: {
+      userName: string;
+      coinsReceived: number;
+      newBalance: number;
+      reason: string;
+    },
+  ): Promise<void> {
+    try {
+      this.logger.log(`Coins notification for ${mobileNumber}: +${data.coinsReceived} coins (${data.reason})`);
+      // Template not yet approved - implement when available
+    } catch (error) {
+      this.logger.error('Failed to send coins notification', error);
+    }
+  }
+
+  /**
+   * Referral success notification
+   * Note: No approved template yet - logs only
+   */
+  async sendReferralSuccessNotification(
+    mobileNumber: string,
+    data: {
+      userName: string;
+      referredName: string;
+      coinsEarned: number;
+      newBalance: number;
+    },
+  ): Promise<void> {
+    try {
+      this.logger.log(`Referral notification for ${mobileNumber}: +${data.coinsEarned} coins`);
+      // Template not yet approved - implement when available
+    } catch (error) {
+      this.logger.error('Failed to send referral notification', error);
+    }
+  }
 }
+

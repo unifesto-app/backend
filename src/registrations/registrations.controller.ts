@@ -10,6 +10,7 @@ import {
   Request,
   Headers,
   Req,
+  RawBodyRequest,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -18,7 +19,12 @@ import {
   ApiBearerAuth,
 } from '@nestjs/swagger';
 import { RegistrationsService } from './registrations.service';
-import { RegisterForEventDto, VerifyRegistrationDto } from './dto';
+import {
+  RegisterForEventDto,
+  VerifyRegistrationDto,
+  CreateOrderDto,
+  VerifyPaymentDto,
+} from './dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @ApiTags('Registrations')
@@ -44,15 +50,17 @@ export class RegistrationsController {
   @Post('events/:id/register/create-order')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
-  @ApiOperation({ summary: 'Create Razorpay order for registration' })
+  @ApiOperation({ summary: 'Create Razorpay order for paid ticket registration' })
   @ApiResponse({ status: 201 })
-  async createRazorpayOrder(
+  async createPaymentOrder(
     @Request() req,
-    @Param('id') registrationId: string,
+    @Param('id') eventId: string,
+    @Body() dto: CreateOrderDto,
   ) {
-    return this.registrationsService.createRazorpayOrder(
+    return this.registrationsService.createPaymentOrder(
+      eventId,
       req.user.id,
-      registrationId,
+      dto,
     );
   }
 
@@ -63,12 +71,12 @@ export class RegistrationsController {
   @ApiResponse({ status: 200 })
   async verifyPayment(
     @Request() req,
-    @Param('id') registrationId: string,
-    @Body() dto: VerifyRegistrationDto,
+    @Param('id') eventId: string,
+    @Body() dto: VerifyPaymentDto,
   ) {
     return this.registrationsService.verifyPayment(
+      eventId,
       req.user.id,
-      registrationId,
       dto,
     );
   }

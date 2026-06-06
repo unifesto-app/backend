@@ -16,6 +16,9 @@ export class ConfigValidationService implements OnModuleInit {
       'REDIS_PORT',
       'REDIS_TLS',
       'DATABASE_URL',
+      'RAZORPAY_KEY_ID',
+      'RAZORPAY_KEY_SECRET',
+      'RAZORPAY_WEBHOOK_SECRET',
     ];
 
     // Check for missing environment variables
@@ -41,5 +44,6 @@ export class ConfigValidationService implements OnModuleInit {
     this.logger.log(`S3 Bucket: ${process.env.S3_BUCKET_NAME}`);
     this.logger.log(`Redis Host: ${process.env.REDIS_HOST}:${process.env.REDIS_PORT}`);
     this.logger.log(`Redis TLS: ${process.env.REDIS_TLS}`);
+    this.logger.log(`Razorpay configured: ${!!process.env.RAZORPAY_KEY_ID}`);
   }
 }
