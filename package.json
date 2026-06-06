@@ -31,6 +31,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-cloudwatch": "^3.1063.0",
+    "@aws-sdk/client-cost-explorer": "^3.1063.0",
     "@aws-sdk/client-ec2": "^3.1063.0",
     "@aws-sdk/client-elasticache": "^3.1063.0",
     "@aws-sdk/client-iam": "^3.1063.0",

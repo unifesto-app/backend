@@ -31,6 +31,11 @@ import {
   CloudWatchClient,
   GetMetricStatisticsCommand,
 } from '@aws-sdk/client-cloudwatch';
+import {
+  CostExplorerClient,
+  GetCostAndUsageCommand,
+  GetCostForecastCommand,
+} from '@aws-sdk/client-cost-explorer';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 
@@ -52,6 +57,7 @@ export class AwsService {
   private readonly s3Client: S3Client;
   private readonly iamClient: IAMClient;
   private readonly cloudWatchClient: CloudWatchClient;
+  private readonly costExplorerClient: CostExplorerClient;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -68,6 +74,7 @@ export class AwsService {
     this.s3Client = new S3Client(awsConfig);
     this.iamClient = new IAMClient(awsConfig);
     this.cloudWatchClient = new CloudWatchClient(awsConfig);
+    this.costExplorerClient = new CostExplorerClient(awsConfig);
   }
 
   // =====================================================
@@ -1002,52 +1009,105 @@ export class AwsService {
   // COST
   // =====================================================
   async getCost() {
-    return {
-      budget: {
-        min: 75,
-        max: 99,
+    try {
+      const endDate = new Date();
+      const startDate = new Date();
+      startDate.setDate(1); // First day of current month
+
+      // Get cost and usage for current month
+      const costCommand = new GetCostAndUsageCommand({
+        TimePeriod: {
+          Start: startDate.toISOString().split('T')[0],
+          End: endDate.toISOString().split('T')[0],
+        },
+        Granularity: 'MONTHLY',
+        Metrics: ['UnblendedCost'],
+        GroupBy: [
+          {
+            Type: 'DIMENSION',
+            Key: 'SERVICE',
+          },
+        ],
+      });
+
+      const costResponse = await this.costExplorerClient.send(costCommand);
+
+      // Get forecast for rest of month
+      const forecastEndDate = new Date(endDate.getFullYear(), endDate.getMonth() + 1, 0); // Last day of month
+      const forecastCommand = new GetCostForecastCommand({
+        TimePeriod: {
+          Start: endDate.toISOString().split('T')[0],
+          End: forecastEndDate.toISOString().split('T')[0],
+        },
+        Metric: 'UNBLENDED_COST',
+        Granularity: 'MONTHLY',
+      });
+
+      const forecastResponse = await this.costExplorerClient.send(forecastCommand);
+
+      // Parse current month costs by service
+      const servicesCost: Record<string, number> = {};
+      let totalCost = 0;
+
+      if (costResponse.ResultsByTime && costResponse.ResultsByTime.length > 0) {
+        const groups = costResponse.ResultsByTime[0].Groups || [];
+        
+        for (const group of groups) {
+          const serviceName = group.Keys?.[0] || 'Other';
+          const amount = parseFloat(group.Metrics?.UnblendedCost?.Amount || '0');
+          servicesCost[serviceName] = Math.round(amount * 100) / 100;
+          totalCost += amount;
+        }
+      }
+
+      // Get forecast amount
+      const forecastAmount = forecastResponse.Total?.Amount 
+        ? parseFloat(forecastResponse.Total.Amount)
+        : 0;
+
+      const projectedTotal = Math.round((totalCost + forecastAmount) * 100) / 100;
+      totalCost = Math.round(totalCost * 100) / 100;
+
+      return {
+        currentMonthCost: totalCost,
+        forecastedCost: Math.round(forecastAmount * 100) / 100,
+        projectedMonthEndCost: projectedTotal,
         currency: 'USD',
-      },
-      current: {
-        ec2: {
-          service: 'EC2 t3.small',
-          monthlyCost: 15,
-          status: 'running',
+        billingPeriod: {
+          start: startDate.toISOString().split('T')[0],
+          end: forecastEndDate.toISOString().split('T')[0],
+          current: endDate.toISOString().split('T')[0],
         },
-        rds: {
-          service: 'RDS db.t4g.small',
-          monthlyCost: 33,
-          status: 'running',
+        serviceBreakdown: Object.entries(servicesCost)
+          .sort(([, a], [, b]) => b - a)
+          .map(([service, cost]) => ({
+            service,
+            cost,
+            percentage: totalCost > 0 ? Math.round((cost / totalCost) * 100) : 0,
+          })),
+      };
+    } catch (error) {
+      this.logger.error('Failed to fetch cost data from AWS Cost Explorer', error);
+      
+      // Fallback to estimated data if Cost Explorer fails
+      return {
+        currentMonthCost: 65,
+        forecastedCost: 10,
+        projectedMonthEndCost: 75,
+        currency: 'USD',
+        billingPeriod: {
+          start: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0],
+          end: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString().split('T')[0],
+          current: new Date().toISOString().split('T')[0],
         },
-        elasticache: {
-          service: 'ElastiCache cache.t4g.micro',
-          monthlyCost: 12,
-          status: 'running',
-        },
-        s3: {
-          service: 'S3 Storage',
-          monthlyCost: 5,
-          status: 'running',
-        },
-        nginx: {
-          service: 'Nginx (on EC2)',
-          monthlyCost: 0,
-          status: 'running',
-        },
-        ssl: {
-          service: 'SSL/TLS (Let\'s Encrypt)',
-          monthlyCost: 0,
-          status: 'running',
-        },
-      },
-      total: 65,
-      projected: 75,
-      withinBudget: true,
-      tips: [
-        'Consider Reserved Instances for EC2 and RDS to save 30-40%',
-        'Monitor RDS storage - autoscales to 50GB max',
-        'ElastiCache upgrade to t4g.small available if Redis memory exceeds 80%',
-      ],
-    };
+        serviceBreakdown: [
+          { service: 'Amazon Relational Database Service', cost: 33, percentage: 51 },
+          { service: 'Amazon Elastic Compute Cloud', cost: 15, percentage: 23 },
+          { service: 'Amazon ElastiCache', cost: 12, percentage: 18 },
+          { service: 'Amazon Simple Storage Service', cost: 5, percentage: 8 },
+        ],
+        error: 'Using estimated costs - Cost Explorer data unavailable',
+      };
+    }
   }
 }
