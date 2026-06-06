@@ -25,12 +25,13 @@ jobs:
           aws ssm send-command \
             --instance-ids "i-079d51280d1964117" \
             --document-name "AWS-RunShellScript" \
-            --parameters 'commands=[
+            --parameters '{"commands":[
               "cd /home/ssm-user/unifesto/app",
               "git pull origin main",
-              "docker build -t unifesto-backend . --no-cache",
-              "docker compose down",
-              "docker compose up -d",
-              "docker image prune -f"
-            ]' \
+              "npm ci --omit=dev",
+              "npx prisma generate",
+              "npm run build",
+              "pm2 restart unifesto || pm2 start dist/src/main.js --name unifesto",
+              "pm2 save"
+            ]}' \
             --region ap-south-1
