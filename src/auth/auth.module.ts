@@ -8,9 +8,10 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { EmailModule } from '../email/email.module';
 import { WhatsAppModule } from '../whatsapp/whatsapp.module';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { RedisModule } from '../redis/redis.module';
 
 @Module({
-  imports: [ConfigModule, PrismaModule, EmailModule, WhatsAppModule],
+  imports: [ConfigModule, PrismaModule, EmailModule, WhatsAppModule, RedisModule],
   controllers: [AuthController],
   providers: [AuthService, OtpService, CognitoJwtService, JwtAuthGuard],
   exports: [AuthService, CognitoJwtService, JwtAuthGuard],

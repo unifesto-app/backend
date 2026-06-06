@@ -193,7 +193,7 @@ export class AuthService {
       const otp = this.otpService.generateOtp();
       
       // Store OTP
-      this.otpService.storeOtp(dto.email, otp);
+      await this.otpService.storeOtp(dto.email, otp);
       
       // Send OTP via Resend
       await this.emailService.sendOtpEmail(dto.email, otp);
@@ -213,7 +213,7 @@ export class AuthService {
       this.logger.log(`OTP received: ${otp}`);
       
       // Verify OTP
-      const isValid = this.otpService.verifyOtp(email, otp);
+      const isValid = await this.otpService.verifyOtp(email, otp);
       
       this.logger.log(`OTP validation result: ${isValid}`);
       
@@ -250,7 +250,7 @@ export class AuthService {
       const otp = this.otpService.generateOtp();
       
       // Store OTP
-      this.otpService.storeOtp(dto.mobileNumber, otp);
+      await this.otpService.storeOtp(dto.mobileNumber, otp);
       
       // Send OTP via WhatsApp
       await this.whatsappService.sendOtp(dto.mobileNumber, otp);
@@ -270,7 +270,7 @@ export class AuthService {
       const decoded = this.verifyTempToken(dto.tempToken);
 
       // Verify OTP
-      const isValid = this.otpService.verifyOtp(dto.mobileNumber, dto.otp);
+      const isValid = await this.otpService.verifyOtp(dto.mobileNumber, dto.otp);
       
       if (!isValid) {
         throw new UnauthorizedException('Invalid or expired OTP');
