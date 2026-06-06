@@ -16,6 +16,7 @@ import { StorageModule } from './storage/storage.module';
 import { RedisModule } from './redis/redis.module';
 import { RedisService } from './redis/redis.service';
 import { AdminModule } from './admin/admin.module';
+import { AwsModule } from './aws/aws.module';
 
 @Module({
   imports: [
@@ -72,6 +73,7 @@ import { AdminModule } from './admin/admin.module';
     SpacesModule,
     DiscussionsModule,
     AdminModule,
+    AwsModule,
   ],
   controllers: [AppController],
   providers: [
