@@ -33,10 +33,36 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
   async onModuleInit() {
     try {
       await this.$connect();
-      this.logger.log('Successfully connected to database');
+      this.logger.log('Successfully connected to database with SSL');
     } catch (error) {
-      this.logger.error('Failed to connect to database', error);
+      const maskedUrl = this.maskDatabaseUrl(process.env.DATABASE_URL);
+      this.logger.error('Failed to connect to database', {
+        connectionString: maskedUrl,
+        error: error instanceof Error ? error.message : String(error),
+      });
       throw error;
+    }
+  }
+
+  /**
+   * Mask sensitive credentials in database URL
+   * @param url Database connection string
+   * @returns Masked URL with credentials hidden
+   */
+  private maskDatabaseUrl(url: string | undefined): string {
+    if (!url) return 'DATABASE_URL not set';
+    
+    try {
+      const urlObj = new URL(url);
+      if (urlObj.password) {
+        urlObj.password = '****';
+      }
+      if (urlObj.username) {
+        urlObj.username = urlObj.username.substring(0, 3) + '***';
+      }
+      return urlObj.toString();
+    } catch {
+      return 'Invalid DATABASE_URL format';
     }
   }
 

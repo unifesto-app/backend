@@ -5,34 +5,21 @@ import {
   Logger,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { SupabaseClient, createClient } from '@supabase/supabase-js';
 import { ConfigService } from '@nestjs/config';
 import { UpdateProfileDto } from './dto';
 import { User } from '@prisma/client';
 import { UserProfileDto } from '../auth/dto';
-import WebSocket from 'ws';
+import { StorageService } from '../storage/storage.service';
 
 @Injectable()
 export class UsersService {
   private readonly logger = new Logger(UsersService.name);
-  private readonly supabase: SupabaseClient;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
-  ) {
-    const supabaseUrl = this.configService.get<string>('SUPABASE_URL')!;
-    // Use SERVICE_ROLE_KEY for server-side operations with full permissions
-    const supabaseKey = this.configService.get<string>('SUPABASE_SERVICE_ROLE_KEY')!;
-    this.supabase = createClient(supabaseUrl, supabaseKey, {
-      auth: {
-        persistSession: false,
-      },
-      realtime: {
-        transport: WebSocket as any,
-      },
-    });
-  }
+    private readonly storageService: StorageService,
+  ) {}
 
   /**
    * Get all users with pagination (ADMIN only)
@@ -372,46 +359,24 @@ export class UsersService {
     userId: string,
     file: Express.Multer.File,
   ): Promise<{ avatarUrl: string }> {
-    const fileName = `${userId}-${Date.now()}.${file.mimetype.split('/')[1]}`;
-    const filePath = `avatars/${fileName}`;
+    this.logger.log(`Uploading avatar for user ${userId}`);
 
-    this.logger.log(`Uploading avatar for user ${userId}: ${filePath}`);
+    // Upload to S3 using StorageService
+    const avatarUrl = await this.storageService.uploadFile(
+      file,
+      'avatars/',
+      userId,
+    );
 
-    // Upload to Supabase Storage
-    const { error: uploadError } = await this.supabase.storage
-      .from('user-avatars')
-      .upload(filePath, file.buffer, {
-        contentType: file.mimetype,
-        upsert: true,
-      });
-
-    if (uploadError) {
-      this.logger.error('Failed to upload avatar to Supabase Storage', {
-        error: uploadError,
-        userId,
-        filePath,
-        fileSize: file.size,
-        mimeType: file.mimetype,
-      });
-      throw new ConflictException(
-        `Failed to upload avatar: ${uploadError.message || 'Storage error'}`,
-      );
-    }
-
-    // Get public URL
-    const {
-      data: { publicUrl },
-    } = this.supabase.storage.from('user-avatars').getPublicUrl(filePath);
-
-    this.logger.log(`Avatar uploaded successfully: ${publicUrl}`);
+    this.logger.log(`Avatar uploaded successfully: ${avatarUrl}`);
 
     // Update user avatar URL
     await this.prisma.user.update({
       where: { id: userId },
-      data: { avatarUrl: publicUrl },
+      data: { avatarUrl },
     });
 
-    return { avatarUrl: publicUrl };
+    return { avatarUrl };
   }
 
   /**

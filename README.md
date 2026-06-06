@@ -6,11 +6,12 @@ Mobile-number-centric authentication and user management system built with NestJ
 
 ### Tech Stack
 - **Framework**: NestJS
-- **Database**: PostgreSQL (Supabase)
+- **Database**: PostgreSQL (AWS RDS)
 - **ORM**: Prisma
 - **Language**: TypeScript
-- **Authentication**: JWT + OAuth (Google, Apple)
-- **Storage**: Supabase Storage
+- **Authentication**: JWT + OAuth (Google, Apple) + AWS Cognito
+- **Storage**: AWS S3
+- **Cache**: AWS ElastiCache (Valkey 7.2)
 
 ### Core Principles
 1. **One person = One account = One verified mobile number**
@@ -22,7 +23,7 @@ Mobile-number-centric authentication and user management system built with NestJ
 
 ### Prerequisites
 - Node.js 20+
-- PostgreSQL database (Supabase recommended)
+- PostgreSQL database (AWS RDS)
 - npm or yarn
 
 ### Installation

@@ -7,7 +7,6 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
-import { SupabaseClient, createClient } from '@supabase/supabase-js';
 import * as jwt from 'jsonwebtoken';
 import { OAuth2Client } from 'google-auth-library';
 import jwksClient from 'jwks-rsa';
@@ -15,6 +14,7 @@ import { Provider, User } from '@prisma/client';
 import { EmailService } from '../email/email.service';
 import { WhatsAppService } from '../whatsapp/whatsapp.service';
 import { OtpService } from './otp.service';
+import { CognitoJwtService } from './cognito-jwt.service';
 import {
   GoogleLoginDto,
   AppleLoginDto,
@@ -24,7 +24,6 @@ import {
   AuthResponseDto,
   UserProfileDto,
 } from './dto';
-import WebSocket from 'ws';
 
 interface DecodedToken {
   userId?: string;
@@ -49,10 +48,34 @@ interface AppleTokenPayload {
   email_verified?: boolean;
 }
 
+/**
+ * AuthService handles multi-provider authentication for Unifesto.
+ * 
+ * AUTHENTICATION FLOW PRESERVATION:
+ * This service maintains all existing authentication flows:
+ * - Google OAuth login
+ * - Apple Sign-In
+ * - Email OTP login
+ * - Mobile OTP verification
+ * 
+ * CUSTOM JWT TOKEN SYSTEM:
+ * All authentication flows continue to use custom JWT tokens (signed with JWT_SECRET)
+ * for session management after initial authentication. This is NOT replaced by Cognito tokens.
+ * 
+ * COGNITO INTEGRATION:
+ * CognitoJwtService is optionally injected for future Cognito-based authentication flows.
+ * It is NOT currently used in the existing Google/Apple/Email/Mobile authentication flows.
+ * 
+ * MOBILE VERIFICATION WORKFLOW:
+ * The temp token system for mobile verification remains unchanged:
+ * 1. User authenticates via Google/Apple/Email
+ * 2. If mobile not verified, receive temp token
+ * 3. Verify mobile via OTP
+ * 4. Receive permanent access token
+ */
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
-  private readonly supabase: SupabaseClient;
   private readonly googleClient: OAuth2Client;
   private readonly appleJwksClient: jwksClient.JwksClient;
   private readonly jwtSecret: string;
@@ -64,16 +87,8 @@ export class AuthService {
     private readonly emailService: EmailService,
     private readonly whatsappService: WhatsAppService,
     private readonly otpService: OtpService,
+    private readonly cognitoJwtService?: CognitoJwtService, // Optional injection for future Cognito flows
   ) {
-    // Initialize Supabase client
-    const supabaseUrl = this.configService.get<string>('SUPABASE_URL')!;
-    const supabaseKey = this.configService.get<string>('SUPABASE_ANON_KEY')!;
-    this.supabase = createClient(supabaseUrl, supabaseKey, {
-      realtime: {
-        transport: WebSocket as any,
-      },
-    });
-    
     this.jwtSecret = this.configService.get<string>('JWT_SECRET')!;
     this.jwtExpiresIn = this.configService.get<string>('JWT_EXPIRES_IN', '7d');
 
@@ -87,6 +102,8 @@ export class AuthService {
       cache: true,
       cacheMaxAge: 86400000, // 24 hours
     });
+
+    this.logger.log('AuthService initialized - all existing auth flows preserved');
   }
 
   // =====================================================
@@ -472,5 +489,25 @@ export class AuthService {
     // In a stateless JWT system, logout is handled client-side
     // Optionally, implement token blacklisting here
     return { message: 'Logged out successfully' };
+  }
+
+  /**
+   * Get user by ID (for Cognito JWT authentication flow)
+   * Used by JwtAuthGuard when verifying Cognito tokens
+   * 
+   * @param userId - User ID from Cognito 'sub' claim
+   * @returns User object
+   * @throws UnauthorizedException if user not found
+   */
+  async getUserById(userId: string): Promise<User> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    return user;
   }
 }

@@ -6,30 +6,18 @@ import {
   Logger,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { ConfigService } from '@nestjs/config';
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { StorageService } from '../storage/storage.service';
 import { CreateSpaceDto, UpdateSpaceDto, UpdateSpaceStatusDto } from './dto';
 import { SpaceStatus, SpaceVisibility } from '@prisma/client';
-import WebSocket from 'ws';
 
 @Injectable()
 export class SpacesService {
   private readonly logger = new Logger(SpacesService.name);
-  private readonly supabase: SupabaseClient;
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly configService: ConfigService,
-  ) {
-    const supabaseUrl = this.configService.get<string>('SUPABASE_URL')!;
-    const supabaseKey = this.configService.get<string>(
-      'SUPABASE_SERVICE_ROLE_KEY',
-    )!;
-    this.supabase = createClient(supabaseUrl, supabaseKey, {
-      auth: { persistSession: false },
-      realtime: { transport: WebSocket as any },
-    });
-  }
+    private readonly storageService: StorageService,
+  ) {}
 
   /**
    * Create a new space
@@ -325,32 +313,19 @@ export class SpacesService {
       throw new NotFoundException('Space not found');
     }
 
-    const fileName = `${id}-logo-${Date.now()}.${file.mimetype.split('/')[1]}`;
-    const filePath = `space-logos/${fileName}`;
-
-    const { error: uploadError } = await this.supabase.storage
-      .from('space-assets')
-      .upload(filePath, file.buffer, {
-        contentType: file.mimetype,
-        upsert: true,
-      });
-
-    if (uploadError) {
-      throw new ConflictException(
-        `Failed to upload logo: ${uploadError.message}`,
-      );
-    }
-
-    const {
-      data: { publicUrl },
-    } = this.supabase.storage.from('space-assets').getPublicUrl(filePath);
+    // Upload to S3 using StorageService
+    const logoUrl = await this.storageService.uploadFile(
+      file,
+      'space-logos/',
+      id,
+    );
 
     await this.prisma.space.update({
       where: { id },
-      data: { logoUrl: publicUrl },
+      data: { logoUrl },
     });
 
-    return { logoUrl: publicUrl };
+    return { logoUrl };
   }
 
   /**
@@ -363,32 +338,19 @@ export class SpacesService {
       throw new NotFoundException('Space not found');
     }
 
-    const fileName = `${id}-banner-${Date.now()}.${file.mimetype.split('/')[1]}`;
-    const filePath = `space-banners/${fileName}`;
-
-    const { error: uploadError } = await this.supabase.storage
-      .from('space-assets')
-      .upload(filePath, file.buffer, {
-        contentType: file.mimetype,
-        upsert: true,
-      });
-
-    if (uploadError) {
-      throw new ConflictException(
-        `Failed to upload banner: ${uploadError.message}`,
-      );
-    }
-
-    const {
-      data: { publicUrl },
-    } = this.supabase.storage.from('space-assets').getPublicUrl(filePath);
+    // Upload to S3 using StorageService
+    const bannerUrl = await this.storageService.uploadFile(
+      file,
+      'space-banners/',
+      id,
+    );
 
     await this.prisma.space.update({
       where: { id },
-      data: { bannerUrl: publicUrl },
+      data: { bannerUrl },
     });
 
-    return { bannerUrl: publicUrl };
+    return { bannerUrl };
   }
 
   /**

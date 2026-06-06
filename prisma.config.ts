@@ -1,4 +1,4 @@
-// Prisma configuration for Supabase
+// Prisma configuration for AWS RDS PostgreSQL
 // Using compatibility mode for url/directUrl in schema.prisma
 import "dotenv/config";
 import { defineConfig } from "prisma/config";
