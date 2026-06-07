@@ -474,6 +474,14 @@ export class AuthService {
 
     this.logger.log(`Created new user ${user.id} with wallet, subscription, and referral code`);
 
+    // Send welcome email (non-blocking)
+    if (email) {
+      this.emailService.sendWelcomeEmail(
+        email,
+        user.fullName || user.username || 'there',
+      ).catch(err => this.logger.error('Failed to send welcome email', err));
+    }
+
     return user;
   }
 

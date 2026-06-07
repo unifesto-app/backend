@@ -4,10 +4,11 @@ import { CheckinService } from './checkin.service';
 import { CheckinController } from './checkin.controller';
 import { PrismaModule } from '../prisma/prisma.module';
 import { WalletModule } from '../wallet/wallet.module';
+import { EmailModule } from '../email/email.module';
 import { CacheModule } from '../cache/cache.module';
 
 @Module({
-  imports: [AuthModule, AuthModule, PrismaModule, WalletModule, CacheModule],
+  imports: [AuthModule, AuthModule, PrismaModule, WalletModule, EmailModule, CacheModule],
   controllers: [CheckinController],
   providers: [CheckinService],
   exports: [CheckinService],

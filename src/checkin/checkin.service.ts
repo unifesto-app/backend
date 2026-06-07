@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { WalletService } from '../wallet/wallet.service';
+import { EmailService } from '../email/email.service';
 import { CacheService } from '../cache/cache.service';
 import { CoinSource, RegistrationStatus, TicketStatus } from '@prisma/client';
 import { COIN_CONSTANTS } from '../wallet/coin.constants';
@@ -17,6 +18,7 @@ export class CheckinService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly walletService: WalletService,
+    private readonly emailService: EmailService,
     private readonly cache: CacheService,
   ) {}
 
@@ -163,6 +165,31 @@ export class CheckinService {
       );
     } catch (error) {
       this.logger.error(`Failed to award coins: ${error.message}`);
+    }
+
+    // Send email notification (non-blocking)
+    const identity = await this.prisma.userIdentity.findFirst({
+      where: { userId: registration.userId, email: { not: null } },
+      select: { email: true },
+    });
+
+    if (identity?.email) {
+      const checkedInAt = new Date().toLocaleString('en-US', {
+        month: 'long',
+        day: 'numeric',
+        year: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+      });
+
+      this.emailService.sendCheckinConfirmation({
+        email: identity.email,
+        userName: registration.user.fullName || registration.user.username || 'there',
+        eventTitle: registration.event.title,
+        checkedInAt,
+        coinsAwarded: COIN_CONSTANTS.ATTEND_EVENT_REWARD,
+      }).catch(err => this.logger.error('Failed to send checkin confirmation email', err));
     }
 
     this.logger.log(

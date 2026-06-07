@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { WalletService } from '../wallet/wallet.service';
+import { EmailService } from '../email/email.service';
 import { CoinSource } from '@prisma/client';
 import { COIN_CONSTANTS } from '../wallet/coin.constants';
 import * as crypto from 'crypto';
@@ -17,6 +18,7 @@ export class ReferralsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly walletService: WalletService,
+    private readonly emailService: EmailService,
   ) {}
 
   generateReferralCode(): string {
@@ -163,6 +165,29 @@ export class ReferralsService {
       this.logger.log(
         `User ${userId} applied referral code ${code} from user ${referrer.id}`,
       );
+
+      // Send email notification to referrer (non-blocking)
+      const referrerIdentity = await tx.userIdentity.findFirst({
+        where: { userId: referrer.id, email: { not: null } },
+        select: { email: true },
+      });
+
+      const referredUser = await tx.user.findUnique({
+        where: { id: userId },
+        select: { fullName: true, username: true },
+      });
+
+      const referrerWallet = await this.walletService.getWallet(referrer.id);
+
+      if (referrerIdentity?.email && referredUser) {
+        this.emailService.sendReferralSuccess({
+          email: referrerIdentity.email,
+          referrerName: referrer.fullName || referrer.username || 'there',
+          referredName: referredUser.fullName || referredUser.username || 'Friend',
+          coinsEarned: COIN_CONSTANTS.REFER_FRIEND_REWARD,
+          newBalance: referrerWallet.balance,
+        }).catch(err => this.logger.error('Failed to send referral success email', err));
+      }
 
       return {
         message: 'Referral code applied successfully',

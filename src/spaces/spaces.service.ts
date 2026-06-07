@@ -7,6 +7,8 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
+import { EmailService } from '../email/email.service';
+import { ConfigService } from '@nestjs/config';
 import { CreateSpaceDto, UpdateSpaceDto, UpdateSpaceStatusDto } from './dto';
 import { SpaceStatus, SpaceVisibility } from '@prisma/client';
 
@@ -17,6 +19,8 @@ export class SpacesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly storageService: StorageService,
+    private readonly emailService: EmailService,
+    private readonly configService: ConfigService,
   ) {}
 
   /**
@@ -54,10 +58,31 @@ export class SpacesService {
             id: true,
             fullName: true,
             username: true,
+            mobileNumber: true,
           },
         },
       },
     });
+
+    // Send notification to admin (non-blocking)
+    const adminEmail = this.configService.get<string>('ADMIN_EMAIL');
+    if (adminEmail) {
+      this.emailService.sendNewSpaceSubmittedToAdmin({
+        adminEmail,
+        spaceName: space.name,
+        organizerName: space.creator.fullName || space.creator.username || 'Unknown',
+        organizerMobile: space.creator.mobileNumber,
+        spaceDescription: space.description || undefined,
+        submittedAt: space.submittedAt?.toLocaleString('en-US', {
+          month: 'long',
+          day: 'numeric',
+          year: 'numeric',
+          hour: 'numeric',
+          minute: '2-digit',
+          hour12: true,
+        }) || new Date().toLocaleString(),
+      }).catch(err => this.logger.error('Failed to send new space notification email', err));
+    }
 
     return space;
   }
@@ -258,7 +283,16 @@ export class SpacesService {
     dto: UpdateSpaceStatusDto,
     approvedBy: string,
   ) {
-    const space = await this.prisma.space.findUnique({ where: { id } });
+    const space = await this.prisma.space.findUnique({ 
+      where: { id },
+      include: {
+        creator: {
+          include: {
+            identities: true,
+          },
+        },
+      },
+    });
 
     if (!space) {
       throw new NotFoundException('Space not found');
@@ -284,6 +318,27 @@ export class SpacesService {
       where: { id },
       data: updateData,
     });
+
+    // Send email notifications (non-blocking)
+    const organizerEmail = space.creator.identities.find(i => i.email)?.email;
+    
+    if (organizerEmail) {
+      if (dto.status === SpaceStatus.APPROVED) {
+        this.emailService.sendSpaceApproved({
+          email: organizerEmail,
+          organizerName: space.creator.fullName || space.creator.username || 'there',
+          spaceName: space.name,
+          spaceSlug: space.slug,
+        }).catch(err => this.logger.error('Failed to send space approved email', err));
+      } else if (dto.status === SpaceStatus.REJECTED && dto.rejectionReason) {
+        this.emailService.sendSpaceRejected({
+          email: organizerEmail,
+          organizerName: space.creator.fullName || space.creator.username || 'there',
+          spaceName: space.name,
+          rejectionReason: dto.rejectionReason,
+        }).catch(err => this.logger.error('Failed to send space rejected email', err));
+      }
+    }
 
     return updatedSpace;
   }

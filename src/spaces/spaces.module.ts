@@ -5,10 +5,11 @@ import { SpacesService } from './spaces.service';
 import { PrismaModule } from '../prisma/prisma.module';
 import { AuthModule } from '../auth/auth.module';
 import { StorageModule } from '../storage/storage.module';
+import { EmailModule } from '../email/email.module';
 import { RolesGuard } from '../auth/guards';
 
 @Module({
-  imports: [ConfigModule, PrismaModule, AuthModule, StorageModule],
+  imports: [ConfigModule, PrismaModule, AuthModule, StorageModule, EmailModule],
   controllers: [SpacesController],
   providers: [SpacesService, RolesGuard],
   exports: [SpacesService],

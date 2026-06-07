@@ -225,6 +225,7 @@ model User {
   registrations      EventRegistration[]
   createdRedeemCodes RedeemCode[]
   redeemCodeUsages   RedeemCodeUsage[]
+  emailCampaignsSent EmailCampaign[]     @relation("EmailCampaignsSent")
 
   @@map("users")
 }
@@ -895,3 +896,102 @@ model Referral {
   @@index([referrerId])
   @@map("referrals")
 }
+
+// =====================================================
+// EMAIL CAMPAIGN MODELS
+// Admin custom email campaigns and tracking
+// =====================================================
+
+enum EmailTargetType {
+  SINGLE_USER
+  SPACE_MEMBERS
+  EVENT_REGISTRANTS
+  ALL_USERS
+  ORGANISERS_ONLY
+  WAITLIST
+  SEGMENT
+
+  @@map("email_target_type")
+}
+
+enum EmailCampaignStatus {
+  PENDING
+  SENDING
+  SENT
+  FAILED
+  SCHEDULED
+  CANCELLED
+
+  @@map("email_campaign_status")
+}
+
+enum EmailLogStatus {
+  SENT
+  FAILED
+  BOUNCED
+
+  @@map("email_log_status")
+}
+
+model EmailCampaign {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  subject String @db.VarChar(500)
+  body    String @db.Text // HTML content
+
+  // Admin who sent
+  sentBy     String @map("sent_by") @db.Uuid
+  sentByUser User   @relation("EmailCampaignsSent", fields: [sentBy], references: [id])
+
+  // Target configuration
+  targetType EmailTargetType @map("target_type")
+  targetId   String?         @map("target_id") @db.Uuid // spaceId, eventId, userId
+
+  // Segment filters (JSON for flexibility)
+  segmentFilters Json? @map("segment_filters")
+
+  // Tracking
+  totalSent   Int                 @default(0) @map("total_sent")
+  failedCount Int                 @default(0) @map("failed_count")
+  status      EmailCampaignStatus @default(PENDING)
+
+  // Scheduling
+  scheduledAt DateTime? @map("scheduled_at") @db.Timestamptz(6)
+  sentAt      DateTime? @map("sent_at") @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  // Relations
+  logs EmailCampaignLog[]
+
+  @@index([sentBy])
+  @@index([targetType])
+  @@index([status])
+  @@index([scheduledAt])
+  @@map("email_campaigns")
+}
+
+model EmailCampaignLog {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  campaignId String        @map("campaign_id") @db.Uuid
+  campaign   EmailCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  recipientEmail String  @map("recipient_email") @db.VarChar(255)
+  userId         String? @map("user_id") @db.Uuid
+
+  status         EmailLogStatus
+  errorMessage   String?        @map("error_message") @db.Text
+  sesMessageId   String?        @map("ses_message_id") @db.VarChar(255)
+
+  sentAt DateTime @default(now()) @map("sent_at") @db.Timestamptz(6)
+
+  @@index([campaignId])
+  @@index([userId])
+  @@index([status])
+  @@map("email_campaign_logs")
+}
+
+
+// =====================================================

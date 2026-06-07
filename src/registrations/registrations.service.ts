@@ -354,12 +354,32 @@ export class RegistrationsService {
       this.logger.error('Failed to send RSVP WhatsApp notification', error);
     }
 
-    const creatorEmail = event.space?.creator?.identities?.[0]?.email;
-    if (creatorEmail) {
-      await this.emailService.sendOtpEmail(
-        creatorEmail,
-        `You have successfully registered for ${event.title}`,
+    // Send email notification (non-blocking)
+    const identity = await this.prisma.userIdentity.findFirst({
+      where: { userId, email: { not: null } },
+      select: { email: true },
+    });
+
+    if (identity?.email && fullRegistration) {
+      const eventDate = this.formatEventDate(fullRegistration.event.startDateTime);
+      const eventTime = this.formatEventTime(
+        fullRegistration.event.startDateTime,
+        fullRegistration.event.endDateTime,
       );
+
+      this.emailService.sendRegistrationConfirmation({
+        email: identity.email,
+        userName: fullRegistration.user.fullName || fullRegistration.user.username || 'there',
+        eventTitle: fullRegistration.event.title,
+        eventDate,
+        eventTime,
+        venueName: fullRegistration.event.venueName || undefined,
+        city: fullRegistration.event.city || undefined,
+        isOnline: fullRegistration.event.type === 'ONLINE',
+        onlineUrl: fullRegistration.event.onlineUrl || undefined,
+        qrCode: fullRegistration.qrCode,
+        ticketCode: undefined,
+      }).catch(err => this.logger.error('Failed to send registration confirmation email', err));
     }
 
     this.logger.log(`RSVP completed for user ${userId}, event ${eventId}`);
@@ -962,13 +982,49 @@ export class RegistrationsService {
         );
       }
 
-      // Email notification
+      // Email notifications (non-blocking)
       const userEmail = updatedRegistration?.user?.identities?.[0]?.email;
       if (userEmail) {
-        await this.emailService.sendOtpEmail(
-          userEmail,
-          `Your registration for ${registration.event.title} is confirmed!`,
+        const eventDate = this.formatEventDate(registration.event.startDateTime);
+        const eventTime = this.formatEventTime(
+          registration.event.startDateTime,
+          registration.event.endDateTime,
         );
+
+        // Send payment confirmation
+        this.emailService.sendPaymentConfirmation({
+          email: userEmail,
+          userName: registration.user.fullName || registration.user.username || 'there',
+          eventTitle: registration.event.title,
+          eventDate,
+          eventTime,
+          venueName: registration.event.venueName || undefined,
+          city: registration.event.city || undefined,
+          isOnline: registration.event.type === 'ONLINE',
+          onlineUrl: registration.event.onlineUrl || undefined,
+          amount: Number(registration.totalAmount) - Number(registration.processingFee),
+          processingFee: Number(registration.processingFee),
+          coinsUsed: registration.coinsUsed > 0 ? registration.coinsUsed : undefined,
+          coinValueINR: registration.coinsUsed > 0 ? Number(registration.coinValueINR) : undefined,
+          razorpayPaymentId: dto.razorpayPaymentId,
+          ticketCode: updatedRegistration!.tickets[0]?.ticketCode || undefined,
+          qrCode: registration.qrCode,
+        }).catch(err => this.logger.error('Failed to send payment confirmation email', err));
+
+        // Send registration confirmation
+        this.emailService.sendRegistrationConfirmation({
+          email: userEmail,
+          userName: registration.user.fullName || registration.user.username || 'there',
+          eventTitle: registration.event.title,
+          eventDate,
+          eventTime,
+          venueName: registration.event.venueName || undefined,
+          city: registration.event.city || undefined,
+          isOnline: registration.event.type === 'ONLINE',
+          onlineUrl: registration.event.onlineUrl || undefined,
+          qrCode: registration.qrCode,
+          ticketCode: updatedRegistration!.tickets[0]?.ticketCode || undefined,
+        }).catch(err => this.logger.error('Failed to send registration confirmation email', err));
       }
     } catch (error) {
       this.logger.error('Failed to send notification after payment', error);
@@ -1294,6 +1350,23 @@ export class RegistrationsService {
       }
     } catch (error) {
       this.logger.error('Failed to send cancellation notification', error);
+    }
+
+    // Send email notification (non-blocking)
+    const identity = await this.prisma.userIdentity.findFirst({
+      where: { userId, email: { not: null } },
+      select: { email: true },
+    });
+
+    if (identity?.email) {
+      this.emailService.sendCancellationConfirmation({
+        email: identity.email,
+        userName: registration.user.fullName || registration.user.username || 'there',
+        eventTitle: registration.event.title,
+        coinsRefunded: registration.coinsUsed > 0 ? registration.coinsUsed : undefined,
+        razorpayRefundInitiated,
+        razorpayRefundAmount: razorpayRefundInitiated ? Number(registration.razorpayAmount) : undefined,
+      }).catch(err => this.logger.error('Failed to send cancellation confirmation email', err));
     }
 
     // Invalidate cache
