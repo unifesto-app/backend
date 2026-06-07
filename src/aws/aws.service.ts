@@ -14,6 +14,7 @@ import {
 import {
   ElastiCacheClient,
   DescribeCacheClustersCommand,
+  DescribeReplicationGroupsCommand,
 } from '@aws-sdk/client-elasticache';
 import {
   S3Client,
@@ -645,33 +646,32 @@ export class AwsService {
 
   private async getElastiCacheDetails() {
     try {
-      const command = new DescribeCacheClustersCommand({
-        CacheClusterId: this.cacheClusterId,
-        ShowCacheNodeInfo: true,
+      // Use DescribeReplicationGroups instead of DescribeCacheClusters
+      // for the cluster status since it's a replication group
+      const command = new DescribeReplicationGroupsCommand({
+        ReplicationGroupId: 'unifesto-redis',
       });
       const response = await this.cacheClient.send(command);
-      const cluster = response.CacheClusters?.[0];
-
-      if (!cluster) throw new Error('ElastiCache cluster not found');
+      const group = response.ReplicationGroups?.[0];
 
       return {
-        clusterId: cluster.CacheClusterId,
-        status: cluster.CacheClusterStatus,
-        nodeType: cluster.CacheNodeType,
-        engine: cluster.Engine,
-        engineVersion: cluster.EngineVersion,
-        endpoint: cluster.CacheNodes?.[0]?.Endpoint?.Address,
-        port: cluster.CacheNodes?.[0]?.Endpoint?.Port,
-        tls: cluster.TransitEncryptionEnabled,
+        clusterId: 'unifesto-redis',
+        status: group?.Status || 'unknown',
+        nodeType: 'cache.t4g.micro',
+        engine: 'valkey',
+        engineVersion: '7.2.6',
+        endpoint: group?.NodeGroups?.[0]?.PrimaryEndpoint?.Address || null,
+        port: 6379,
+        tls: true,
       };
     } catch (error) {
       this.logger.error('Failed to get ElastiCache details', error);
       return {
-        clusterId: this.cacheClusterId,
+        clusterId: 'unifesto-redis',
         status: 'unknown',
         nodeType: 'cache.t4g.micro',
-        engine: 'redis',
-        engineVersion: '7.0',
+        engine: 'valkey',
+        engineVersion: '7.2.6',
         endpoint: null,
         port: 6379,
         tls: true,
