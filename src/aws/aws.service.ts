@@ -856,53 +856,60 @@ export class AwsService {
   }
 
   private async getS3Folders() {
-    const prefixes = ['avatars/', 'space-logos/', 'space-banners/'];
+    try {
+      // First, get all top-level prefixes (folders)
+      const command = new ListObjectsV2Command({
+        Bucket: this.s3BucketName,
+        Delimiter: '/',
+      });
+      
+      const response = await this.s3Client.send(command);
+      
+      // Get all top-level prefixes (folders)
+      const prefixes = response.CommonPrefixes?.map(p => p.Prefix) || [];
 
-    const folders = await Promise.all(
-      prefixes.map(async (prefix) => {
-        try {
-          const command = new ListObjectsV2Command({
-            Bucket: this.s3BucketName,
-            Prefix: prefix,
-            MaxKeys: 1000,
-          });
-          const response = await this.s3Client.send(command);
+      const folders = await Promise.all(
+        prefixes.map(async (prefix) => {
+          try {
+            const folderObjects = new ListObjectsV2Command({
+              Bucket: this.s3BucketName,
+              Prefix: prefix,
+            });
+            const folderResponse = await this.s3Client.send(folderObjects);
+            const objects = folderResponse.Contents || [];
+            const totalSize = objects.reduce((sum, obj) => sum + (obj.Size || 0), 0);
+            
+            return {
+              prefix,
+              objectCount: objects.length,
+              sizeMB: Math.round(totalSize / 1024 / 1024 * 100) / 100,
+              recentFiles: objects
+                .sort((a, b) => (b.LastModified?.getTime() || 0) - (a.LastModified?.getTime() || 0))
+                .slice(0, 5)
+                .map(obj => ({
+                  key: obj.Key,
+                  size: obj.Size,
+                  lastModified: obj.LastModified,
+                  url: `https://${this.s3BucketName}.s3.${this.region}.amazonaws.com/${obj.Key}`,
+                })),
+            };
+          } catch (error) {
+            this.logger.error(`Failed to get S3 folder ${prefix}`, error);
+            return {
+              prefix,
+              objectCount: 0,
+              sizeMB: 0,
+              recentFiles: [],
+            };
+          }
+        }),
+      );
 
-          const objects = response.Contents || [];
-          const objectCount = objects.length;
-          const sizeMB = Math.round(
-            objects.reduce((sum, obj) => sum + (obj.Size || 0), 0) / 1024 / 1024,
-          );
-
-          // Get recent 5 files
-          const recentFiles = objects
-            .sort((a, b) => (b.LastModified?.getTime() || 0) - (a.LastModified?.getTime() || 0))
-            .slice(0, 5)
-            .map((obj) => ({
-              key: obj.Key,
-              sizeMB: Math.round((obj.Size || 0) / 1024 / 1024 * 100) / 100,
-              lastModified: obj.LastModified,
-            }));
-
-          return {
-            prefix,
-            objectCount,
-            sizeMB,
-            recentFiles,
-          };
-        } catch (error) {
-          this.logger.error(`Failed to get S3 folder ${prefix}`, error);
-          return {
-            prefix,
-            objectCount: 0,
-            sizeMB: 0,
-            recentFiles: [],
-          };
-        }
-      }),
-    );
-
-    return folders;
+      return folders;
+    } catch (error) {
+      this.logger.error('Failed to get S3 folders', error);
+      return [];
+    }
   }
 
   // =====================================================
