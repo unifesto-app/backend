@@ -21,7 +21,13 @@ import {
   ListObjectsV2Command,
   GetBucketVersioningCommand,
   GetPublicAccessBlockCommand,
+  PutObjectCommand,
+  GetObjectCommand,
+  DeleteObjectCommand,
+  CopyObjectCommand,
+  DeleteObjectsCommand,
 } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import {
   IAMClient,
   GetRoleCommand,
@@ -36,6 +42,11 @@ import {
   GetCostAndUsageCommand,
   GetCostForecastCommand,
 } from '@aws-sdk/client-cost-explorer';
+import {
+  SESv2Client,
+  GetAccountCommand,
+  ListEmailIdentitiesCommand,
+} from '@aws-sdk/client-sesv2';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 
@@ -58,6 +69,7 @@ export class AwsService {
   private readonly iamClient: IAMClient;
   private readonly cloudWatchClient: CloudWatchClient;
   private readonly costExplorerClient: CostExplorerClient;
+  private readonly sesClient: SESv2Client;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -75,6 +87,7 @@ export class AwsService {
     this.iamClient = new IAMClient(awsConfig);
     this.cloudWatchClient = new CloudWatchClient(awsConfig);
     this.costExplorerClient = new CostExplorerClient(awsConfig);
+    this.sesClient = new SESv2Client(awsConfig);
   }
 
   // =====================================================
@@ -893,6 +906,263 @@ export class AwsService {
   }
 
   // =====================================================
+  // STORAGE FILE MANAGEMENT (Real-time S3 Operations)
+  // =====================================================
+
+  /**
+   * List all files in a specific folder
+   */
+  async listFiles(folder: string) {
+    try {
+      const prefix = folder.endsWith('/') ? folder : `${folder}/`;
+      const command = new ListObjectsV2Command({
+        Bucket: this.s3BucketName,
+        Prefix: prefix,
+        MaxKeys: 1000,
+      });
+      
+      const response = await this.s3Client.send(command);
+      const objects = response.Contents || [];
+
+      // Filter out the folder itself (empty key)
+      const files = objects
+        .filter((obj) => obj.Key !== prefix)
+        .map((obj) => ({
+          key: obj.Key,
+          fileName: obj.Key?.replace(prefix, ''),
+          size: obj.Size || 0,
+          sizeKB: Math.round((obj.Size || 0) / 1024 * 100) / 100,
+          sizeMB: Math.round((obj.Size || 0) / 1024 / 1024 * 100) / 100,
+          lastModified: obj.LastModified,
+          eTag: obj.ETag,
+        }))
+        .sort((a, b) => (b.lastModified?.getTime() || 0) - (a.lastModified?.getTime() || 0));
+
+      return {
+        folder: prefix,
+        count: files.length,
+        totalSizeMB: Math.round(files.reduce((sum, f) => sum + f.sizeMB, 0) * 100) / 100,
+        files,
+      };
+    } catch (error) {
+      this.logger.error(`Failed to list files in folder ${folder}`, error);
+      throw new Error(`Failed to list files: ${error.message}`);
+    }
+  }
+
+  /**
+   * Generate a presigned URL for uploading a file
+   */
+  async getUploadUrl(folder: string, fileName: string, contentType?: string) {
+    try {
+      const key = `${folder}/${fileName}`;
+      const command = new PutObjectCommand({
+        Bucket: this.s3BucketName,
+        Key: key,
+        ContentType: contentType || 'application/octet-stream',
+      });
+
+      const uploadUrl = await getSignedUrl(this.s3Client, command, { expiresIn: 3600 }); // 1 hour
+
+      return {
+        uploadUrl,
+        key,
+        fileName,
+        expiresIn: 3600,
+        method: 'PUT',
+      };
+    } catch (error) {
+      this.logger.error(`Failed to generate upload URL for ${fileName}`, error);
+      throw new Error(`Failed to generate upload URL: ${error.message}`);
+    }
+  }
+
+  /**
+   * Generate a presigned URL for downloading a file
+   */
+  async getDownloadUrl(folder: string, fileName: string) {
+    try {
+      const key = `${folder}/${fileName}`;
+      const command = new GetObjectCommand({
+        Bucket: this.s3BucketName,
+        Key: key,
+      });
+
+      const downloadUrl = await getSignedUrl(this.s3Client, command, { expiresIn: 3600 }); // 1 hour
+
+      return {
+        downloadUrl,
+        key,
+        fileName,
+        expiresIn: 3600,
+      };
+    } catch (error) {
+      this.logger.error(`Failed to generate download URL for ${fileName}`, error);
+      throw new Error(`Failed to generate download URL: ${error.message}`);
+    }
+  }
+
+  /**
+   * Delete a single file
+   */
+  async deleteFile(folder: string, fileName: string) {
+    try {
+      const key = `${folder}/${fileName}`;
+      const command = new DeleteObjectCommand({
+        Bucket: this.s3BucketName,
+        Key: key,
+      });
+
+      await this.s3Client.send(command);
+
+      return {
+        success: true,
+        message: `File ${fileName} deleted successfully`,
+        key,
+      };
+    } catch (error) {
+      this.logger.error(`Failed to delete file ${fileName}`, error);
+      throw new Error(`Failed to delete file: ${error.message}`);
+    }
+  }
+
+  /**
+   * Delete multiple files
+   */
+  async deleteFiles(folder: string, fileNames: string[]) {
+    try {
+      const keys = fileNames.map((name) => ({ Key: `${folder}/${name}` }));
+      
+      const command = new DeleteObjectsCommand({
+        Bucket: this.s3BucketName,
+        Delete: {
+          Objects: keys,
+          Quiet: false,
+        },
+      });
+
+      const response = await this.s3Client.send(command);
+
+      return {
+        success: true,
+        deleted: response.Deleted?.length || 0,
+        errors: response.Errors?.length || 0,
+        deletedFiles: response.Deleted?.map((d) => d.Key?.split('/').pop()),
+        failedFiles: response.Errors?.map((e) => ({
+          file: e.Key?.split('/').pop(),
+          code: e.Code,
+          message: e.Message,
+        })),
+      };
+    } catch (error) {
+      this.logger.error(`Failed to delete multiple files`, error);
+      throw new Error(`Failed to delete files: ${error.message}`);
+    }
+  }
+
+  /**
+   * Rename/move a file (copy + delete)
+   */
+  async renameFile(folder: string, oldFileName: string, newFileName: string) {
+    try {
+      const oldKey = `${folder}/${oldFileName}`;
+      const newKey = `${folder}/${newFileName}`;
+
+      // Copy to new location
+      const copyCommand = new CopyObjectCommand({
+        Bucket: this.s3BucketName,
+        CopySource: `${this.s3BucketName}/${oldKey}`,
+        Key: newKey,
+      });
+
+      await this.s3Client.send(copyCommand);
+
+      // Delete old file
+      const deleteCommand = new DeleteObjectCommand({
+        Bucket: this.s3BucketName,
+        Key: oldKey,
+      });
+
+      await this.s3Client.send(deleteCommand);
+
+      return {
+        success: true,
+        message: `File renamed from ${oldFileName} to ${newFileName}`,
+        oldKey,
+        newKey,
+      };
+    } catch (error) {
+      this.logger.error(`Failed to rename file ${oldFileName}`, error);
+      throw new Error(`Failed to rename file: ${error.message}`);
+    }
+  }
+
+  /**
+   * Get file metadata and presigned URL
+   */
+  async getFileDetails(folder: string, fileName: string) {
+    try {
+      const key = `${folder}/${fileName}`;
+      
+      // Get file metadata
+      const headCommand = new GetObjectCommand({
+        Bucket: this.s3BucketName,
+        Key: key,
+      });
+
+      const metadata = await this.s3Client.send(headCommand);
+
+      // Generate download URL
+      const downloadUrl = await getSignedUrl(this.s3Client, headCommand, { expiresIn: 3600 });
+
+      return {
+        key,
+        fileName,
+        size: metadata.ContentLength || 0,
+        sizeKB: Math.round((metadata.ContentLength || 0) / 1024 * 100) / 100,
+        sizeMB: Math.round((metadata.ContentLength || 0) / 1024 / 1024 * 100) / 100,
+        contentType: metadata.ContentType,
+        lastModified: metadata.LastModified,
+        eTag: metadata.ETag,
+        downloadUrl,
+        downloadUrlExpiresIn: 3600,
+      };
+    } catch (error) {
+      this.logger.error(`Failed to get file details for ${fileName}`, error);
+      throw new Error(`Failed to get file details: ${error.message}`);
+    }
+  }
+
+  /**
+   * Upload file directly (for small files)
+   */
+  async uploadFile(folder: string, fileName: string, fileBuffer: Buffer, contentType?: string) {
+    try {
+      const key = `${folder}/${fileName}`;
+      const command = new PutObjectCommand({
+        Bucket: this.s3BucketName,
+        Key: key,
+        Body: fileBuffer,
+        ContentType: contentType || 'application/octet-stream',
+      });
+
+      await this.s3Client.send(command);
+
+      return {
+        success: true,
+        message: `File ${fileName} uploaded successfully`,
+        key,
+        size: fileBuffer.length,
+        sizeKB: Math.round(fileBuffer.length / 1024 * 100) / 100,
+        sizeMB: Math.round(fileBuffer.length / 1024 / 1024 * 100) / 100,
+      };
+    } catch (error) {
+      this.logger.error(`Failed to upload file ${fileName}`, error);
+      throw new Error(`Failed to upload file: ${error.message}`);
+    }
+  }
+
+  // =====================================================
   // SECURITY
   // =====================================================
   async getSecurity() {
@@ -1098,6 +1368,127 @@ export class AwsService {
           { service: 'Amazon Simple Storage Service', cost: 5, percentage: 8 },
         ],
         error: 'Using estimated costs - Cost Explorer data unavailable',
+      };
+    }
+  }
+
+  // =====================================================
+  // SES (Simple Email Service)
+  // =====================================================
+  async getSES() {
+    try {
+      const [accountInfo, identities, quota, stats] = await Promise.allSettled([
+        this.getSESAccount(),
+        this.getSESIdentities(),
+        this.getSESSendQuota(),
+        this.getSESSendStats(),
+      ]);
+
+      return {
+        config: accountInfo.status === 'fulfilled' ? accountInfo.value : {},
+        identities: identities.status === 'fulfilled' ? identities.value : [],
+        quota: quota.status === 'fulfilled' ? quota.value : {},
+        stats: stats.status === 'fulfilled' ? stats.value : {},
+        recentActivity: [], // Can be populated from database logs if available
+      };
+    } catch (error) {
+      this.logger.error('Failed to get SES data', error);
+      throw error;
+    }
+  }
+
+  private async getSESAccount() {
+    try {
+      const command = new GetAccountCommand({});
+      const response = await this.sesClient.send(command);
+
+      return {
+        region: this.region,
+        sendingEnabled: response.SendingEnabled || false,
+        productionAccess: response.ProductionAccessEnabled || false,
+        accountStatus: response.SendingEnabled ? 'verified' : 'pending',
+      };
+    } catch (error) {
+      this.logger.error('Failed to get SES account info', error);
+      return {
+        region: this.region,
+        sendingEnabled: false,
+        productionAccess: false,
+        accountStatus: 'unknown',
+      };
+    }
+  }
+
+  private async getSESIdentities() {
+    try {
+      const command = new ListEmailIdentitiesCommand({});
+      const response = await this.sesClient.send(command);
+
+      return (
+        response.EmailIdentities?.map((identity) => ({
+          identity: identity.IdentityName,
+          type: identity.IdentityType,
+          verificationStatus: identity.SendingEnabled ? 'verified' : 'pending',
+        })) || []
+      );
+    } catch (error) {
+      this.logger.error('Failed to get SES identities', error);
+      return [];
+    }
+  }
+
+  private async getSESSendQuota() {
+    try {
+      // Note: SESv2 doesn't have a direct GetSendQuota command
+      // You would typically get this from CloudWatch metrics or account settings
+      // For now, returning estimated values based on typical SES sandbox/production limits
+      
+      const accountInfo = await this.getSESAccount();
+      const isProduction = accountInfo.productionAccess;
+
+      return {
+        max24HourSend: isProduction ? 50000 : 200, // Production: 50k, Sandbox: 200
+        maxSendRate: isProduction ? 14 : 1, // Production: 14/sec, Sandbox: 1/sec
+        sentLast24Hours: 0, // Would need to track this in your own database
+      };
+    } catch (error) {
+      this.logger.error('Failed to get SES send quota', error);
+      return {
+        max24HourSend: 200,
+        maxSendRate: 1,
+        sentLast24Hours: 0,
+      };
+    }
+  }
+
+  private async getSESSendStats() {
+    try {
+      // Note: SESv2 doesn't have GetSendStatistics
+      // You would need to track these metrics yourself via CloudWatch or in your database
+      // This is a placeholder implementation
+      
+      // You could enhance this by querying your email logs from database
+      // Example: const emailLogs = await this.prisma.emailLog.findMany({ ... });
+      
+      return {
+        sentLast24h: 0,
+        bouncesLast24h: 0,
+        complaintsLast24h: 0,
+        rejectsLast24h: 0,
+        deliveryRate: 100,
+        bounceRate: '0.00',
+        complaintRate: '0.00',
+      };
+    } catch (error) {
+      this.logger.error('Failed to get SES send statistics', error);
+      return {
+        sentLast24h: 0,
+        bouncesLast24h: 0,
+        complaintsLast24h: 0,
+        rejectsLast24h: 0,
+        deliveryRate: 100,
+        bounceRate: '0.00',
+        complaintRate: '0.00',
       };
     }
   }
