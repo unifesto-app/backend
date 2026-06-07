@@ -252,13 +252,20 @@ export class UsersService {
   async getMe(userId: string): Promise<UserProfileDto> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
+      include: {
+        roles: {
+          include: {
+            role: { select: { code: true, name: true } },
+          },
+        },
+      },
     });
 
     if (!user) {
       throw new NotFoundException('User not found');
     }
 
-    return UserProfileDto.fromUser(user);
+    return UserProfileDto.fromUser(user, (user as any).roles);
   }
 
   /**
@@ -289,7 +296,7 @@ export class UsersService {
       },
     });
 
-    return UserProfileDto.fromUser(user);
+    return UserProfileDto.fromUser(user, (user as any).roles);
   }
 
   /**
@@ -301,7 +308,7 @@ export class UsersService {
       data: { isOnboarded: true },
     });
 
-    return UserProfileDto.fromUser(user);
+    return UserProfileDto.fromUser(user, (user as any).roles);
   }
 
   /**
@@ -316,7 +323,7 @@ export class UsersService {
       throw new NotFoundException('User not found');
     }
 
-    return UserProfileDto.fromUser(user);
+    return UserProfileDto.fromUser(user, (user as any).roles);
   }
 
   /**
