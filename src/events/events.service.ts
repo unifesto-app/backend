@@ -9,6 +9,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { SubscriptionService } from '../subscription/subscription.service';
 import { CacheService } from '../cache/cache.service';
+import { EmailService } from '../email/email.service';
 import { PLAN_LIMITS } from '../subscription/plan-limits.config';
 import {
   EventStatus,
@@ -39,6 +40,7 @@ export class EventsService {
     private readonly storageService: StorageService,
     private readonly subscriptionService: SubscriptionService,
     private readonly cache: CacheService,
+    private readonly emailService: EmailService,
   ) {}
 
   async canManageEvent(userId: string, spaceId: string): Promise<boolean> {
@@ -329,6 +331,56 @@ export class EventsService {
     // Invalidate event cache
     await this.cache.invalidateEventCache(event.slug);
 
+    // Check if significant fields changed and notify registered attendees
+    const significantChanges: { field: string; oldValue: string; newValue: string }[] = [];
+
+    if (dto.startDateTime && updated.startDateTime.getTime() !== event.startDateTime.getTime()) {
+      significantChanges.push({
+        field: 'Date & Time',
+        oldValue: this.formatEventDate(event.startDateTime),
+        newValue: this.formatEventDate(updated.startDateTime),
+      });
+    }
+
+    if (dto.venueName && updated.venueName !== event.venueName) {
+      significantChanges.push({
+        field: 'Venue',
+        oldValue: event.venueName || 'TBD',
+        newValue: updated.venueName || 'TBD',
+      });
+    }
+
+    if (significantChanges.length > 0 && event.status === EventStatus.PUBLISHED) {
+      // Notify all registered attendees (non-blocking)
+      const registrations = await this.prisma.eventRegistration.findMany({
+        where: { eventId, status: { not: 'CANCELLED' } },
+        include: {
+          user: {
+            include: {
+              identities: { where: { email: { not: null } }, select: { email: true }, take: 1 },
+            },
+          },
+        },
+      });
+
+      for (const reg of registrations) {
+        const attendeeEmail = reg.user.identities[0]?.email;
+        if (attendeeEmail) {
+          this.emailService
+            .sendEventUpdated({
+              email: attendeeEmail,
+              userName: reg.user.fullName || reg.user.username || 'there',
+              eventTitle: updated.title,
+              changes: significantChanges,
+              newDate: this.formatEventDate(updated.startDateTime),
+              newTime: this.formatEventTime(updated.startDateTime, updated.endDateTime),
+              newVenue: updated.venueName || undefined,
+            })
+            .catch((err) => this.logger.error('Failed to send event updated email', err));
+        }
+      }
+    }
+
     return updated;
   }
 
@@ -380,6 +432,7 @@ export class EventsService {
         status: EventStatus.PUBLISHED,
         publishedAt: new Date(),
       },
+      include: { space: true },
     });
 
     await this.subscriptionService.incrementEventUsage(event.space.createdBy);
@@ -388,6 +441,38 @@ export class EventsService {
     await this.cache.invalidateEventCache(event.slug);
 
     this.logger.log(`Published event ${eventId}`);
+
+    // Send event published emails to space members (non-blocking)
+    const spaceMembers = await this.prisma.userRole.findMany({
+      where: { spaceId: event.spaceId },
+      include: {
+        user: {
+          include: {
+            identities: { where: { email: { not: null } }, select: { email: true }, take: 1 },
+          },
+        },
+      },
+    });
+
+    for (const member of spaceMembers) {
+      const memberEmail = member.user.identities[0]?.email;
+      if (memberEmail) {
+        this.emailService
+          .sendEventPublished({
+            email: memberEmail,
+            userName: member.user.fullName || member.user.username || 'there',
+            eventTitle: updated.title,
+            eventDate: this.formatEventDate(updated.startDateTime),
+            eventTime: this.formatEventTime(updated.startDateTime, updated.endDateTime),
+            venueName: updated.venueName || undefined,
+            city: updated.city || undefined,
+            isOnline: updated.type === 'ONLINE',
+            spaceName: updated.space.name,
+            registrationUrl: `https://unifesto.app/events/${updated.slug}`,
+          })
+          .catch((err) => this.logger.error('Failed to send event published email', err));
+      }
+    }
 
     return updated;
   }
@@ -417,6 +502,39 @@ export class EventsService {
 
     // Invalidate event cache
     await this.cache.invalidateEventCache(event.slug);
+
+    // Send cancellation emails to all registered attendees (non-blocking)
+    const registrations = await this.prisma.eventRegistration.findMany({
+      where: { eventId, status: { not: 'CANCELLED' } },
+      include: {
+        user: {
+          include: {
+            identities: { where: { email: { not: null } }, select: { email: true }, take: 1 },
+          },
+        },
+      },
+    });
+
+    for (const reg of registrations) {
+      const attendeeEmail = reg.user.identities[0]?.email;
+      if (attendeeEmail) {
+        const refundInfo =
+          reg.coinsUsed > 0 || Number(reg.razorpayAmount) > 0
+            ? 'Any payments or coins used will be refunded within 5-7 business days.'
+            : undefined;
+
+        this.emailService
+          .sendEventCancelled({
+            email: attendeeEmail,
+            userName: reg.user.fullName || reg.user.username || 'there',
+            eventTitle: event.title,
+            eventDate: this.formatEventDate(event.startDateTime),
+            cancellationReason: dto.reason || undefined,
+            refundInfo,
+          })
+          .catch((err) => this.logger.error('Failed to send event cancelled email', err));
+      }
+    }
 
     return updated;
   }
@@ -670,5 +788,38 @@ export class EventsService {
         order: dto.order || 0,
       },
     });
+  }
+
+  /**
+   * Helper: Format event date for display
+   * Output: "7 June 2026"
+   */
+  private formatEventDate(dateTime: Date, timezone = 'Asia/Kolkata'): string {
+    return new Intl.DateTimeFormat('en-GB', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+      timeZone: timezone,
+    }).format(dateTime);
+  }
+
+  /**
+   * Helper: Format event time range
+   * Output: "10:00 AM - 1:00 PM IST"
+   */
+  private formatEventTime(
+    startTime: Date,
+    endTime: Date,
+    timezone = 'Asia/Kolkata',
+  ): string {
+    const formatTime = (date: Date) =>
+      new Intl.DateTimeFormat('en-US', {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+        timeZone: timezone,
+      }).format(date);
+
+    return `${formatTime(startTime)} - ${formatTime(endTime)} IST`;
   }
 }

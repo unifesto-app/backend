@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CacheService } from '../cache/cache.service';
+import { EmailService } from '../email/email.service';
 import { CoinSource, TransactionType } from '@prisma/client';
 import { COIN_CONSTANTS, coinsToINR } from './coin.constants';
 import {
@@ -22,6 +23,7 @@ export class WalletService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly cache: CacheService,
+    private readonly emailService: EmailService,
   ) {}
 
   async createWallet(userId: string) {
@@ -174,6 +176,8 @@ export class WalletService {
       throw new BadRequestException('Insufficient coin balance');
     }
 
+    const previousBalance = wallet.balance;
+
     const result = await this.prisma.$transaction(async (tx) => {
       const updatedWallet = await tx.wallet.update({
         where: { id: wallet.id },
@@ -207,6 +211,31 @@ export class WalletService {
 
     // Invalidate balance cache after successful debit
     await this.cache.invalidateBalanceCache(userId);
+
+    // Check for low balance alert (non-blocking)
+    const LOW_BALANCE_THRESHOLD = 50;
+    const newBalance = result.wallet.balance;
+
+    if (newBalance < LOW_BALANCE_THRESHOLD && previousBalance >= LOW_BALANCE_THRESHOLD) {
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        include: {
+          identities: { where: { email: { not: null } }, select: { email: true }, take: 1 },
+        },
+      });
+
+      const userEmail = user?.identities[0]?.email;
+      if (userEmail) {
+        this.emailService
+          .sendLowBalanceAlert({
+            email: userEmail,
+            userName: user.fullName || user.username || 'there',
+            currentBalance: newBalance,
+            threshold: LOW_BALANCE_THRESHOLD,
+          })
+          .catch((err) => this.logger.error('Failed to send low balance alert', err));
+      }
+    }
 
     return result;
   }
@@ -251,7 +280,7 @@ export class WalletService {
       throw new BadRequestException('You are not eligible for this code');
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       await tx.redeemCode.update({
         where: { id: redeemCode.id },
         data: { usedCount: { increment: 1 } },
@@ -264,7 +293,7 @@ export class WalletService {
         },
       });
 
-      const result = await this.creditCoins(
+      const creditResult = await this.creditCoins(
         userId,
         redeemCode.coins,
         CoinSource.REDEEM_CODE,
@@ -277,12 +306,35 @@ export class WalletService {
 
       this.logger.log(`User ${userId} redeemed code ${code}`);
 
-      return result;
+      return creditResult;
     });
+
+    // Send redeem code used email (non-blocking)
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        identities: { where: { email: { not: null } }, select: { email: true }, take: 1 },
+      },
+    });
+
+    const userEmail = user?.identities[0]?.email;
+    if (userEmail) {
+      this.emailService
+        .sendRedeemCodeUsed({
+          email: userEmail,
+          userName: user.fullName || user.username || 'there',
+          code: code.toUpperCase(),
+          coinsReceived: redeemCode.coins,
+          newBalance: result.wallet.balance,
+        })
+        .catch((err) => this.logger.error('Failed to send redeem code used email', err));
+    }
+
+    return result;
   }
 
   async adminGrantCoins(dto: AdminGrantCoinsDto, adminId: string) {
-    return this.creditCoins(
+    const result = await this.creditCoins(
       dto.userId,
       dto.coins,
       CoinSource.ADMIN_GRANT,
@@ -291,6 +343,29 @@ export class WalletService {
         note: `Granted by admin ${adminId}`,
       },
     );
+
+    // Send admin coin grant email (non-blocking)
+    const user = await this.prisma.user.findUnique({
+      where: { id: dto.userId },
+      include: {
+        identities: { where: { email: { not: null } }, select: { email: true }, take: 1 },
+      },
+    });
+
+    const userEmail = user?.identities[0]?.email;
+    if (userEmail) {
+      this.emailService
+        .sendAdminCoinGrant({
+          email: userEmail,
+          userName: user.fullName || user.username || 'there',
+          coinsGranted: dto.coins,
+          reason: dto.reason || 'Admin grant',
+          newBalance: result.wallet.balance,
+        })
+        .catch((err) => this.logger.error('Failed to send admin coin grant email', err));
+    }
+
+    return result;
   }
 
   async createRedeemCode(dto: CreateRedeemCodeDto, createdBy: string) {

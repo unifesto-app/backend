@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { StorageService } from '../storage/storage.service';
+import { EmailService } from '../email/email.service';
 import { S3Client, ListObjectsV2Command } from '@aws-sdk/client-s3';
 
 export interface ServiceStatus {
@@ -40,6 +41,7 @@ export class AdminService {
     private readonly redis: RedisService,
     private readonly storage: StorageService,
     private readonly configService: ConfigService,
+    private readonly emailService: EmailService,
   ) {
     this.startTime = Date.now();
     const region = this.configService.get<string>('AWS_REGION');
@@ -231,5 +233,59 @@ export class AdminService {
       uptime,
       memoryMB,
     };
+  }
+
+  /**
+   * Send expiring subscription reminder emails
+   * Should be called by a scheduled job 7 days before expiry
+   */
+  async sendExpiringSubscriptionEmails(): Promise<void> {
+    const sevenDaysFromNow = new Date();
+    sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
+
+    const sixDaysFromNow = new Date();
+    sixDaysFromNow.setDate(sixDaysFromNow.getDate() + 6);
+
+    const expiring = await this.prisma.orgSubscription.findMany({
+      where: {
+        expiresAt: { gte: sixDaysFromNow, lte: sevenDaysFromNow },
+        isActive: true,
+        plan: { not: 'STARTER' },
+      },
+      include: {
+        user: {
+          include: {
+            identities: { where: { email: { not: null } }, select: { email: true }, take: 1 },
+          },
+        },
+      },
+    });
+
+    for (const sub of expiring) {
+      const email = sub.user.identities[0]?.email;
+      if (email && sub.expiresAt) {
+        await this.emailService
+          .sendSubscriptionExpiring({
+            email,
+            userName: sub.user.fullName || sub.user.username || 'there',
+            plan: sub.plan,
+            expiresAt: this.formatDate(sub.expiresAt),
+            renewUrl: 'https://forge.unifesto.app/subscription',
+          })
+          .catch((err) =>
+            this.logger.error('Failed to send expiring subscription email', err),
+          );
+      }
+    }
+
+    this.logger.log(`Sent expiring subscription emails to ${expiring.length} users`);
+  }
+
+  private formatDate(date: Date): string {
+    return new Intl.DateTimeFormat('en-GB', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    }).format(date);
   }
 }

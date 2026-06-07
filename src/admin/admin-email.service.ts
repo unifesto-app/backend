@@ -345,6 +345,13 @@ export class AdminEmailService {
     return { success: true, message: 'Campaign cancelled' };
   }
 
+  /**
+   * Process a scheduled campaign (called by scheduler)
+   */
+  async processScheduledCampaign(campaignId: string): Promise<void> {
+    return this.processCampaign(campaignId);
+  }
+
 
   // =====================================================
   // PRIVATE METHODS

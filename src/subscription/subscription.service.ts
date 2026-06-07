@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CacheService } from '../cache/cache.service';
+import { EmailService } from '../email/email.service';
 import { BillingCycle, OrgPlan, Prisma } from '@prisma/client';
 import { PLAN_LIMITS } from './plan-limits.config';
 import Razorpay from 'razorpay';
@@ -25,6 +26,7 @@ export class SubscriptionService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly cache: CacheService,
+    private readonly emailService: EmailService,
   ) {
     this.razorpay = new Razorpay({
       key_id: process.env.RAZORPAY_KEY_ID,
@@ -161,6 +163,8 @@ export class SubscriptionService {
         ? this.getNextMonthStart()
         : this.getNextYearStart();
 
+    const oldPlan = subscription.plan;
+
     const updated = await this.prisma.$transaction(async (tx) => {
       await tx.subscriptionHistory.create({
         data: {
@@ -190,6 +194,51 @@ export class SubscriptionService {
 
     this.logger.log(`Activated ${plan} plan for user ${userId}`);
 
+    // Get plan features
+    const planFeatures: Record<string, string[]> = {
+      GROWTH: ['Up to 10 events/month', '200 attendees per event', 'Waitlist management', 'Bulk export'],
+      PRO: ['Unlimited events', '1000 attendees per event', 'Analytics dashboard', 'WhatsApp blast', 'Remove branding'],
+      ENTERPRISE: ['Unlimited everything', 'White label', 'Priority support', 'Custom integrations'],
+    };
+
+    // Send email notifications (non-blocking)
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        identities: { where: { email: { not: null } }, select: { email: true }, take: 1 },
+      },
+    });
+
+    const userEmail = user?.identities[0]?.email;
+    if (userEmail) {
+      // Send appropriate email based on whether it's an upgrade or first activation
+      if (oldPlan === OrgPlan.STARTER) {
+        // First activation
+        this.emailService
+          .sendSubscriptionActivated({
+            email: userEmail,
+            userName: user.fullName || user.username || 'there',
+            plan,
+            billingCycle,
+            amount: Number(updated.amount),
+            expiresAt: this.formatDate(expiresAt),
+            features: planFeatures[plan] || [],
+          })
+          .catch((err) => this.logger.error('Failed to send subscription activated email', err));
+      } else {
+        // Upgrade from paid plan to another paid plan
+        this.emailService
+          .sendSubscriptionUpgraded({
+            email: userEmail,
+            userName: user.fullName || user.username || 'there',
+            fromPlan: oldPlan,
+            toPlan: plan,
+            newFeatures: planFeatures[plan] || [],
+          })
+          .catch((err) => this.logger.error('Failed to send subscription upgraded email', err));
+      }
+    }
+
     return updated;
   }
 
@@ -199,6 +248,8 @@ export class SubscriptionService {
     if (subscription.plan === OrgPlan.STARTER) {
       throw new BadRequestException('Cannot cancel free plan');
     }
+
+    const oldPlan = subscription.plan;
 
     const updated = await this.prisma.$transaction(async (tx) => {
       await tx.subscriptionHistory.create({
@@ -226,6 +277,26 @@ export class SubscriptionService {
     await this.cache.invalidatePlanCache(userId);
 
     this.logger.log(`Cancelled subscription for user ${userId}`);
+
+    // Send cancellation email (non-blocking)
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        identities: { where: { email: { not: null } }, select: { email: true }, take: 1 },
+      },
+    });
+
+    const userEmail = user?.identities[0]?.email;
+    if (userEmail) {
+      this.emailService
+        .sendSubscriptionCancelled({
+          email: userEmail,
+          userName: user.fullName || user.username || 'there',
+          plan: oldPlan,
+          expiresAt: 'immediately',
+        })
+        .catch((err) => this.logger.error('Failed to send subscription cancelled email', err));
+    }
 
     return updated;
   }
@@ -329,5 +400,13 @@ export class SubscriptionService {
     date.setDate(1);
     date.setHours(0, 0, 0, 0);
     return date;
+  }
+
+  private formatDate(date: Date): string {
+    return new Intl.DateTimeFormat('en-GB', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    }).format(date);
   }
 }

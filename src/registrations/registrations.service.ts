@@ -392,6 +392,17 @@ export class RegistrationsService {
   }
 
   async addToWaitlist(userId: string, eventId: string, dto: RegisterForEventDto) {
+    const event = await this.prisma.event.findUnique({
+      where: { id: eventId },
+      include: {
+        space: true,
+      },
+    });
+
+    if (!event) {
+      throw new NotFoundException('Event not found');
+    }
+
     const qrCode = this.generateQRCode();
 
     const registration = await this.prisma.eventRegistration.create({
@@ -412,6 +423,33 @@ export class RegistrationsService {
       where: { id: eventId },
       data: { waitlistCount: { increment: 1 } },
     });
+
+    // Send waitlist confirmation email (non-blocking)
+    const identity = await this.prisma.userIdentity.findFirst({
+      where: { userId, email: { not: null } },
+      select: { email: true },
+    });
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { fullName: true, username: true },
+    });
+
+    if (identity?.email && user) {
+      const waitlistPosition = await this.prisma.eventRegistration.count({
+        where: { eventId, isWaitlisted: true },
+      });
+
+      this.emailService
+        .sendWaitlistConfirmation({
+          email: identity.email,
+          userName: user.fullName || user.username || 'there',
+          eventTitle: event.title,
+          eventDate: this.formatEventDate(event.startDateTime),
+          waitlistPosition,
+        })
+        .catch((err) => this.logger.error('Failed to send waitlist confirmation email', err));
+    }
 
     return {
       registrationId: registration.id,
@@ -1107,6 +1145,14 @@ export class RegistrationsService {
 
       const registration = await this.prisma.eventRegistration.findFirst({
         where: { orderId },
+        include: {
+          event: true,
+          user: {
+            include: {
+              identities: { where: { email: { not: null } }, select: { email: true }, take: 1 },
+            },
+          },
+        },
       });
 
       if (registration && registration.paymentStatus === PaymentStatus.PENDING) {
@@ -1116,6 +1162,21 @@ export class RegistrationsService {
         });
 
         this.logger.log(`Payment failed for registration ${registration.id}`);
+
+        // Send payment failed email (non-blocking)
+        const userEmail = registration.user.identities[0]?.email;
+        if (userEmail) {
+          this.emailService
+            .sendPaymentFailed({
+              email: userEmail,
+              userName: registration.user.fullName || registration.user.username || 'there',
+              eventTitle: registration.event.title,
+              amount: Number(registration.razorpayAmount),
+              reason: 'Payment was declined. Please try again.',
+              retryUrl: `https://unifesto.app/events/${registration.event.slug}`,
+            })
+            .catch((err) => this.logger.error('Failed to send payment failed email', err));
+        }
       }
     }
 

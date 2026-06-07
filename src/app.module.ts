@@ -1,5 +1,6 @@
 import { Module, Logger } from '@nestjs/common';
 import { ConfigModule as NestConfigModule } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { ThrottlerStorageRedisService } from '@nest-lab/throttler-storage-redis';
 import { APP_GUARD } from '@nestjs/core';
@@ -31,6 +32,8 @@ import { CheckinModule } from './checkin/checkin.module';
       isGlobal: true,
       envFilePath: '.env',
     }),
+    // Enable scheduled jobs and cron tasks
+    ScheduleModule.forRoot(),
     // Global throttler configuration with Redis-backed storage
     ThrottlerModule.forRootAsync({
       imports: [RedisModule],
