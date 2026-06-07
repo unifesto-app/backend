@@ -4,7 +4,7 @@ export class AuthResponseDto {
   accessToken: string;
   user: UserProfileDto;
   requiresMobileVerification: boolean;
-  tempToken?: string; // Only present when mobile verification is required
+  tempToken?: string;
 }
 
 export class UserProfileDto {
@@ -21,8 +21,9 @@ export class UserProfileDto {
   websiteUrl: string | null;
   isOnboarded: boolean;
   createdAt: string;
+  roles?: { role: { code: string; name: string } }[];
 
-  static fromUser(user: User): UserProfileDto {
+  static fromUser(user: User, roles?: any[]): UserProfileDto {
     return {
       id: user.id,
       mobileNumber: user.mobileNumber,
@@ -37,6 +38,7 @@ export class UserProfileDto {
       websiteUrl: user.websiteUrl,
       isOnboarded: user.isOnboarded,
       createdAt: user.createdAt.toISOString(),
+      roles: roles || [],
     };
   }
 }

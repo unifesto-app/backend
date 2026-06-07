@@ -399,12 +399,17 @@ export class AuthService {
         };
       }
 
+      // Fetch user roles
+      const userRoles = await this.prisma.userRole.findMany({
+        where: { userId: user.id },
+        include: { role: { select: { code: true, name: true } } },
+      });
       // Generate access token
       const accessToken = this.generateAccessToken(user.id);
 
       return {
         accessToken,
-        user: UserProfileDto.fromUser(user),
+        user: UserProfileDto.fromUser(user, userRoles),
         requiresMobileVerification: false,
       };
     }
