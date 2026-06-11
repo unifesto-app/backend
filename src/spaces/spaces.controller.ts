@@ -75,8 +75,15 @@ export class SpacesController {
    * GET /spaces/:id
    */
   @Get(':id')
-  async getSpaceById(@Param('id') id: string, @Request() req?: any) {
-    const userId = req?.user?.id;
+  async getSpaceById(@Param('id') id: string, @Headers('authorization') auth?: string) {
+    let userId: string | undefined;
+    if (auth?.startsWith('Bearer ')) {
+      try {
+        const jwt = require('jsonwebtoken');
+        const decoded: any = jwt.decode(auth.replace('Bearer ', ''));
+        userId = decoded?.userId;
+      } catch {}
+    }
     return this.spacesService.getSpaceById(id, userId);
   }
 
