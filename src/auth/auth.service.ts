@@ -615,7 +615,8 @@ export class AuthService {
 
     const email = payload.email;
     const cognitoSub = payload.sub;
-    const provider = payload['identities']?.[0]?.providerName?.toLowerCase() || 'cognito';
+    const rawProvider = payload['identities']?.[0]?.providerName?.toLowerCase() || 'cognito';
+    const provider = rawProvider === 'signinwithapple' ? 'apple' : rawProvider;
 
     if (!email) {
       throw new UnauthorizedException('Email not provided by identity provider');
@@ -648,12 +649,12 @@ export class AuthService {
       // Create new user
       user = await this.prisma.user.create({
         data: {
-          mobileNumber: `cog_${cognitoSub.slice(0, 20)}`, // placeholder until mobile verified
+          mobileNumber: cognitoSub.slice(0, 15), // placeholder until mobile verified
           mobileVerified: false,
           isOnboarded: false,
           identities: {
             create: {
-              provider: provider === 'google' ? 'GOOGLE' : 'APPLE',
+              provider: provider.includes('google') ? 'GOOGLE' : 'APPLE',
               providerUserId: cognitoSub,
               email,
             } as any,
