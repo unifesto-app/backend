@@ -237,16 +237,42 @@ export class WhatsAppService {
    */
   async sendOtp(phoneNumber: string, otp: string): Promise<void> {
     try {
-      await this.sendTemplateMessage(
-        phoneNumber,
-        TEMPLATES.OTP,
-        [otp], // {{1}} = OTP code
-        false,
-      );
+      const formattedPhone = this.formatPhoneNumber(phoneNumber);
+      if (!formattedPhone) {
+        this.logger.warn(`Invalid phone number format: ${phoneNumber}`);
+        return;
+      }
+      const message = {
+        messaging_product: 'whatsapp',
+        to: formattedPhone,
+        type: 'template',
+        template: {
+          name: TEMPLATES.OTP,
+          language: { code: 'en' },
+          components: [
+            {
+              type: 'body',
+              parameters: [{ type: 'text', text: otp }],
+            },
+            {
+              type: 'button',
+              sub_type: 'url',
+              index: '0',
+              parameters: [{ type: 'text', text: otp }],
+            },
+          ],
+        },
+      };
+      const axios = require('axios');
+      await axios.post(this.apiUrl, message, {
+        headers: {
+          'Authorization': `Bearer ${this.accessToken}`,
+          'Content-Type': 'application/json',
+        },
+      });
       this.logger.log(`WhatsApp OTP sent to ${phoneNumber}`);
     } catch (error) {
       this.logger.error('Failed to send WhatsApp OTP', error);
-      // Don't throw - let calling code handle fallback
     }
   }
 
