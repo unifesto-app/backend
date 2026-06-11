@@ -157,7 +157,7 @@ export class SpacesService {
   /**
    * Get space by ID
    */
-  async getSpaceById(id: string) {
+  async getSpaceById(id: string, userId?: string) {
     const space = await this.prisma.space.findUnique({
       where: { id },
       include: {
@@ -193,7 +193,10 @@ export class SpacesService {
       throw new NotFoundException('Space not found');
     }
 
-    return space;
+    const userRole = userId
+      ? (space.userRoles.find((ur: any) => ur.userId === userId) || null)
+      : null;
+    return { ...space, userRole };
   }
 
   /**

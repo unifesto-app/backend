@@ -75,8 +75,9 @@ export class SpacesController {
    * GET /spaces/:id
    */
   @Get(':id')
-  async getSpaceById(@Param('id') id: string) {
-    return this.spacesService.getSpaceById(id);
+  async getSpaceById(@Param('id') id: string, @Request() req?: any) {
+    const userId = req?.user?.id;
+    return this.spacesService.getSpaceById(id, userId);
   }
 
   /**
