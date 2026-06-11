@@ -13,6 +13,7 @@ import {
   ParseFilePipe,
   MaxFileSizeValidator,
   FileTypeValidator,
+  Headers,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { SpacesService } from './spaces.service';
@@ -75,7 +76,7 @@ export class SpacesController {
    * GET /spaces/:id
    */
   @Get(':id')
-  async getSpaceById(@Param('id') id: string, @NestHeaders('authorization') auth?: string) {
+  async getSpaceById(@Param('id') id: string, @Headers('authorization') auth?: string) {
     let userId: string | undefined;
     if (auth?.startsWith('Bearer ')) {
       try {
