@@ -655,87 +655,114 @@ export class AuthService {
 
   /**
    * Login with Cognito token (Google/Apple via Cognito)
-   * Verifies the Cognito ID token and finds/creates user in our DB
+   *
+   * Flow:
+   * 1. Verify Cognito ID token
+   * 2. Find existing user by Cognito identity OR email
+   * 3. If found + mobile verified → return access token
+   * 4. If found + mobile not verified → return temp token for mobile OTP
+   * 5. If not found → create placeholder user → return temp token for mobile OTP
    */
   async loginWithCognito(idToken: string): Promise<AuthResponseDto> {
     if (!this.cognitoJwtService) {
       throw new UnauthorizedException('Cognito authentication not configured');
     }
 
-    // Verify the Cognito ID token
     const payload = await this.cognitoJwtService.verifyCognitoToken(idToken);
-
     const email = payload.email;
     const cognitoSub = payload.sub;
     const rawProvider = payload['identities']?.[0]?.providerName?.toLowerCase() || 'cognito';
-    const provider = rawProvider === 'signinwithapple' ? 'apple' : rawProvider;
+    const providerEnum = rawProvider === 'signinwithapple' ? Provider.APPLE : Provider.GOOGLE;
 
     if (!email) {
       throw new UnauthorizedException('Email not provided by identity provider');
     }
 
-    // Find or create user by email
-    let user = await this.prisma.user.findFirst({
-      where: { 
-        OR: [
-          { identities: { some: { provider: 'GOOGLE' as any, providerUserId: cognitoSub } } },
-          { identities: { some: { provider: 'APPLE' as any, providerUserId: cognitoSub } } },
-        ]
-      },
-      include: { roles: { include: { role: true } } },
+    // Step 1: Find user by existing Cognito identity
+    let user: any = null;
+    const existingIdentity = await this.prisma.userIdentity.findFirst({
+      where: { provider: providerEnum, providerUserId: cognitoSub },
+      include: { user: { include: { roles: { include: { role: true } } } } },
     });
 
+    if (existingIdentity) {
+      user = existingIdentity.user;
+    }
+
+    // Step 2: Find user by email identity (any provider)
     if (!user) {
-      // Check if user exists with this email via other providers
-      const existingIdentity = await this.prisma.userIdentity.findFirst({
-        where: { provider: provider.toUpperCase() as any },
+      const identityByEmail = await this.prisma.userIdentity.findFirst({
+        where: { email },
         include: { user: { include: { roles: { include: { role: true } } } } },
       });
-
-      if (existingIdentity) {
-        user = existingIdentity.user as any;
+      if (identityByEmail) {
+        user = identityByEmail.user;
+        await this.linkIdentityToUser(user.id, providerEnum, cognitoSub, email);
       }
     }
 
+    // Step 3: Find user by EMAIL provider identity (email OTP users)
     if (!user) {
-      // Create new user
-      user = await this.prisma.user.create({
-        data: {
-          mobileNumber: `+0${Date.now().toString().slice(-9)}`, // placeholder until mobile verified
-          mobileVerified: false,
-          isOnboarded: false,
-          identities: {
-            create: {
-              provider: provider.includes('google') ? 'GOOGLE' : 'APPLE',
-              providerUserId: cognitoSub,
-              email,
-            } as any,
-          },
-        },
-        include: { roles: { include: { role: true } } },
-      }) as any;
+      const emailIdentity = await this.prisma.userIdentity.findFirst({
+        where: { provider: Provider.EMAIL, providerUserId: email },
+        include: { user: { include: { roles: { include: { role: true } } } } },
+      });
+      if (emailIdentity) {
+        user = emailIdentity.user;
+        await this.linkIdentityToUser(user.id, providerEnum, cognitoSub, email);
+      }
     }
 
-    if (!user!.mobileVerified) {
-      const tempToken = this.generateTempToken(
-        provider === 'google' ? 'GOOGLE' : 'APPLE',
-        cognitoSub,
-        email,
-      );
+    // Step 4: User found + mobile verified → login directly
+    if (user && user.mobileVerified) {
+      const accessToken = this.generateAccessToken(user.id);
+      return {
+        accessToken,
+        user: UserProfileDto.fromUser(user, user.roles),
+        requiresMobileVerification: false,
+      };
+    }
+
+    // Step 5: User found + mobile not verified → require mobile OTP
+    if (user && !user.mobileVerified) {
+      const tempToken = this.generateTempToken(providerEnum, cognitoSub, email);
       return {
         accessToken: '',
-        user: UserProfileDto.fromUser(user as any, (user as any).roles),
+        user: UserProfileDto.fromUser(user, user.roles),
         requiresMobileVerification: true,
         tempToken,
       };
     }
 
-    const accessToken = this.generateAccessToken(user!.id);
+    // Step 6: New user → create with placeholder mobile + require mobile OTP
+    const placeholderMobile = `+0${Date.now().toString().slice(-9)}`;
+    const newUser = await this.prisma.user.create({
+      data: {
+        mobileNumber: placeholderMobile,
+        mobileVerified: false,
+        isOnboarded: false,
+        identities: {
+          create: {
+            provider: providerEnum,
+            providerUserId: cognitoSub,
+            email,
+            emailVerified: true,
+          },
+        },
+      },
+      include: { roles: { include: { role: true } } },
+    });
+
+    await this.prisma.wallet.create({
+      data: { userId: newUser.id, balance: 0 },
+    }).catch(() => {});
+
+    const tempToken = this.generateTempToken(providerEnum, cognitoSub, email);
     return {
-      accessToken,
-      user: UserProfileDto.fromUser(user as any, (user as any).roles),
-      requiresMobileVerification: false,
+      accessToken: '',
+      user: UserProfileDto.fromUser(newUser, []),
+      requiresMobileVerification: true,
+      tempToken,
     };
   }
-
 }
