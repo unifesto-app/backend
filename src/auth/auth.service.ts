@@ -304,6 +304,32 @@ export class AuthService {
       // Clear failed attempts on success
       await this.cache.clearFailedOtp(dto.mobileNumber);
 
+      // Check if a Cognito user already exists with this provider identity (placeholder mobile)
+      const cognitoUser = await this.prisma.userIdentity.findFirst({
+        where: {
+          provider: decoded.provider as Provider,
+          providerUserId: decoded.providerUserId,
+        },
+        include: { user: true },
+      });
+
+      if (cognitoUser && !cognitoUser.user.mobileVerified) {
+        // Update the existing Cognito user with real mobile number
+        const updatedUser = await this.prisma.user.update({
+          where: { id: cognitoUser.user.id },
+          data: {
+            mobileNumber: dto.mobileNumber,
+            mobileVerified: true,
+          },
+        });
+        const accessToken = this.generateAccessToken(updatedUser.id);
+        return {
+          accessToken,
+          user: UserProfileDto.fromUser(updatedUser),
+          requiresMobileVerification: false,
+        };
+      }
+
       // Check if mobile number already exists
       const existingUser = await this.prisma.user.findUnique({
         where: { mobileNumber: dto.mobileNumber },
