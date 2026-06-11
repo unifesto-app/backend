@@ -678,6 +678,8 @@ export class AuthService {
       throw new UnauthorizedException('Email not provided by identity provider');
     }
 
+    this.logger.log(`[Cognito] email=${email} provider=${providerEnum} sub=${cognitoSub}`);
+
     // Step 1: Find user by existing Cognito identity
     let user: any = null;
     const existingIdentity = await this.prisma.userIdentity.findFirst({
