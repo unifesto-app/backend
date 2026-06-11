@@ -600,4 +600,89 @@ export class AuthService {
 
     return user;
   }
+
+  /**
+   * Login with Cognito token (Google/Apple via Cognito)
+   * Verifies the Cognito ID token and finds/creates user in our DB
+   */
+  async loginWithCognito(idToken: string): Promise<AuthResponseDto> {
+    if (!this.cognitoJwtService) {
+      throw new UnauthorizedException('Cognito authentication not configured');
+    }
+
+    // Verify the Cognito ID token
+    const payload = await this.cognitoJwtService.verifyCognitoToken(idToken);
+
+    const email = payload.email;
+    const cognitoSub = payload.sub;
+    const provider = payload['identities']?.[0]?.providerName?.toLowerCase() || 'cognito';
+
+    if (!email) {
+      throw new UnauthorizedException('Email not provided by identity provider');
+    }
+
+    // Find or create user by email
+    let user = await this.prisma.user.findFirst({
+      where: { 
+        OR: [
+          { identities: { some: { provider: 'GOOGLE' as any, providerUserId: cognitoSub } } },
+          { identities: { some: { provider: 'APPLE' as any, providerUserId: cognitoSub } } },
+        ]
+      },
+      include: { roles: { include: { role: true } } },
+    });
+
+    if (!user) {
+      // Check if user exists with this email via other providers
+      const existingIdentity = await this.prisma.userIdentity.findFirst({
+        where: { provider: provider.toUpperCase() as any },
+        include: { user: { include: { roles: { include: { role: true } } } } },
+      });
+
+      if (existingIdentity) {
+        user = existingIdentity.user as any;
+      }
+    }
+
+    if (!user) {
+      // Create new user
+      user = await this.prisma.user.create({
+        data: {
+          mobileNumber: `cognito_${cognitoSub}`, // placeholder until mobile verified
+          mobileVerified: false,
+          isOnboarded: false,
+          identities: {
+            create: {
+              provider: provider === 'google' ? 'GOOGLE' : 'APPLE',
+              providerUserId: cognitoSub,
+              email,
+            } as any,
+          },
+        },
+        include: { roles: { include: { role: true } } },
+      }) as any;
+    }
+
+    if (!user!.mobileVerified) {
+      const tempToken = this.generateTempToken(
+        provider === 'google' ? 'GOOGLE' : 'APPLE',
+        cognitoSub,
+        email,
+      );
+      return {
+        accessToken: '',
+        user: UserProfileDto.fromUser(user as any, (user as any).roles),
+        requiresMobileVerification: true,
+        tempToken,
+      };
+    }
+
+    const accessToken = this.generateAccessToken(user!.id);
+    return {
+      accessToken,
+      user: UserProfileDto.fromUser(user as any, (user as any).roles),
+      requiresMobileVerification: false,
+    };
+  }
+
 }

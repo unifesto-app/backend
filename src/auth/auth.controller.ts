@@ -50,6 +50,13 @@ export class AuthController {
    * Send Email OTP
    * POST /auth/email
    */
+  @Post('cognito')
+  @ApiOperation({ summary: 'Login with Cognito ID token (Google/Apple via Cognito)' })
+  @ApiResponse({ status: 200 })
+  async loginWithCognito(@Body() body: { idToken: string }): Promise<AuthResponseDto> {
+    return this.authService.loginWithCognito(body.idToken);
+  }
+
   @Post('email')
   @HttpCode(HttpStatus.OK)
   async loginWithEmail(
