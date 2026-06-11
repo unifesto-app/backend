@@ -57,8 +57,9 @@ export class UsersController {
   @UseGuards(JwtAuthGuard)
   async completeOnboarding(
     @CurrentUser() user: User,
+    @Body() body: { username?: string; fullName?: string; city?: string; referralCode?: string },
   ): Promise<UserProfileDto> {
-    return this.usersService.completeOnboarding(user.id);
+    return this.usersService.completeOnboarding(user.id, body);
   }
 
   /**
