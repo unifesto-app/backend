@@ -226,6 +226,7 @@ model User {
   createdRedeemCodes RedeemCode[]
   redeemCodeUsages   RedeemCodeUsage[]
   emailCampaignsSent EmailCampaign[]     @relation("EmailCampaignsSent")
+  adminDevices       AdminDevice[]
 
   @@map("users")
 }
@@ -995,3 +996,16 @@ model EmailCampaignLog {
 
 
 // =====================================================
+
+model AdminDevice {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String   @db.Uuid
+  fcmToken  String   @unique
+  platform  String   @default("ios") @db.VarChar(10)
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("admin_devices")
+}
