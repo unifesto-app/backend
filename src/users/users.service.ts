@@ -302,15 +302,24 @@ export class UsersService {
   /**
    * Mark user as onboarded
    */
-  async completeOnboarding(userId: string): Promise<UserProfileDto> {
-    const user = await this.prisma.user.update({
-      where: { id: userId },
-      data: { isOnboarded: true },
-    });
-
+  asynasync completeOnboarding(userId: string, data?: { username?: string; fullName?: string; city?: string; referralCode?: string }): Promise<UserProfileDto> {
+    if (data?.username) {
+      const available = await this.isUsernameAvailable(data.username, userId);
+      if (!available) throw new ConflictException('Username is already taken');
+    }
+    if (data?.referralCode) {
+      const referrer = await this.prisma.user.findFirst({ where: { referralCode: data.referralCode } });
+      if (referrer && referrer.id !== userId) {
+        this.prisma.wallet.updateMany({ where: { userId: referrer.id }, data: { balance: { increment: 50 } } }).catch(() => {});
+      }
+    }
+    const updateData: any = { isOnboarded: true };
+    if (data?.username) updateData.username = data.username;
+    if (data?.fullName) updateData.fullName = data.fullName;
+    if (data?.city) updateData.city = data.city;
+    const user = await this.prisma.user.update({ where: { id: userId }, data: updateData });
     return UserProfileDto.fromUser(user, (user as any).roles);
   }
-
   /**
    * Get user by username
    */
