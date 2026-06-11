@@ -648,7 +648,7 @@ export class AuthService {
       // Create new user
       user = await this.prisma.user.create({
         data: {
-          mobileNumber: `cognito_${cognitoSub}`, // placeholder until mobile verified
+          mobileNumber: `cog_${cognitoSub.slice(0, 20)}`, // placeholder until mobile verified
           mobileVerified: false,
           isOnboarded: false,
           identities: {
