@@ -147,6 +147,7 @@ export class EventsService {
       startDate,
       endDate,
       search,
+      spaceId,
       page = 1,
       limit = 20,
     } = filters;
@@ -158,6 +159,9 @@ export class EventsService {
       visibility: 'PUBLIC',
     };
 
+    if (spaceId) {
+      where.spaceId = spaceId;
+    }
     if (city) {
       where.city = { contains: city, mode: 'insensitive' };
     }

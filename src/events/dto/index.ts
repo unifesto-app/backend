@@ -428,6 +428,11 @@ export class EventFilterDto {
   @IsString()
   search?: string;
 
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  spaceId?: string;
+
   @ApiPropertyOptional({ example: 1 })
   @IsOptional()
   @IsInt()
