@@ -288,4 +288,37 @@ export class AdminService {
       year: 'numeric',
     }).format(date);
   }
+
+  async registerDeviceToken(userId: string, fcmToken: string, platform: string): Promise<{ message: string }> {
+    await this.prisma.adminDevice.upsert({
+      where: { fcmToken },
+      create: { userId, fcmToken, platform },
+      update: { userId, platform },
+    });
+    this.logger.log('Registered FCM token for user: ' + userId);
+    return { message: 'Device token registered' };
+  }
+
+  async unregisterDeviceToken(userId: string, fcmToken: string): Promise<{ message: string }> {
+    await this.prisma.adminDevice.deleteMany({
+      where: { userId, fcmToken },
+    });
+    return { message: 'Device token unregistered' };
+  }
+
+  async sendPushToAdmins(title: string, body: string, data?: Record<string, string>): Promise<void> {
+    // Get all admin device tokens
+    const devices = await this.prisma.adminDevice.findMany({
+      include: { user: { include: { roles: { include: { role: true } } } } },
+    });
+
+    const adminDevices = devices.filter(d =>
+      d.user.roles.some(r => r.role.code === 'ADMIN')
+    );
+
+    if (adminDevices.length === 0) return;
+
+    // FCM sending logic will be added when firebase-admin is configured
+  }
+
 }
