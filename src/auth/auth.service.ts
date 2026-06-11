@@ -320,22 +320,27 @@ export class AuthService {
         });
 
         if (existingMobileUser) {
-          // Mobile belongs to existing user - link Cognito identity to existing user
-          // and delete the placeholder Cognito user
-          await this.linkIdentityToUser(
-            existingMobileUser.id,
-            decoded.provider as Provider,
-            decoded.providerUserId,
-            decoded.email,
-          );
-          // Delete placeholder user
+          // Mobile belongs to existing user
+          // Transfer the Cognito identity from placeholder to existing user
+          await this.prisma.userIdentity.updateMany({
+            where: {
+              provider: decoded.provider as Provider,
+              providerUserId: decoded.providerUserId,
+            },
+            data: { userId: existingMobileUser.id },
+          });
+          // Delete placeholder user (identities already moved)
           await this.prisma.user.delete({
             where: { id: cognitoUser.user.id },
-          }).catch(() => {}); // Ignore if already deleted
+          }).catch(() => {});
           const accessToken = this.generateAccessToken(existingMobileUser.id);
+          const userRoles = await this.prisma.userRole.findMany({
+            where: { userId: existingMobileUser.id },
+            include: { role: { select: { code: true, name: true } } },
+          });
           return {
             accessToken,
-            user: UserProfileDto.fromUser(existingMobileUser),
+            user: UserProfileDto.fromUser(existingMobileUser, userRoles),
             requiresMobileVerification: false,
           };
         }
