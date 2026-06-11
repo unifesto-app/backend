@@ -302,7 +302,7 @@ export class UsersService {
   /**
    * Mark user as onboarded
    */
-  asynasync completeOnboarding(userId: string, data?: { username?: string; fullName?: string; city?: string; referralCode?: string }): Promise<UserProfileDto> {
+  async completeOnboarding(userId: string, data?: { username?: string; fullName?: string; city?: string; referralCode?: string }): Promise<UserProfileDto> {
     if (data?.username) {
       const available = await this.isUsernameAvailable(data.username, userId);
       if (!available) throw new ConflictException('Username is already taken');
