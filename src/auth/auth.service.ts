@@ -314,6 +314,32 @@ export class AuthService {
       });
 
       if (cognitoUser && !cognitoUser.user.mobileVerified) {
+        // Check if mobile number already belongs to another user
+        const existingMobileUser = await this.prisma.user.findUnique({
+          where: { mobileNumber: dto.mobileNumber },
+        });
+
+        if (existingMobileUser) {
+          // Mobile belongs to existing user - link Cognito identity to existing user
+          // and delete the placeholder Cognito user
+          await this.linkIdentityToUser(
+            existingMobileUser.id,
+            decoded.provider as Provider,
+            decoded.providerUserId,
+            decoded.email,
+          );
+          // Delete placeholder user
+          await this.prisma.user.delete({
+            where: { id: cognitoUser.user.id },
+          }).catch(() => {}); // Ignore if already deleted
+          const accessToken = this.generateAccessToken(existingMobileUser.id);
+          return {
+            accessToken,
+            user: UserProfileDto.fromUser(existingMobileUser),
+            requiresMobileVerification: false,
+          };
+        }
+
         // Update the existing Cognito user with real mobile number
         const updatedUser = await this.prisma.user.update({
           where: { id: cognitoUser.user.id },
