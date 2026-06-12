@@ -4,6 +4,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { ThrottlerStorageRedisService } from '@nest-lab/throttler-storage-redis';
 import { APP_GUARD } from '@nestjs/core';
+import { CategoriesModule } from './categories/categories.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { ConfigModule } from './config/config.module';
@@ -27,6 +28,7 @@ import { CheckinModule } from './checkin/checkin.module';
 
 @Module({
   imports: [
+    CategoriesModule,
     // Load environment variables from .env file
     NestConfigModule.forRoot({
       isGlobal: true,
@@ -36,7 +38,8 @@ import { CheckinModule } from './checkin/checkin.module';
     ScheduleModule.forRoot(),
     // Global throttler configuration with Redis-backed storage
     ThrottlerModule.forRootAsync({
-      imports: [RedisModule],
+      imports: [
+    CategoriesModule,RedisModule],
       useFactory: (redisService: RedisService) => {
         const logger = new Logger('ThrottlerModule');
         const redisClient = redisService.getClient();
