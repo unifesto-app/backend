@@ -28,6 +28,6 @@ jobs:
           aws ssm send-command \
             --instance-ids "i-079d51280d1964117" \
             --document-name "AWS-RunShellScript" \
-            --parameters '{"commands":["sudo -u ssm-user bash -c \"export HOME=/home/ssm-user && export PM2_HOME=/home/ssm-user/.pm2 && export PATH=/usr/local/bin:/usr/bin:/bin && cd /home/ssm-user/unifesto/app && git stash && git pull origin main && npm ci --omit=dev && npx prisma generate && npx prisma migrate deploy && rm -rf dist && ./node_modules/.bin/nest build && sudo fuser -k 8080/tcp || true && sleep 2 && pm2 restart unifesto --update-env && pm2 save\""]}' \
+            --parameters '{"commands":["sudo -u ssm-user bash -c \"export HOME=/home/ssm-user && export PM2_HOME=/home/ssm-user/.pm2 && export PATH=/usr/local/bin:/usr/bin:/bin && cd /home/ssm-user/unifesto/app && git stash && git pull origin main && npm ci --omit=dev --legacy-peer-deps && npx prisma generate && npx prisma migrate deploy && ./node_modules/.bin/nest build && pm2 restart unifesto --update-env && pm2 save\""]}' \
             --region ap-south-1
           echo "Deploy command sent to EC2 successfully"
