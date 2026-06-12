@@ -240,7 +240,8 @@ export class EventsService {
       return cachedEvent;
     }
 
-    const event = await this.prisma.event.findUnique({
+    // Try to find by slug first, then fall back to ID
+    let event = await this.prisma.event.findUnique({
       where: { slug },
       include: {
         space: {
@@ -280,6 +281,50 @@ export class EventsService {
         },
       },
     });
+
+    // If not found by slug, try by ID (for backwards compatibility)
+    if (!event) {
+      event = await this.prisma.event.findUnique({
+        where: { id: slug },
+        include: {
+          space: {
+            select: {
+              id: true,
+              name: true,
+              slug: true,
+              logoUrl: true,
+              visibility: true,
+            },
+          },
+          creator: {
+            select: {
+              id: true,
+              fullName: true,
+              username: true,
+              avatarUrl: true,
+            },
+          },
+          ticketTypes: {
+            where: { isVisible: true, isActive: true },
+            orderBy: { order: 'asc' },
+          },
+          agenda: {
+            orderBy: { order: 'asc' },
+          },
+          speakers: {
+            orderBy: { order: 'asc' },
+          },
+          formFields: {
+            orderBy: { order: 'asc' },
+          },
+          _count: {
+            select: {
+              registrations: true,
+            },
+          },
+        },
+      });
+    }
 
     if (!event) {
       throw new NotFoundException('Event not found');
