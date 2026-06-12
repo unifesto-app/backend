@@ -9,27 +9,12 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
-  build-and-deploy:
+  deploy:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci --legacy-peer-deps
-
-      - name: Generate Prisma client
-        run: npx prisma generate
-
-      - name: Build
-        run: npx nest build
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -43,6 +28,6 @@ jobs:
           aws ssm send-command \
             --instance-ids "i-079d51280d1964117" \
             --document-name "AWS-RunShellScript" \
-            --parameters '{"commands":["sudo -u ssm-user bash -c \"export HOME=/home/ssm-user && export PM2_HOME=/home/ssm-user/.pm2 && export PATH=/usr/local/bin:/usr/bin:/bin && cd /home/ssm-user/unifesto/app && git stash && git pull origin main && npm ci --omit=dev --legacy-peer-deps && npx prisma generate && npx prisma migrate deploy && pm2 restart unifesto --update-env && pm2 save\""]}' \
+            --parameters '{"commands":["sudo -u ssm-user bash -c \"export HOME=/home/ssm-user && export PM2_HOME=/home/ssm-user/.pm2 && export PATH=/usr/local/bin:/usr/bin:/bin && cd /home/ssm-user/unifesto/app && git stash && git pull origin main && npm ci --legacy-peer-deps && npx prisma generate && npx prisma migrate deploy && npm run build && pm2 restart unifesto --update-env && pm2 save\""]}' \
             --region ap-south-1
           echo "Deploy command sent to EC2 successfully"
