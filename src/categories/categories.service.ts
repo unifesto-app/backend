@@ -6,11 +6,29 @@ export class CategoriesService {
   constructor(private readonly prisma: PrismaService) {}
 
   async getAll() {
-    return this.prisma.eventCategory.findMany({
+    const categories = await this.prisma.eventCategory.findMany({
       where: { isActive: true },
       orderBy: { order: 'asc' },
       select: { id: true, name: true, slug: true, description: true, iconUrl: true, color: true, order: true },
     });
+
+    // Get event counts per category (upcoming/ongoing only)
+    const now = new Date();
+    const counts = await this.prisma.event.groupBy({
+      by: ['category'],
+      where: {
+        status: 'PUBLISHED',
+        endDateTime: { gte: now },
+      },
+      _count: { id: true },
+    });
+
+    const countMap = new Map(counts.map(c => [c.category, c._count.id]));
+
+    return categories.map(cat => ({
+      ...cat,
+      event_count: countMap.get(cat.name) || 0,
+    }));
   }
 
   async create(data: { name: string; description?: string; color?: string; iconUrl?: string }) {

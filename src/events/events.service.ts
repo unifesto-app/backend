@@ -212,6 +212,12 @@ export class EventsService {
               avatarUrl: true,
             },
           },
+          ticketTypes: {
+            where: { isVisible: true, isActive: true },
+            select: { price: true, currency: true },
+            orderBy: { price: 'asc' },
+            take: 1,
+          },
           _count: {
             select: {
               registrations: true,
