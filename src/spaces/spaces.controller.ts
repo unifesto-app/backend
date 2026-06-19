@@ -52,8 +52,10 @@ export class SpacesController {
     @Query('status') status?: SpaceStatus,
     @Query('visibility') visibility?: SpaceVisibility,
     @Query('search') search?: string,
+    @Query('parentId') parentId?: string,
   ) {
     return this.spacesService.getAllSpaces({
+      parentId,
       page: page ? parseInt(page, 10) : 1,
       limit: limit ? parseInt(limit, 10) : 10,
       status,

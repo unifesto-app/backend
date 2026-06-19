@@ -112,6 +112,7 @@ enum EventVisibility {
 enum RegistrationType {
   RSVP
   TICKETED
+  MIXED
 
   @@map("registration_type")
 }

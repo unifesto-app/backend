@@ -109,8 +109,21 @@ export class RegistrationsService {
       throw new NotFoundException('Event not found');
     }
 
-    if (event.registrations.length > 0) {
+    const paidRegistration = event.registrations.find(
+      (r) => r.paymentStatus === PaymentStatus.PAID,
+    );
+    if (paidRegistration) {
       throw new BadRequestException('You are already registered for this event');
+    }
+
+    // Reuse an existing PENDING (unpaid) registration instead of creating a duplicate
+    const pendingRegistration = event.registrations.find(
+      (r) => r.paymentStatus === PaymentStatus.PENDING,
+    );
+    if (pendingRegistration) {
+      await this.prisma.eventRegistration.delete({
+        where: { id: pendingRegistration.id },
+      });
     }
 
     if (event.status !== 'PUBLISHED') {
@@ -675,7 +688,7 @@ export class RegistrationsService {
 
     const [registrations, total] = await Promise.all([
       this.prisma.eventRegistration.findMany({
-        where: { userId },
+        where: { userId, paymentStatus: PaymentStatus.PAID },
         skip,
         take: limit,
         orderBy: { registeredAt: 'desc' },
@@ -696,7 +709,7 @@ export class RegistrationsService {
           ticketType: true,
         },
       }),
-      this.prisma.eventRegistration.count({ where: { userId } }),
+      this.prisma.eventRegistration.count({ where: { userId, paymentStatus: PaymentStatus.PAID } }),
     ]);
 
     return {
