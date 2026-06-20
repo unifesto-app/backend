@@ -109,16 +109,24 @@ export class RegistrationsService {
       throw new NotFoundException('Event not found');
     }
 
+    // A user can hold at most one registration per distinct ticket type on an event
+    // (RSVP registrations have ticketTypeId = null and are treated as their own "type").
+    const requestedTicketTypeId = dto.ticketTypeId || null;
+
     const paidRegistration = event.registrations.find(
-      (r) => r.paymentStatus === PaymentStatus.PAID,
+      (r) =>
+        r.paymentStatus === PaymentStatus.PAID &&
+        (r.ticketTypeId || null) === requestedTicketTypeId,
     );
     if (paidRegistration) {
-      throw new BadRequestException('You are already registered for this event');
+      throw new BadRequestException('You already have a ticket of this type for this event');
     }
 
-    // Reuse an existing PENDING (unpaid) registration instead of creating a duplicate
+    // Reuse an existing PENDING (unpaid) registration for the same ticket type instead of creating a duplicate
     const pendingRegistration = event.registrations.find(
-      (r) => r.paymentStatus === PaymentStatus.PENDING,
+      (r) =>
+        r.paymentStatus === PaymentStatus.PENDING &&
+        (r.ticketTypeId || null) === requestedTicketTypeId,
     );
     if (pendingRegistration) {
       await this.prisma.eventRegistration.delete({
@@ -514,13 +522,25 @@ export class RegistrationsService {
     };
   }
 
+  /**
+   * Returns the user's first PAID registration for this event, for backward compatibility
+   * with callers expecting a single result (e.g. legacy "already registered" checks).
+   */
   async getMyRegistration(userId: string, eventId: string) {
-    const registration = await this.prisma.eventRegistration.findUnique({
+    const registrations = await this.getMyRegistrationsForEvent(userId, eventId);
+    return registrations[0] || null;
+  }
+
+  /**
+   * Returns ALL of the user's PAID registrations for this event — a user may now hold
+   * multiple registrations for the same event as long as each is for a distinct ticket type.
+   */
+  async getMyRegistrationsForEvent(userId: string, eventId: string) {
+    const registrations = await this.prisma.eventRegistration.findMany({
       where: {
-        eventId_userId: {
-          eventId,
-          userId,
-        },
+        eventId,
+        userId,
+        paymentStatus: PaymentStatus.PAID,
       },
       include: {
         event: {
@@ -537,13 +557,10 @@ export class RegistrationsService {
         ticketType: true,
         tickets: true,
       },
+      orderBy: { registeredAt: 'desc' },
     });
 
-    if (!registration) {
-      throw new NotFoundException('Registration not found');
-    }
-
-    return registration;
+    return registrations;
   }
 
   async getEventRegistrations(userId: string, eventId: string, page = 1, limit = 50) {
@@ -758,8 +775,23 @@ export class RegistrationsService {
       throw new BadRequestException('Event is not open for registration');
     }
 
-    if (event.registrations.length > 0) {
-      throw new BadRequestException('You are already registered for this event');
+    const paidOrderReg = event.registrations.find(
+      (r) =>
+        r.paymentStatus === PaymentStatus.PAID &&
+        r.ticketTypeId === dto.ticketTypeId,
+    );
+    if (paidOrderReg) {
+      throw new BadRequestException('You already have a ticket of this type for this event');
+    }
+    const pendingOrderReg = event.registrations.find(
+      (r) =>
+        r.paymentStatus === PaymentStatus.PENDING &&
+        r.ticketTypeId === dto.ticketTypeId,
+    );
+    if (pendingOrderReg) {
+      await this.prisma.eventRegistration.delete({
+        where: { id: pendingOrderReg.id },
+      });
     }
 
     // Get and validate ticket type
@@ -1320,13 +1352,12 @@ export class RegistrationsService {
   /**
    * Cancel registration with refund
    */
-  async cancelRegistration(eventId: string, userId: string): Promise<any> {
-    const registration = await this.prisma.eventRegistration.findUnique({
+  async cancelRegistration(eventId: string, userId: string, ticketTypeId?: string | null): Promise<any> {
+    const registration = await this.prisma.eventRegistration.findFirst({
       where: {
-        eventId_userId: {
-          eventId,
-          userId,
-        },
+        eventId,
+        userId,
+        ...(ticketTypeId !== undefined ? { ticketTypeId: ticketTypeId || null } : {}),
       },
       include: {
         event: true,

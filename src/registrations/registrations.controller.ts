@@ -90,13 +90,26 @@ export class RegistrationsController {
     return this.registrationsService.getMyRegistration(req.user.id, id);
   }
 
+  @Get('events/:id/my-registrations')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Get all of my registrations for an event (one per ticket type)' })
+  @ApiResponse({ status: 200 })
+  async getMyRegistrationsForEvent(@Request() req, @Param('id') id: string) {
+    return this.registrationsService.getMyRegistrationsForEvent(req.user.id, id);
+  }
+
   @Delete('events/:id/register')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
-  @ApiOperation({ summary: 'Cancel my registration' })
+  @ApiOperation({ summary: 'Cancel my registration (optionally for a specific ticket type)' })
   @ApiResponse({ status: 200 })
-  async cancelRegistration(@Request() req, @Param('id') id: string) {
-    return this.registrationsService.cancelRegistration(req.user.id, id);
+  async cancelRegistration(
+    @Request() req,
+    @Param('id') id: string,
+    @Query('ticketTypeId') ticketTypeId?: string,
+  ) {
+    return this.registrationsService.cancelRegistration(req.user.id, id, ticketTypeId);
   }
 
   @Get('events/:id/registrations')

@@ -1,10 +1,28 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe, Logger } from '@nestjs/common';
+import helmet from 'helmet';
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
   const app = await NestFactory.create(AppModule);
+
+  // Remove the X-Powered-By header (avoids advertising the Express stack)
+  app.getHttpAdapter().getInstance().disable('x-powered-by');
+
+  // Security headers: CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, etc.
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          frameAncestors: ["'none'"],
+        },
+      },
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
+      referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+    }),
+  );
 
   // Enable CORS for all Unifesto subdomains
   app.enableCors({
@@ -15,18 +33,18 @@ async function bootstrap() {
         return;
       }
 
-      // Allow all *.unifesto.app subdomains and localhost
-      if (
+      // Only allow *.unifesto.app subdomains, the apex domain, and localhost for dev.
+      // Credentialed requests must never be allowed from an arbitrary reflected origin.
+      const isAllowed =
         origin.endsWith('.unifesto.app') ||
         origin === 'https://unifesto.app' ||
-        origin.startsWith('http://localhost')
-      ) {
+        origin.startsWith('http://localhost');
+
+      if (isAllowed) {
         callback(null, true);
       } else {
-        // Log but still allow - just warn
-        logger.warn(`CORS request from non-Unifesto origin: ${origin}`);
-        // For now, allow all origins to avoid blocking legitimate requests
-        callback(null, true);
+        logger.warn(`Blocked CORS request from disallowed origin: ${origin}`);
+        callback(new Error('Not allowed by CORS'), false);
       }
     },
     credentials: true,

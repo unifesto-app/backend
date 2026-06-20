@@ -146,8 +146,23 @@ export class SpacesService {
       this.prisma.space.count({ where }),
     ]);
 
+    const publicSpaces = spaces.map((space: any) => {
+      const {
+        approvedBy,
+        rejectionReason,
+        requestedParentId,
+        parentRequestPending,
+        plan,
+        planActivatedAt,
+        planExpiresAt,
+        coOrganiserLimit,
+        ...publicSpace
+      } = space;
+      return publicSpace;
+    });
+
     return {
-      spaces,
+      spaces: publicSpaces,
       pagination: {
         page,
         limit,
@@ -187,6 +202,8 @@ export class SpacesService {
         _count: {
           select: {
             discussions: true,
+            userRoles: true,
+            events: true,
           },
         },
       },
@@ -199,7 +216,23 @@ export class SpacesService {
     const userRole = userId
       ? (space.userRoles.find((ur: any) => ur.userId === userId) || null)
       : null;
-    return { ...space, userRole };
+
+    // Strip internal/sensitive fields and the raw member-role list before returning publicly.
+    // Only the requester's own role (userRole) and aggregate counts are exposed.
+    const {
+      userRoles,
+      approvedBy,
+      rejectionReason,
+      requestedParentId,
+      parentRequestPending,
+      plan,
+      planActivatedAt,
+      planExpiresAt,
+      coOrganiserLimit,
+      ...publicSpace
+    } = space as any;
+
+    return { ...publicSpace, userRole };
   }
 
   /**
@@ -220,6 +253,7 @@ export class SpacesService {
           select: {
             userRoles: true,
             discussions: true,
+            events: true,
           },
         },
       },
@@ -229,7 +263,19 @@ export class SpacesService {
       throw new NotFoundException('Space not found');
     }
 
-    return space;
+    const {
+      approvedBy,
+      rejectionReason,
+      requestedParentId,
+      parentRequestPending,
+      plan,
+      planActivatedAt,
+      planExpiresAt,
+      coOrganiserLimit,
+      ...publicSpace
+    } = space as any;
+
+    return publicSpace;
   }
 
   /**

@@ -729,7 +729,7 @@ model EventRegistration {
 
   tickets EventTicket[]
 
-  @@unique([eventId, userId])
+  @@unique([eventId, userId, ticketTypeId])
   @@index([eventId])
   @@index([userId])
   @@index([qrCode])

@@ -288,8 +288,11 @@ export class EventsService {
       },
     });
 
-    // If not found by slug, try by ID (for backwards compatibility)
-    if (!event) {
+    // If not found by slug, try by ID (for backwards compatibility).
+    // Only attempt this if the value actually looks like a UUID — otherwise the
+    // raw DB driver throws an unhandled "invalid input syntax for type uuid" error.
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(slug);
+    if (!event && isUuid) {
       event = await this.prisma.event.findUnique({
         where: { id: slug },
         include: {
