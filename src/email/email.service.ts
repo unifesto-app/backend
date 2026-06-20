@@ -1455,7 +1455,7 @@ export class EmailService {
   private footer(): string {
     return `
       <div class="footer">
-        <p>Unifesto - Discover, Connect, Grow</p>
+        <p>Unifesto</p>
         <p>
           <a href="https://unifesto.app">Visit Website</a> |
           <a href="https://unifesto.app/privacy">Privacy Policy</a> |
