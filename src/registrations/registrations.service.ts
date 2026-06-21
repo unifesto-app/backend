@@ -797,6 +797,7 @@ export class RegistrationsService {
             },
           },
           ticketType: true,
+          tickets: true,
         },
       }),
       this.prisma.eventRegistration.count({ where: { userId, paymentStatus: PaymentStatus.PAID } }),
