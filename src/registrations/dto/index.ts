@@ -93,11 +93,11 @@ export class OrderResponseDto {
   @ApiProperty()
   registrationId: string;
 
-  @ApiProperty()
-  razorpayOrderId: string;
+  @ApiProperty({ nullable: true })
+  razorpayOrderId: string | null;
 
-  @ApiProperty()
-  razorpayKeyId: string;
+  @ApiProperty({ nullable: true })
+  razorpayKeyId: string | null;
 
   @ApiProperty()
   amount: number;

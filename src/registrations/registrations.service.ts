@@ -296,6 +296,79 @@ export class RegistrationsService {
     };
   }
 
+  /**
+   * Sends WhatsApp + email registration confirmations for a completed (PAID) registration.
+   * Shared by RSVP completion and free-ticket completion in createPaymentOrder.
+   */
+  private async sendRegistrationConfirmations(registrationId: string) {
+    const fullRegistration = await this.prisma.eventRegistration.findUnique({
+      where: { id: registrationId },
+      include: {
+        user: true,
+        event: true,
+      },
+    });
+
+    if (!fullRegistration) return;
+
+    // Send WhatsApp notification
+    try {
+      if (fullRegistration.user?.mobileNumber) {
+        const eventDate = this.formatEventDate(fullRegistration.event.startDateTime);
+        const eventTime = this.formatEventTime(
+          fullRegistration.event.startDateTime,
+          fullRegistration.event.endDateTime,
+        );
+
+        await this.whatsappService.sendRegistrationConfirmation(
+          fullRegistration.user.mobileNumber,
+          {
+            userName: fullRegistration.user.fullName || fullRegistration.user.username || 'there',
+            eventTitle: fullRegistration.event.title,
+            eventDate,
+            eventTime,
+            venueName: fullRegistration.event.venueName || undefined,
+            city: fullRegistration.event.city || undefined,
+            isOnline: fullRegistration.event.type === 'ONLINE',
+            onlineUrl: fullRegistration.event.onlineUrl || undefined,
+          },
+        );
+      }
+    } catch (error) {
+      this.logger.error('Failed to send WhatsApp notification', error);
+    }
+
+    // Send email notification (non-blocking)
+    const identity = await this.prisma.userIdentity.findFirst({
+      where: { userId: fullRegistration.userId, email: { not: null } },
+      select: { email: true },
+    });
+
+    if (identity?.email) {
+      const eventDate = this.formatEventDate(fullRegistration.event.startDateTime);
+      const eventTime = this.formatEventTime(
+        fullRegistration.event.startDateTime,
+        fullRegistration.event.endDateTime,
+      );
+
+      this.emailService
+        .sendRegistrationConfirmation({
+          email: identity.email,
+          userName: fullRegistration.user.fullName || fullRegistration.user.username || 'there',
+          eventTitle: fullRegistration.event.title,
+          eventDate,
+          eventTime,
+          venueName: fullRegistration.event.venueName || undefined,
+          city: fullRegistration.event.city || undefined,
+          isOnline: fullRegistration.event.type === 'ONLINE',
+          onlineUrl: fullRegistration.event.onlineUrl || undefined,
+          qrCode: fullRegistration.qrCode,
+          ticketCode: undefined,
+        })
+        .catch((err) => this.logger.error('Failed to send registration confirmation email', err));
+    }
+  }
+
   async completeRSVP(userId: string, eventId: string, dto: RegisterForEventDto, event: any) {
     const qrCode = this.generateQRCode();
 
@@ -825,6 +898,8 @@ export class RegistrationsService {
 
     const coinsToUse = dto.coinsToUse || 0;
     let coinValueINR = 0;
+    // Coins can only ever offset the ticket price (baseAmount) — the processing fee
+    // is always paid via Razorpay (unless the ticket itself is free / baseAmount is 0).
     let razorpayAmount = totalAmount;
 
     // Validate coins balance if using coins
@@ -833,8 +908,142 @@ export class RegistrationsService {
       if (wallet.balance < coinsToUse) {
         throw new BadRequestException('Insufficient coin balance');
       }
-      coinValueINR = coinsToINR(coinsToUse);
+      const requestedCoinValueINR = coinsToINR(coinsToUse);
+      coinValueINR = Math.min(requestedCoinValueINR, baseAmount);
       razorpayAmount = Math.max(0, totalAmount - coinValueINR);
+    }
+
+    // Free ticket with no processing fee owed — complete immediately, no Razorpay order needed.
+    if (razorpayAmount === 0) {
+      const qrCode = this.generateQRCode();
+      const registration = await this.prisma.$transaction(async (tx) => {
+        const reg = await tx.eventRegistration.create({
+          data: {
+            eventId,
+            userId,
+            ticketTypeId: dto.ticketTypeId,
+            quantity: dto.quantity,
+            totalAmount: new Prisma.Decimal(totalAmount),
+            coinsUsed: coinsToUse,
+            coinValueINR: new Prisma.Decimal(coinValueINR),
+            razorpayAmount: new Prisma.Decimal(0),
+            processingFee: new Prisma.Decimal(processingFee),
+            paymentStatus: PaymentStatus.PAID,
+            status: RegistrationStatus.REGISTERED,
+            paidAt: new Date(),
+            qrCode,
+            formResponses: dto.formResponses || {},
+          },
+        });
+
+        if (coinsToUse > 0) {
+          await this.walletService.debitCoins(
+            userId,
+            coinsToUse,
+            CoinSource.EVENT_REGISTRATION,
+            `Registration for ${event.title}`,
+            { referenceId: reg.id, referenceType: 'EventRegistration' },
+          );
+        }
+
+        await tx.event.update({
+          where: { id: eventId },
+          data: { registeredCount: { increment: dto.quantity } },
+        });
+
+        await tx.eventTicketType.update({
+          where: { id: dto.ticketTypeId },
+          data: { soldCount: { increment: dto.quantity } },
+        });
+
+        for (let i = 0; i < dto.quantity; i++) {
+          await tx.eventTicket.create({
+            data: {
+              registrationId: reg.id,
+              ticketCode: this.generateTicketCode(),
+              qrCode: this.generateQRCode(),
+            },
+          });
+        }
+
+        return reg;
+      });
+
+      // Fetch full registration with user and event for notifications
+      const fullRegistration = await this.prisma.eventRegistration.findUnique({
+        where: { id: registration.id },
+        include: { user: true, event: true },
+      });
+
+      // Send WhatsApp notification (non-blocking)
+      try {
+        if (fullRegistration?.user?.mobileNumber) {
+          const evDate = this.formatEventDate(fullRegistration.event.startDateTime);
+          const evTime = this.formatEventTime(
+            fullRegistration.event.startDateTime,
+            fullRegistration.event.endDateTime,
+          );
+          await this.whatsappService.sendRegistrationConfirmation(
+            fullRegistration.user.mobileNumber,
+            {
+              userName: fullRegistration.user.fullName || fullRegistration.user.username || 'there',
+              eventTitle: fullRegistration.event.title,
+              eventDate: evDate,
+              eventTime: evTime,
+              venueName: fullRegistration.event.venueName || undefined,
+              city: fullRegistration.event.city || undefined,
+              isOnline: fullRegistration.event.type === 'ONLINE',
+              onlineUrl: fullRegistration.event.onlineUrl || undefined,
+            },
+          );
+        }
+      } catch (error) {
+        this.logger.error('Failed to send free-ticket WhatsApp notification', error);
+      }
+
+      // Send email notification (non-blocking)
+      const identity = await this.prisma.userIdentity.findFirst({
+        where: { userId, email: { not: null } },
+        select: { email: true },
+      });
+
+      if (identity?.email && fullRegistration) {
+        const evDate = this.formatEventDate(fullRegistration.event.startDateTime);
+        const evTime = this.formatEventTime(
+          fullRegistration.event.startDateTime,
+          fullRegistration.event.endDateTime,
+        );
+
+        this.emailService.sendRegistrationConfirmation({
+          email: identity.email,
+          userName: fullRegistration.user.fullName || fullRegistration.user.username || 'there',
+          eventTitle: fullRegistration.event.title,
+          eventDate: evDate,
+          eventTime: evTime,
+          venueName: fullRegistration.event.venueName || undefined,
+          city: fullRegistration.event.city || undefined,
+          isOnline: fullRegistration.event.type === 'ONLINE',
+          onlineUrl: fullRegistration.event.onlineUrl || undefined,
+          qrCode: fullRegistration.qrCode,
+          ticketCode: undefined,
+        }).catch((err) => this.logger.error('Failed to send free-ticket confirmation email', err));
+      }
+
+      return {
+        registrationId: registration.id,
+        razorpayOrderId: null,
+        razorpayKeyId: null,
+        amount: 0,
+        currency: 'INR',
+        breakdown: {
+          baseAmount,
+          processingFee,
+          coinsUsed: coinsToUse,
+          coinValueINR,
+          razorpayAmount: 0,
+          totalAmount,
+        },
+      };
     }
 
     // Create pending registration

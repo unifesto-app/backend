@@ -470,18 +470,20 @@ export class EmailService {
       this.logger.warn('RESEND_API_KEY not configured. Transactional emails will not work.');
     }
     this.resend = new Resend(resendApiKey);
-    this.fromTransactional = this.configService.get<string>(
+    const transactionalAddress = this.configService.get<string>(
       'EMAIL_FROM_TRANSACTIONAL',
       'no-reply@notify.unifesto.app',
     );
+    this.fromTransactional = `Unifesto <${transactionalAddress}>`;
 
     // SES client for bulk emails
     const sesRegion = this.configService.get<string>('AWS_SES_REGION', 'ap-south-1');
     this.sesClient = new SESClient({ region: sesRegion });
-    this.fromBulk = this.configService.get<string>(
+    const bulkAddress = this.configService.get<string>(
       'EMAIL_FROM_BULK',
       'no-reply@updates.unifesto.app',
     );
+    this.fromBulk = `Unifesto <${bulkAddress}>`;
   }
 
   // =====================================================
@@ -1444,7 +1446,11 @@ export class EmailService {
   }
 
   private logoHeader(): string {
-    const logoUrl = this.configService.get<string>('S3_BUCKET_URL') + '/assets/logo.png';
+    const bucketUrl = this.configService.get<string>(
+      'S3_BUCKET_URL',
+      'https://unifesto-storage-bucket.s3.ap-south-1.amazonaws.com',
+    );
+    const logoUrl = `${bucketUrl}/brand/logo-black.png`;
     return `
       <div class="gradient-bg">
         <img src="${logoUrl}" alt="Unifesto" class="logo" />
@@ -1544,7 +1550,7 @@ export class EmailService {
         ${data.ticketCode ? this.accentBox(`<p class="text"><strong>Ticket Code:</strong> ${data.ticketCode}</p>`) : ''}
         <p class="text">Show this QR code at check-in:</p>
         <div style="text-align: center; margin: 20px 0;">
-          <img src="${data.qrCode}" alt="QR Code" style="max-width: 200px;" />
+          <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(data.qrCode)}" alt="QR Code" width="200" height="200" style="max-width: 200px;" />
         </div>
         <p class="text">See you there!</p>
       </div>
@@ -1571,7 +1577,7 @@ export class EmailService {
           <p class="text"><strong>Payment ID:</strong> ${data.razorpayPaymentId}</p>
         `)}
         <div style="text-align: center; margin: 20px 0;">
-          <img src="${data.qrCode}" alt="QR Code" style="max-width: 200px;" />
+          <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(data.qrCode)}" alt="QR Code" width="200" height="200" style="max-width: 200px;" />
         </div>
         ${data.ticketCode ? `<p class="text">Ticket Code: ${data.ticketCode}</p>` : ''}
         <p class="text">See you at the event!</p>
@@ -1673,7 +1679,7 @@ export class EmailService {
         <p class="text">Just a friendly reminder about your upcoming event:</p>
         ${this.eventDetailsCard(data)}
         <div style="text-align: center; margin: 20px 0;">
-          <img src="${data.qrCode}" alt="QR Code" style="max-width: 200px;" />
+          <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(data.qrCode)}" alt="QR Code" width="200" height="200" style="max-width: 200px;" />
         </div>
         ${data.ticketCode ? `<p class="text">Ticket Code: ${data.ticketCode}</p>` : ''}
         <p class="text">See you soon!</p>
@@ -1935,7 +1941,7 @@ export class EmailService {
         ${this.accentBox(location)}
         <p class="text">Make sure you have your QR code ready for check-in:</p>
         <div style="text-align: center; margin: 20px 0;">
-          <img src="${data.qrCode}" alt="QR Code" style="max-width: 200px;" />
+          <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(data.qrCode)}" alt="QR Code" width="200" height="200" style="max-width: 200px;" />
         </div>
         <p class="text">See you soon!</p>
       </div>
