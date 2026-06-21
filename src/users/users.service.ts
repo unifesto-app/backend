@@ -289,6 +289,7 @@ export class UsersService {
         username: dto.username,
         fullName: dto.fullName,
         bio: dto.bio,
+        gender: dto.gender,
         linkedinUrl: dto.linkedinUrl,
         instagramUrl: dto.instagramUrl,
         githubUrl: dto.githubUrl,

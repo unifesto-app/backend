@@ -194,6 +194,7 @@ model User {
   fullName  String? @map("full_name") @db.VarChar(255)
   avatarUrl String? @map("avatar_url") @db.Text
   bio       String? @db.Text
+  gender    String? @db.VarChar(30)
 
   // Social Links
   linkedinUrl  String? @map("linkedin_url") @db.Text

@@ -15,6 +15,7 @@ export class UserProfileDto {
   fullName: string | null;
   avatarUrl: string | null;
   bio: string | null;
+  gender: string | null;
   linkedinUrl: string | null;
   instagramUrl: string | null;
   githubUrl: string | null;
@@ -32,6 +33,7 @@ export class UserProfileDto {
       fullName: user.fullName,
       avatarUrl: user.avatarUrl,
       bio: user.bio,
+      gender: (user as any).gender ?? null,
       linkedinUrl: user.linkedinUrl,
       instagramUrl: user.instagramUrl,
       githubUrl: user.githubUrl,

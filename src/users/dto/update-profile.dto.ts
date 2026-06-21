@@ -2,6 +2,7 @@ import {
   IsString,
   IsOptional,
   IsUrl,
+  IsIn,
   Matches,
   MaxLength,
 } from 'class-validator';
@@ -24,6 +25,10 @@ export class UpdateProfileDto {
   @IsString()
   @MaxLength(1000)
   bio?: string;
+
+  @IsOptional()
+  @IsIn(['MALE', 'FEMALE', 'NON_BINARY', 'PREFER_NOT_TO_SAY'])
+  gender?: string;
 
   @IsOptional()
   @IsUrl()
