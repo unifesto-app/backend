@@ -471,12 +471,50 @@ export class AuthService {
       };
     }
 
-    // New identity - need mobile verification
+    // No exact identity match — check if email already exists on another identity
+    if (email) {
+      const existingByEmail = await this.prisma.userIdentity.findFirst({
+        where: { email },
+        include: {
+          user: true,
+        },
+      });
+
+      if (existingByEmail) {
+        const user = existingByEmail.user;
+
+        // Link this new provider to the existing account
+        await this.linkIdentityToUser(user.id, provider, providerUserId, email);
+
+        if (!user.mobileVerified) {
+          const tempToken = this.generateTempToken(provider, providerUserId, email);
+          return {
+            accessToken: '',
+            user: UserProfileDto.fromUser(user),
+            requiresMobileVerification: true,
+            tempToken,
+          };
+        }
+
+        const userRoles = await this.prisma.userRole.findMany({
+          where: { userId: user.id },
+          include: { role: { select: { code: true, name: true } } },
+        });
+        const accessToken = this.generateAccessToken(user.id);
+        return {
+          accessToken,
+          user: UserProfileDto.fromUser(user, userRoles),
+          requiresMobileVerification: false,
+        };
+      }
+    }
+
+    // Truly new user - need mobile verification
     const tempToken = this.generateTempToken(provider, providerUserId, email);
 
     return {
       accessToken: '',
-      user: null as any, // User doesn't exist yet
+      user: null as any,
       requiresMobileVerification: true,
       tempToken,
     };
