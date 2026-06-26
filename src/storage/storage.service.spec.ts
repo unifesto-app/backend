@@ -1,3 +1,4 @@
+/// <reference types="jest" />
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { ConflictException, Logger } from '@nestjs/common';
@@ -20,7 +21,7 @@ jest.mock('@aws-sdk/client-s3', () => {
 describe('StorageService', () => {
   let service: StorageService;
   let configService: ConfigService;
-  let s3Client: jest.Mocked<S3Client>;
+  let s3Client: any;
   let loggerLogSpy: jest.SpyInstance;
   let loggerErrorSpy: jest.SpyInstance;
 
@@ -52,7 +53,7 @@ describe('StorageService', () => {
     configService = module.get<ConfigService>(ConfigService);
 
     // Get the mocked S3Client instance
-    s3Client = (service as any).s3Client;
+    s3Client = (service as any).s3Client as any;
 
     // Spy on logger methods
     loggerLogSpy = jest.spyOn(Logger.prototype, 'log').mockImplementation();
@@ -108,7 +109,7 @@ describe('StorageService', () => {
       mimetype: 'image/jpeg',
       size: 1024,
       buffer: Buffer.from('test file content'),
-      stream: null,
+      stream: null as any,
       destination: '',
       filename: '',
       path: '',
@@ -337,7 +338,7 @@ describe('StorageService', () => {
         mimetype: 'image/jpeg',
         size: 1024,
         buffer: Buffer.from('test'),
-        stream: null,
+        stream: null as any,
         destination: '',
         filename: '',
         path: '',

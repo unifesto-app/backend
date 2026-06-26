@@ -1,3 +1,4 @@
+/// <reference types="jest" />
 import { ExecutionContext, UnauthorizedException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { JwtAuthGuard } from './jwt-auth.guard';
@@ -7,7 +8,7 @@ import * as jwt from 'jsonwebtoken';
 
 describe('JwtAuthGuard', () => {
   let guard: JwtAuthGuard;
-  let authService: jest.Mocked<AuthService>;
+  let authService: any;
   let cognitoJwtService: jest.Mocked<CognitoJwtService>;
 
   const mockUser = {
@@ -52,7 +53,7 @@ describe('JwtAuthGuard', () => {
     }).compile();
 
     guard = module.get<JwtAuthGuard>(JwtAuthGuard);
-    authService = module.get(AuthService) as jest.Mocked<AuthService>;
+    authService = module.get(AuthService) as any;
     cognitoJwtService = module.get(CognitoJwtService) as jest.Mocked<CognitoJwtService>;
   });
 

@@ -535,4 +535,18 @@ export class UsersService {
         updatedAt: ur.space!.updatedAt,
       }));
   }
+
+  /**
+   * Delete the current user's account.
+   * Relies on Prisma cascade deletes for identities, roles, wallet,
+   * registrations, etc.
+   */
+  async deleteAccount(userId: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+    await this.prisma.user.delete({ where: { id: userId } });
+    return { message: 'Account deleted successfully' };
+  }
 }

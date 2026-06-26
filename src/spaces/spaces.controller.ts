@@ -17,7 +17,7 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { SpacesService } from './spaces.service';
-import { JwtAuthGuard, RolesGuard } from '../auth/guards';
+import { JwtAuthGuard, RolesGuard, SpaceRoleGuard } from '../auth/guards';
 import { Roles, CurrentUser } from '../auth/decorators';
 import { CreateSpaceDto, UpdateSpaceDto, UpdateSpaceStatusDto } from './dto';
 import { CreateSpaceRequestDto } from './dto/create-space-request.dto';
@@ -75,11 +75,64 @@ export class SpacesController {
   }
 
   /**
+   * Get all space requests (ADMIN only)
+   * GET /spaces/requests?status=PENDING
+   * NOTE: Must be declared before the ':id' route so "requests" is not
+   * captured as a space id.
+   */
+  @Get('requests')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(RoleCode.ADMIN)
+  async getAllSpaceRequests(@Query('status') status?: string) {
+    return this.spacesService.getAllSpaceRequests(status);
+  }
+
+  /**
+   * Get my space requests
+   * GET /spaces/my-requests
+   */
+  @Get('my-requests')
+  @UseGuards(JwtAuthGuard)
+  async getMySpaceRequests(@CurrentUser() user: User) {
+    return this.spacesService.getMySpaceRequests(user.id);
+  }
+
+  /**
+   * Approve a space request (ADMIN only)
+   * PATCH /spaces/requests/:id/approve
+   */
+  @Patch('requests/:id/approve')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(RoleCode.ADMIN)
+  async approveSpaceRequest(
+    @Param('id') id: string,
+    @CurrentUser() user: User,
+  ) {
+    return this.spacesService.approveSpaceRequest(id, user.id);
+  }
+
+  /**
+   * Reject a space request (ADMIN only)
+   * PATCH /spaces/requests/:id/reject
+   */
+  @Patch('requests/:id/reject')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(RoleCode.ADMIN)
+  async rejectSpaceRequest(
+    @Param('id') id: string,
+    @Body() body: { reviewNote?: string },
+    @CurrentUser() user: User,
+  ) {
+    return this.spacesService.rejectSpaceRequest(id, user.id, body?.reviewNote);
+  }
+
+  /**
    * Get space by ID (PUBLIC - for mobile view)
    * GET /spaces/:id
    */
   @Get(':id')
   async getSpaceById(@Param('id') id: string, @Headers('authorization') auth?: string) {
+
     let userId: string | undefined;
     if (auth?.startsWith('Bearer ')) {
       try {
@@ -122,8 +175,7 @@ export class SpacesController {
    * PATCH /spaces/:id
    */
   @Patch(':id')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(RoleCode.ADMIN)
+  @UseGuards(JwtAuthGuard, SpaceRoleGuard)
   async updateSpace(
     @Param('id') id: string,
     @Body() dto: UpdateSpaceDto,
@@ -208,8 +260,7 @@ export class SpacesController {
    * GET /spaces/:id/members
    */
   @Get(':id/members')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(RoleCode.ADMIN)
+  @UseGuards(JwtAuthGuard, SpaceRoleGuard)
   async getSpaceMembers(@Param('id') id: string) {
     return this.spacesService.getSpaceMembers(id);
   }
@@ -225,15 +276,5 @@ export class SpacesController {
   ) {
     return this.spacesService.createSpaceRequest(user.id, dto);
   }
-
-  /**
-   * Get my space requests
-   * GET /spaces/my-requests
-   */
-  @Get('my-requests')
-  @UseGuards(JwtAuthGuard)
-  async getMySpaceRequests(@CurrentUser() user: User) {
-    return this.spacesService.getMySpaceRequests(user.id);
-  }
-
 }
+

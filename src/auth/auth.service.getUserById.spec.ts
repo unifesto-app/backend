@@ -1,3 +1,4 @@
+/// <reference types="jest" />
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { UnauthorizedException } from '@nestjs/common';
@@ -7,6 +8,7 @@ import { EmailService } from '../email/email.service';
 import { WhatsAppService } from '../whatsapp/whatsapp.service';
 import { OtpService } from './otp.service';
 import { CognitoJwtService } from './cognito-jwt.service';
+import { CacheService } from '../cache/cache.service';
 
 /**
  * Test suite for AuthService.getUserById method
@@ -14,7 +16,7 @@ import { CognitoJwtService } from './cognito-jwt.service';
  */
 describe('AuthService - getUserById', () => {
   let authService: AuthService;
-  let prismaService: jest.Mocked<PrismaService>;
+  let prismaService: any;
 
   const mockUser = {
     id: 'user-123',
@@ -80,11 +82,19 @@ describe('AuthService - getUserById', () => {
             verifyCognitoToken: jest.fn(),
           },
         },
+        {
+          provide: CacheService,
+          useValue: {
+            isOtpBlocked: jest.fn(),
+            trackFailedOtp: jest.fn(),
+            clearFailedOtp: jest.fn(),
+          },
+        },
       ],
     }).compile();
 
     authService = module.get<AuthService>(AuthService);
-    prismaService = module.get(PrismaService) as jest.Mocked<PrismaService>;
+    prismaService = module.get(PrismaService) as any;
   });
 
   describe('getUserById', () => {

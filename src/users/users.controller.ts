@@ -51,6 +51,16 @@ export class UsersController {
   }
 
   /**
+   * Delete my account
+   * DELETE /users/me
+   */
+  @Delete('me')
+  @UseGuards(JwtAuthGuard)
+  async deleteMe(@CurrentUser() user: User) {
+    return this.usersService.deleteAccount(user.id);
+  }
+
+  /**
    * Complete onboarding
    * POST /users/me/onboard
    */

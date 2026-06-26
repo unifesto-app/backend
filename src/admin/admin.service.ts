@@ -321,4 +321,97 @@ export class AdminService {
     // FCM sending logic will be added when firebase-admin is configured
   }
 
+  /**
+   * Platform-wide analytics overview.
+   */
+  async getAnalyticsOverview() {
+    const now = new Date();
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+    const [
+      totalUsers,
+      newUsers30d,
+      totalSpaces,
+      activeSpaces,
+      pendingSpaceRequests,
+      totalEvents,
+      publishedEvents,
+      totalRegistrations,
+      revenueAgg,
+    ] = await Promise.all([
+      this.prisma.user.count(),
+      this.prisma.user.count({ where: { createdAt: { gte: thirtyDaysAgo } } }),
+      this.prisma.space.count(),
+      this.prisma.space.count({ where: { status: 'ACTIVE' } }),
+      this.prisma.spaceRequest.count({ where: { status: 'PENDING' } }),
+      this.prisma.event.count(),
+      this.prisma.event.count({ where: { status: 'PUBLISHED' } }),
+      this.prisma.eventRegistration.count(),
+      this.prisma.eventRegistration.aggregate({
+        _sum: { totalAmount: true },
+        where: { paymentStatus: 'PAID' },
+      }),
+    ]);
+
+    return {
+      users: { total: totalUsers, newLast30Days: newUsers30d },
+      spaces: {
+        total: totalSpaces,
+        active: activeSpaces,
+        pendingRequests: pendingSpaceRequests,
+      },
+      events: { total: totalEvents, published: publishedEvents },
+      registrations: { total: totalRegistrations },
+      revenue: { totalPaid: revenueAgg._sum.totalAmount ?? 0 },
+      generatedAt: now.toISOString(),
+    };
+  }
+
+  /**
+   * List all events (incl. drafts) for moderation.
+   */
+  async getAllEvents(params: {
+    page: number;
+    limit: number;
+    status?: string;
+    search?: string;
+  }) {
+    const { page, limit, status, search } = params;
+    const skip = (page - 1) * limit;
+
+    const where: any = {};
+    if (status) where.status = status;
+    if (search) {
+      where.OR = [
+        { title: { contains: search, mode: 'insensitive' } },
+        { slug: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+
+    const [events, total] = await Promise.all([
+      this.prisma.event.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          space: { select: { id: true, name: true, slug: true } },
+          creator: { select: { id: true, fullName: true, username: true } },
+          _count: { select: { registrations: true } },
+        },
+      }),
+      this.prisma.event.count({ where }),
+    ]);
+
+    return {
+      events,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  }
+
 }

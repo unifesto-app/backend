@@ -635,4 +635,118 @@ export class SpacesService {
     });
   }
 
+  /**
+   * Get all space requests (ADMIN) - optionally filtered by status
+   */
+  async getAllSpaceRequests(status?: string) {
+    return this.prisma.spaceRequest.findMany({
+      where: status ? { status } : undefined,
+      orderBy: { createdAt: 'desc' },
+      include: {
+        user: {
+          select: {
+            id: true,
+            fullName: true,
+            username: true,
+            mobileNumber: true,
+            avatarUrl: true,
+          },
+        },
+      },
+    });
+  }
+
+  /**
+   * Approve a space request (ADMIN)
+   * Creates the Space (ACTIVE) and grants the requester the ORGANISER role
+   * scoped to the new space, all within a single transaction.
+   */
+  async approveSpaceRequest(requestId: string, adminId: string) {
+    const req = await this.prisma.spaceRequest.findUnique({
+      where: { id: requestId },
+    });
+    if (!req) {
+      throw new NotFoundException('Space request not found');
+    }
+    if (req.status !== 'PENDING') {
+      throw new BadRequestException('Request has already been reviewed');
+    }
+
+    // Build a unique slug from the request name
+    const baseSlug = req.name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)/g, '');
+    const slug = `${baseSlug || 'space'}-${Date.now().toString(36)}`;
+
+    return this.prisma.$transaction(async (tx) => {
+      const space = await tx.space.create({
+        data: {
+          name: req.name,
+          slug,
+          description: req.description,
+          type: req.type,
+          visibility: req.visibility,
+          city: req.city,
+          state: req.state,
+          country: req.country,
+          tags: req.tags ?? [],
+          websiteUrl: req.websiteUrl,
+          status: SpaceStatus.ACTIVE,
+          submittedAt: req.createdAt,
+          approvedAt: new Date(),
+          approvedBy: adminId,
+          createdBy: req.userId,
+        },
+      });
+
+      // Grant ORGANISER role (space-scoped) to the requester
+      const organiserRole = await tx.role.findUnique({
+        where: { code: 'ORGANISER' as any },
+      });
+      if (organiserRole) {
+        await tx.userRole.create({
+          data: {
+            userId: req.userId,
+            roleId: organiserRole.id,
+            spaceId: space.id,
+            assignedBy: adminId,
+          },
+        });
+      }
+
+      await tx.spaceRequest.update({
+        where: { id: requestId },
+        data: { status: 'APPROVED', reviewedBy: adminId },
+      });
+
+      return space;
+    });
+  }
+
+  /**
+   * Reject a space request (ADMIN)
+   */
+  async rejectSpaceRequest(
+    requestId: string,
+    adminId: string,
+    reviewNote?: string,
+  ) {
+    const req = await this.prisma.spaceRequest.findUnique({
+      where: { id: requestId },
+    });
+    if (!req) {
+      throw new NotFoundException('Space request not found');
+    }
+    if (req.status !== 'PENDING') {
+      throw new BadRequestException('Request has already been reviewed');
+    }
+
+    return this.prisma.spaceRequest.update({
+      where: { id: requestId },
+      data: { status: 'REJECTED', reviewedBy: adminId, reviewNote },
+    });
+  }
+
 }
+
