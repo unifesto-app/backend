@@ -215,6 +215,7 @@ model User {
 
   // Relations
   identities         UserIdentity[]
+  spaceRequests      SpaceRequest[]
   roles              UserRole[]          @relation("UserRoles")
   assignedRoles      UserRole[]          @relation("AssignedBy")
   createdSpaces      Space[]             @relation("SpaceCreator")
@@ -291,6 +292,30 @@ model Role {
 // USER ROLE MODEL
 // Role assignments to users
 // =====================================================
+
+model SpaceRequest {
+  id          String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId      String      @map("user_id") @db.Uuid
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String      @db.VarChar(255)
+  description String?     @db.Text
+  type        SpaceType   @default(REGULAR)
+  visibility  SpaceVisibility @default(PUBLIC)
+  city        String?     @db.VarChar(100)
+  state       String?     @db.VarChar(100)
+  country     String?     @db.VarChar(100) @default("India")
+  tags        String[]
+  websiteUrl  String?     @map("website_url") @db.Text
+  status      String      @default("PENDING") @db.VarChar(20)
+  reviewNote  String?     @map("review_note") @db.Text
+  reviewedBy  String?     @map("reviewed_by") @db.Uuid
+  createdAt   DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([userId])
+  @@index([status])
+  @@map("space_requests")
+}
 
 model UserRole {
   id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid

@@ -599,4 +599,40 @@ export class SpacesService {
       message: 'Successfully left the space',
     };
   }
+  async createSpaceRequest(userId: string, dto: any) {
+    // Check if user already has a pending request
+    const existing = await this.prisma.spaceRequest.findFirst({
+      where: { userId, status: 'PENDING' },
+    });
+
+    if (existing) {
+      throw new BadRequestException('You already have a pending space request');
+    }
+
+    const request = await this.prisma.spaceRequest.create({
+      data: {
+        userId,
+        name: dto.name,
+        description: dto.description,
+        type: dto.type || 'REGULAR',
+        visibility: dto.visibility || 'PUBLIC',
+        city: dto.city,
+        state: dto.state,
+        country: 'India',
+        tags: dto.tags || [],
+        websiteUrl: dto.websiteUrl,
+        status: 'PENDING',
+      },
+    });
+
+    return request;
+  }
+
+  async getMySpaceRequests(userId: string) {
+    return this.prisma.spaceRequest.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
 }

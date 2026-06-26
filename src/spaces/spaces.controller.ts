@@ -20,6 +20,7 @@ import { SpacesService } from './spaces.service';
 import { JwtAuthGuard, RolesGuard } from '../auth/guards';
 import { Roles, CurrentUser } from '../auth/decorators';
 import { CreateSpaceDto, UpdateSpaceDto, UpdateSpaceStatusDto } from './dto';
+import { CreateSpaceRequestDto } from './dto/create-space-request.dto';
 import { RoleCode, SpaceStatus, SpaceVisibility } from '@prisma/client';
 import type { User } from '@prisma/client';
 
@@ -212,4 +213,27 @@ export class SpacesController {
   async getSpaceMembers(@Param('id') id: string) {
     return this.spacesService.getSpaceMembers(id);
   }
+  /**
+   * Submit a space request (authenticated users)
+   * POST /spaces/request
+   */
+  @Post('request')
+  @UseGuards(JwtAuthGuard)
+  async createSpaceRequest(
+    @Body() dto: CreateSpaceRequestDto,
+    @CurrentUser() user: User,
+  ) {
+    return this.spacesService.createSpaceRequest(user.id, dto);
+  }
+
+  /**
+   * Get my space requests
+   * GET /spaces/my-requests
+   */
+  @Get('my-requests')
+  @UseGuards(JwtAuthGuard)
+  async getMySpaceRequests(@CurrentUser() user: User) {
+    return this.spacesService.getMySpaceRequests(user.id);
+  }
+
 }
