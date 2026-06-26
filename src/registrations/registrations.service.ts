@@ -340,7 +340,7 @@ export class RegistrationsService {
 
     // Send email notification (non-blocking)
     const identity = await this.prisma.userIdentity.findFirst({
-      where: { userId: fullRegistration.userId, email: { not: null } },
+      where: { userId: fullRegistration.userId, email: { not: null }, isPrimary: true },
       select: { email: true },
     });
 
@@ -450,7 +450,7 @@ export class RegistrationsService {
 
     // Send email notification (non-blocking)
     const identity = await this.prisma.userIdentity.findFirst({
-      where: { userId, email: { not: null } },
+      where: { userId, email: { not: null }, isPrimary: true },
       select: { email: true },
     });
 
@@ -520,7 +520,7 @@ export class RegistrationsService {
 
     // Send waitlist confirmation email (non-blocking)
     const identity = await this.prisma.userIdentity.findFirst({
-      where: { userId, email: { not: null } },
+      where: { userId, email: { not: null }, isPrimary: true },
       select: { email: true },
     });
 
@@ -1004,7 +1004,7 @@ export class RegistrationsService {
 
       // Send email notification (non-blocking)
       const identity = await this.prisma.userIdentity.findFirst({
-        where: { userId, email: { not: null } },
+        where: { userId, email: { not: null }, isPrimary: true },
         select: { email: true },
       });
 
@@ -1669,7 +1669,7 @@ export class RegistrationsService {
 
     // Send email notification (non-blocking)
     const identity = await this.prisma.userIdentity.findFirst({
-      where: { userId, email: { not: null } },
+      where: { userId, email: { not: null }, isPrimary: true },
       select: { email: true },
     });
 

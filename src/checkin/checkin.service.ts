@@ -169,7 +169,7 @@ export class CheckinService {
 
     // Send email notification (non-blocking)
     const identity = await this.prisma.userIdentity.findFirst({
-      where: { userId: registration.userId, email: { not: null } },
+      where: { userId: registration.userId, email: { not: null }, isPrimary: true },
       select: { email: true },
     });
 

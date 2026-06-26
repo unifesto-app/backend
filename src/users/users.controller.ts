@@ -3,6 +3,7 @@ import {
   Get,
   Patch,
   Post,
+  Delete,
   Body,
   Param,
   UseGuards,
@@ -92,6 +93,26 @@ export class UsersController {
   @UseGuards(JwtAuthGuard)
   async getMyIdentities(@CurrentUser() user: User) {
     return this.usersService.getUserIdentities(user.id);
+  }
+
+  /**
+   * Set an identity as the primary email for notifications
+   * PATCH /users/me/identities/:id/primary
+   */
+  @Patch('me/identities/:id/primary')
+  @UseGuards(JwtAuthGuard)
+  async setPrimaryIdentity(@CurrentUser() user: User, @Param('id') id: string) {
+    return this.usersService.setPrimaryIdentity(user.id, id);
+  }
+
+  /**
+   * Remove a linked identity/account
+   * DELETE /users/me/identities/:id
+   */
+  @Delete('me/identities/:id')
+  @UseGuards(JwtAuthGuard)
+  async removeIdentity(@CurrentUser() user: User, @Param('id') id: string) {
+    return this.usersService.removeIdentity(user.id, id);
   }
 
   /**

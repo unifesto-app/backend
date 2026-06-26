@@ -37,6 +37,7 @@ enum RoleCode {
   ORGANISER
   CO_ORGANISER
   MEMBER
+  GATE
 
   @@map("role_code")
 }
@@ -252,6 +253,7 @@ model UserIdentity {
   // Email (may be null for phone provider)
   email         String?  @db.VarChar(255)
   emailVerified Boolean? @default(false) @map("email_verified")
+  isPrimary     Boolean  @default(false) @map("is_primary")
 
   // Metadata
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)

@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   ConflictException,
+  BadRequestException,
   Logger,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
@@ -407,14 +408,62 @@ export class UsersService {
         provider: true,
         email: true,
         emailVerified: true,
+        isPrimary: true,
         createdAt: true,
       },
-      orderBy: {
-        createdAt: 'asc',
-      },
+      orderBy: { createdAt: 'asc' },
     });
-
     return identities;
+  }
+
+  async setPrimaryIdentity(userId: string, identityId: string) {
+    const identity = await this.prisma.userIdentity.findUnique({
+      where: { id: identityId },
+    });
+    if (!identity || identity.userId !== userId) {
+      throw new NotFoundException('Identity not found');
+    }
+    if (!identity.email) {
+      throw new BadRequestException('Only email identities can be set as primary');
+    }
+    await this.prisma.$transaction([
+      this.prisma.userIdentity.updateMany({
+        where: { userId, isPrimary: true },
+        data: { isPrimary: false },
+      }),
+      this.prisma.userIdentity.update({
+        where: { id: identityId },
+        data: { isPrimary: true },
+      }),
+    ]);
+    return { message: 'Primary email updated' };
+  }
+
+  async removeIdentity(userId: string, identityId: string) {
+    const identity = await this.prisma.userIdentity.findUnique({
+      where: { id: identityId },
+    });
+    if (!identity || identity.userId !== userId) {
+      throw new NotFoundException('Identity not found');
+    }
+    const count = await this.prisma.userIdentity.count({ where: { userId } });
+    if (count <= 1) {
+      throw new BadRequestException('Cannot remove your only linked account');
+    }
+    if (identity.isPrimary) {
+      const next = await this.prisma.userIdentity.findFirst({
+        where: { userId, id: { not: identityId }, email: { not: null } },
+        orderBy: { createdAt: 'asc' },
+      });
+      if (next) {
+        await this.prisma.userIdentity.update({
+          where: { id: next.id },
+          data: { isPrimary: true },
+        });
+      }
+    }
+    await this.prisma.userIdentity.delete({ where: { id: identityId } });
+    return { message: 'Account unlinked successfully' };
   }
 
   /**
