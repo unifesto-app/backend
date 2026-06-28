@@ -3,13 +3,20 @@ import {
   NotFoundException,
   ConflictException,
   BadRequestException,
+  ForbiddenException,
   Logger,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { EmailService } from '../email/email.service';
 import { ConfigService } from '@nestjs/config';
-import { CreateSpaceDto, UpdateSpaceDto, UpdateSpaceStatusDto } from './dto';
+import {
+  CreateSpaceDto,
+  UpdateSpaceDto,
+  UpdateSpaceStatusDto,
+  CreateSpaceStatusRequestDto,
+  ReviewSpaceStatusRequestDto,
+} from './dto';
 import { SpaceStatus, SpaceVisibility } from '@prisma/client';
 
 @Injectable()
@@ -746,6 +753,179 @@ export class SpacesService {
       where: { id: requestId },
       data: { status: 'REJECTED', reviewedBy: adminId, reviewNote },
     });
+  }
+
+  // =====================================================
+  // SPACE STATUS REQUESTS
+  // Organisers request a status change for their space;
+  // admins approve or reject from Apex.
+  // =====================================================
+
+  async createSpaceStatusRequest(userId: string, dto: CreateSpaceStatusRequestDto) {
+    // Verify user owns or manages this space
+    const space = await this.prisma.space.findUnique({
+      where: { id: dto.spaceId },
+    });
+    if (!space) throw new NotFoundException('Space not found');
+    if (space.createdBy !== userId) throw new ForbiddenException('Not your space');
+
+    // Check no pending request exists
+    const existing = await this.prisma.spaceStatusRequest.findFirst({
+      where: { spaceId: dto.spaceId, status: 'PENDING' },
+    });
+    if (existing)
+      throw new ConflictException(
+        'A pending status request already exists for this space',
+      );
+
+    // Validate the requested transition
+    const allowedTransitions: Record<string, string[]> = {
+      ACTIVE: ['INACTIVE'],
+      INACTIVE: ['ACTIVE'],
+      SUSPENDED: ['ACTIVE'], // appeal
+    };
+    const allowed = allowedTransitions[space.status] || [];
+    if (!allowed.includes(dto.requestedStatus)) {
+      throw new BadRequestException(
+        `Cannot request ${dto.requestedStatus} from current status ${space.status}`,
+      );
+    }
+
+    return this.prisma.spaceStatusRequest.create({
+      data: {
+        spaceId: dto.spaceId,
+        requestedBy: userId,
+        currentStatus: space.status,
+        requestedStatus: dto.requestedStatus,
+        reason: dto.reason,
+        status: 'PENDING',
+      },
+      include: {
+        space: { select: { id: true, name: true, slug: true } },
+        user: { select: { id: true, fullName: true, username: true } },
+      },
+    });
+  }
+
+  async getMySpaceStatusRequests(userId: string, spaceId?: string) {
+    return this.prisma.spaceStatusRequest.findMany({
+      where: {
+        requestedBy: userId,
+        ...(spaceId ? { spaceId } : {}),
+      },
+      include: {
+        space: { select: { id: true, name: true, slug: true, status: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async getAllSpaceStatusRequests(status?: string, page = 1, limit = 20) {
+    const where = status ? { status } : {};
+    const [requests, total] = await Promise.all([
+      this.prisma.spaceStatusRequest.findMany({
+        where,
+        include: {
+          space: {
+            select: {
+              id: true,
+              name: true,
+              slug: true,
+              status: true,
+              logoUrl: true,
+            },
+          },
+          user: {
+            select: {
+              id: true,
+              fullName: true,
+              username: true,
+              mobileNumber: true,
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      this.prisma.spaceStatusRequest.count({ where }),
+    ]);
+    return {
+      requests,
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+    };
+  }
+
+  async reviewSpaceStatusRequest(
+    requestId: string,
+    adminId: string,
+    dto: ReviewSpaceStatusRequestDto,
+  ) {
+    const req = await this.prisma.spaceStatusRequest.findUnique({
+      where: { id: requestId },
+      include: {
+        space: true,
+        user: {
+          include: {
+            identities: { where: { email: { not: null } }, take: 1 },
+          },
+        },
+      },
+    });
+    if (!req) throw new NotFoundException('Request not found');
+    if (req.status !== 'PENDING')
+      throw new BadRequestException('Request already reviewed');
+
+    // Update request
+    const updated = await this.prisma.spaceStatusRequest.update({
+      where: { id: requestId },
+      data: {
+        status: dto.status,
+        reviewNote: dto.reviewNote || null,
+        reviewedBy: adminId,
+        reviewedAt: new Date(),
+      },
+    });
+
+    // If approved, apply the status change
+    if (dto.status === 'APPROVED') {
+      await this.prisma.space.update({
+        where: { id: req.spaceId },
+        data: { status: req.requestedStatus as any },
+      });
+    }
+
+    // Send email notification
+    const email = req.user.identities[0]?.email;
+    if (email) {
+      if (dto.status === 'APPROVED') {
+        this.emailService.sendRawEmail(
+          email,
+          `Space status updated to ${req.requestedStatus} — Unifesto`,
+          `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px">
+            <h2 style="color:#16a34a">Status Change Approved ✓</h2>
+            <p>Hi ${req.user.fullName || req.user.username || 'there'},</p>
+            <p>Your request to change <strong>${req.space.name}</strong>'s status to <strong>${req.requestedStatus}</strong> has been approved.</p>
+            ${dto.reviewNote ? `<p><strong>Note from admin:</strong> ${dto.reviewNote}</p>` : ''}
+            <a href="https://forge.unifesto.app/dashboard/spaces/${req.spaceId}" style="display:inline-block;margin-top:16px;padding:12px 24px;background:#7c3aed;color:white;text-decoration:none;border-radius:8px">View Space</a>
+          </div>`,
+        ).catch(() => {});
+      } else {
+        this.emailService.sendRawEmail(
+          email,
+          `Space status change request rejected — Unifesto`,
+          `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px">
+            <h2 style="color:#dc2626">Status Change Request Rejected</h2>
+            <p>Hi ${req.user.fullName || req.user.username || 'there'},</p>
+            <p>Your request to change <strong>${req.space.name}</strong>'s status to <strong>${req.requestedStatus}</strong> has been rejected.</p>
+            ${dto.reviewNote ? `<p><strong>Reason:</strong> ${dto.reviewNote}</p>` : ''}
+            <a href="https://forge.unifesto.app/dashboard/spaces/${req.spaceId}" style="display:inline-block;margin-top:16px;padding:12px 24px;background:#7c3aed;color:white;text-decoration:none;border-radius:8px">View Space</a>
+          </div>`,
+        ).catch(() => {});
+      }
+    }
+
+    return updated;
   }
 
 }

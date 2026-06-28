@@ -450,6 +450,14 @@ interface CustomCampaignData {
   campaignId: string;
 }
 
+interface BankAccountRejectedData {
+  email: string;
+  userName: string;
+  bankName: string;
+  accountNumber: string; // last 4 digits only
+  rejectionReason: string;
+}
+
 
 // =====================================================
 // EMAIL SERVICE
@@ -486,6 +494,35 @@ export class EmailService {
     this.fromBulk = `Unifesto <${bulkAddress}>`;
   }
 
+  /**
+   * Public wrapper to send a raw transactional email via Resend.
+   */
+  async sendRawEmail(to: string, subject: string, html: string): Promise<string | null> {
+    return this.sendViaResend(to, subject, html);
+  }
+
+  async sendBankAccountRejected(data: BankAccountRejectedData): Promise<void> {
+    try {
+      await this.sendViaResend(
+        data.email,
+        'Bank account verification failed — Unifesto',
+        `
+          <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px">
+            <h2 style="color:#dc2626">Bank Account Verification Failed</h2>
+            <p>Hi ${data.userName},</p>
+            <p>Unfortunately, we were unable to verify your bank account ending in <strong>****${data.accountNumber}</strong> at <strong>${data.bankName}</strong>.</p>
+            <p><strong>Reason:</strong> ${data.rejectionReason}</p>
+            <p>Please update your bank account details in the Forge dashboard and resubmit for verification.</p>
+            <a href="https://forge.unifesto.app/dashboard/payouts" style="display:inline-block;margin-top:16px;padding:12px 24px;background:#7c3aed;color:white;text-decoration:none;border-radius:8px">Update Bank Account</a>
+            <p style="margin-top:24px;color:#6b7280;font-size:14px">If you have questions, contact us at support@unifesto.app</p>
+          </div>
+        `,
+      );
+    } catch (error) {
+      this.logger.error('Error sending bank account rejected email', error);
+    }
+  }
+
   // =====================================================
   // PRIVATE SEND METHODS
   // =====================================================
@@ -493,7 +530,7 @@ export class EmailService {
   /**
    * Send email via Resend (for transactional emails)
    */
-  private async sendViaResend(
+  protected async sendViaResend(
     to: string,
     subject: string,
     html: string,

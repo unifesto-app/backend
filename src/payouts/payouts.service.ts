@@ -85,6 +85,49 @@ export class PayoutsService {
       },
     });
 
+    // Send rejection email
+    if (dto.status === 'REJECTED') {
+      const email = account.user.identities[0]?.email;
+      if (email) {
+        this.emailService
+          .sendBankAccountRejected({
+            email,
+            userName: account.user.fullName || account.user.username || 'there',
+            bankName: account.bankName,
+            accountNumber: account.accountNumber.slice(-4),
+            rejectionReason:
+              dto.rejectionReason || 'Verification failed. Please resubmit with correct details.',
+          })
+          .catch((err) =>
+            this.logger.error('Failed to send bank account rejected email', err),
+          );
+      }
+    }
+
+    // Send verified email (optional but good UX)
+    if (dto.status === 'VERIFIED') {
+      const email = account.user.identities[0]?.email;
+      if (email) {
+        this.emailService
+          .sendRawEmail(
+            email,
+            'Bank account verified — Unifesto',
+            `
+            <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px">
+              <h2 style="color:#16a34a">Bank Account Verified ✓</h2>
+              <p>Hi ${account.user.fullName || account.user.username || 'there'},</p>
+              <p>Your bank account ending in <strong>****${account.accountNumber.slice(-4)}</strong> at <strong>${account.bankName}</strong> has been verified successfully.</p>
+              <p>You are now eligible to receive payouts for your events on Unifesto.</p>
+              <a href="https://forge.unifesto.app/dashboard/payouts" style="display:inline-block;margin-top:16px;padding:12px 24px;background:#16a34a;color:white;text-decoration:none;border-radius:8px">View Payouts</a>
+            </div>
+          `,
+          )
+          .catch((err) =>
+            this.logger.error('Failed to send bank account verified email', err),
+          );
+      }
+    }
+
     if (dto.status === 'VERIFIED') {
       try {
         await this.createRazorpayFundAccount(account);

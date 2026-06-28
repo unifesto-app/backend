@@ -19,7 +19,13 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { SpacesService } from './spaces.service';
 import { JwtAuthGuard, RolesGuard, SpaceRoleGuard } from '../auth/guards';
 import { Roles, CurrentUser } from '../auth/decorators';
-import { CreateSpaceDto, UpdateSpaceDto, UpdateSpaceStatusDto } from './dto';
+import {
+  CreateSpaceDto,
+  UpdateSpaceDto,
+  UpdateSpaceStatusDto,
+  CreateSpaceStatusRequestDto,
+  ReviewSpaceStatusRequestDto,
+} from './dto';
 import { CreateSpaceRequestDto } from './dto/create-space-request.dto';
 import { RoleCode, SpaceStatus, SpaceVisibility } from '@prisma/client';
 import type { User } from '@prisma/client';
@@ -124,6 +130,63 @@ export class SpacesController {
     @CurrentUser() user: User,
   ) {
     return this.spacesService.rejectSpaceRequest(id, user.id, body?.reviewNote);
+  }
+
+  /**
+   * Create a space status-change request (organiser only)
+   * POST /spaces/status-requests
+   * NOTE: Declared before ':id' so "status-requests" isn't captured as an id.
+   */
+  @Post('status-requests')
+  @UseGuards(JwtAuthGuard)
+  async createSpaceStatusRequest(
+    @CurrentUser() user: User,
+    @Body() dto: CreateSpaceStatusRequestDto,
+  ) {
+    return this.spacesService.createSpaceStatusRequest(user.id, dto);
+  }
+
+  /**
+   * Get my space status requests (organiser)
+   * GET /spaces/status-requests/my
+   */
+  @Get('status-requests/my')
+  @UseGuards(JwtAuthGuard)
+  async getMySpaceStatusRequests(
+    @CurrentUser() user: User,
+    @Query('spaceId') spaceId?: string,
+  ) {
+    return this.spacesService.getMySpaceStatusRequests(user.id, spaceId);
+  }
+
+  /**
+   * Get all space status requests (ADMIN only)
+   * GET /spaces/status-requests?status=PENDING
+   */
+  @Get('status-requests')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(RoleCode.ADMIN)
+  async getAllSpaceStatusRequests(
+    @Query('status') status?: string,
+    @Query('page') page = 1,
+    @Query('limit') limit = 20,
+  ) {
+    return this.spacesService.getAllSpaceStatusRequests(status, +page, +limit);
+  }
+
+  /**
+   * Review (approve/reject) a space status request (ADMIN only)
+   * PATCH /spaces/status-requests/:id/review
+   */
+  @Patch('status-requests/:id/review')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(RoleCode.ADMIN)
+  async reviewSpaceStatusRequest(
+    @CurrentUser() user: User,
+    @Param('id') id: string,
+    @Body() dto: ReviewSpaceStatusRequestDto,
+  ) {
+    return this.spacesService.reviewSpaceStatusRequest(id, user.id, dto);
   }
 
   /**

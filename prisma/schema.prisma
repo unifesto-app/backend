@@ -233,6 +233,7 @@ model User {
   adminDevices       AdminDevice[]
   bankAccounts       OrganiserBankAccount[]
   payoutsReceived    Payout[]            @relation("PayoutUser")
+  spaceStatusRequests SpaceStatusRequest[] @relation("SpaceStatusRequestUser")
 
   @@map("users")
 }
@@ -317,6 +318,28 @@ model SpaceRequest {
   @@index([userId])
   @@index([status])
   @@map("space_requests")
+}
+
+model SpaceStatusRequest {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  spaceId     String   @map("space_id") @db.Uuid
+  space       Space    @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+  requestedBy String   @map("requested_by") @db.Uuid
+  user        User     @relation("SpaceStatusRequestUser", fields: [requestedBy], references: [id])
+  currentStatus  String @map("current_status") @db.VarChar(20)
+  requestedStatus String @map("requested_status") @db.VarChar(20)
+  reason      String   @db.Text
+  status      String   @default("PENDING") @db.VarChar(20)
+  reviewNote  String?  @map("review_note") @db.Text
+  reviewedBy  String?  @map("reviewed_by") @db.Uuid
+  reviewedAt  DateTime? @map("reviewed_at") @db.Timestamptz(6)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([spaceId])
+  @@index([requestedBy])
+  @@index([status])
+  @@map("space_status_requests")
 }
 
 model UserRole {
@@ -408,9 +431,10 @@ model Space {
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   // Relations
-  userRoles   UserRole[]
-  discussions Discussion[]
-  events      Event[]
+  userRoles      UserRole[]
+  discussions    Discussion[]
+  events         Event[]
+  statusRequests SpaceStatusRequest[]
 
   @@index([slug])
   @@index([status])
