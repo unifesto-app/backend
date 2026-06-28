@@ -105,7 +105,7 @@ export class SpacesService {
     search?: string;
     parentId?: string;
   }) {
-    const { page = 1, limit = 10, status, visibility, search, parentId } = params;
+    const { page = 1, limit = 10, status, visibility, search } = params;
     const skip = (page - 1) * limit;
 
     const where: any = {};
@@ -118,7 +118,7 @@ export class SpacesService {
       where.visibility = visibility;
     }
 
-    if (parentId) { where.parentId = parentId; where.id = { not: parentId }; }
+    
     if (search) {
       where.OR = [
         { name: { contains: search, mode: 'insensitive' } },
