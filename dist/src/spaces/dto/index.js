@@ -17,4 +17,5 @@ Object.defineProperty(exports, "__esModule", { value: true });
 __exportStar(require("./create-space.dto"), exports);
 __exportStar(require("./update-space.dto"), exports);
 __exportStar(require("./space-status-request.dto"), exports);
+__exportStar(require("./sub-space-request.dto"), exports);
 //# sourceMappingURL=index.js.map

@@ -68,6 +68,14 @@ enum SpaceType {
   @@map("space_type")
 }
 
+enum SubSpaceRequestType {
+  JOIN_SUPER // target already SUPER, just assign parentSpaceId
+  CONVERT_AND_JOIN // target is REGULAR, convert to SUPER then assign parentSpaceId
+  CONVERT_TO_SUPER // just convert a space from REGULAR to SUPER, no sub-space assignment
+
+  @@map("sub_space_request_type")
+}
+
 enum OrgPlan {
   STARTER
   GROWTH
@@ -234,6 +242,7 @@ model User {
   bankAccounts       OrganiserBankAccount[]
   payoutsReceived    Payout[]            @relation("PayoutUser")
   spaceStatusRequests SpaceStatusRequest[] @relation("SpaceStatusRequestUser")
+  subSpaceRequests   SubSpaceRequest[]   @relation("SubSpaceRequestUser")
 
   @@map("users")
 }
@@ -435,6 +444,8 @@ model Space {
   discussions    Discussion[]
   events         Event[]
   statusRequests SpaceStatusRequest[]
+  subSpaceRequests    SubSpaceRequest[] @relation("SubSpaceRequests")
+  targetSpaceRequests SubSpaceRequest[] @relation("TargetSpaceRequests")
 
   @@index([slug])
   @@index([status])
@@ -442,6 +453,36 @@ model Space {
   @@index([type])
   @@index([parentSpaceId])
   @@map("spaces")
+}
+
+model SubSpaceRequest {
+  id          String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  requestType SubSpaceRequestType @map("request_type")
+
+  // The space being made a sub-space (null for CONVERT_TO_SUPER)
+  subSpaceId String? @map("sub_space_id") @db.Uuid
+  subSpace   Space?  @relation("SubSpaceRequests", fields: [subSpaceId], references: [id], onDelete: Cascade)
+
+  // The target parent space
+  targetSpaceId String @map("target_space_id") @db.Uuid
+  targetSpace   Space  @relation("TargetSpaceRequests", fields: [targetSpaceId], references: [id], onDelete: Cascade)
+
+  requestedBy String @map("requested_by") @db.Uuid
+  user        User   @relation("SubSpaceRequestUser", fields: [requestedBy], references: [id])
+
+  reason     String    @db.Text
+  status     String    @default("PENDING") @db.VarChar(20)
+  reviewNote String?   @map("review_note") @db.Text
+  reviewedBy String?   @map("reviewed_by") @db.Uuid
+  reviewedAt DateTime? @map("reviewed_at") @db.Timestamptz(6)
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([subSpaceId])
+  @@index([targetSpaceId])
+  @@index([requestedBy])
+  @@index([status])
+  @@map("sub_space_requests")
 }
 
 // =====================================================

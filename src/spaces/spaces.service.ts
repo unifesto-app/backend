@@ -17,6 +17,11 @@ import {
   CreateSpaceStatusRequestDto,
   ReviewSpaceStatusRequestDto,
 } from './dto';
+import {
+  CreateSubSpaceRequestDto,
+  ReviewSubSpaceRequestDto,
+  SubSpaceRequestType,
+} from './dto/sub-space-request.dto';
 import { RoleCode, SpaceStatus, SpaceVisibility } from '@prisma/client';
 
 @Injectable()
@@ -948,5 +953,258 @@ export class SpacesService {
     return updated;
   }
 
+  // =====================================================
+  // SUB-SPACE REQUESTS
+  // =====================================================
+
+  /**
+   * Create a sub-space request (authenticated users)
+   */
+  async createSubSpaceRequest(userId: string, dto: CreateSubSpaceRequestDto) {
+    const { requestType, subSpaceId, targetSpaceId, reason } = dto;
+
+    // Validate target space exists
+    const targetSpace = await this.prisma.space.findUnique({
+      where: { id: targetSpaceId },
+    });
+    if (!targetSpace) {
+      throw new NotFoundException('Target space not found');
+    }
+
+    // For JOIN/CONVERT_AND_JOIN, a sub-space is required
+    if (requestType !== SubSpaceRequestType.CONVERT_TO_SUPER) {
+      if (!subSpaceId) {
+        throw new BadRequestException(
+          'subSpaceId is required for this request type',
+        );
+      }
+      const subSpace = await this.prisma.space.findUnique({
+        where: { id: subSpaceId },
+      });
+      if (!subSpace) {
+        throw new NotFoundException('Sub-space not found');
+      }
+      if (subSpaceId === targetSpaceId) {
+        throw new BadRequestException(
+          'A space cannot be made a sub-space of itself',
+        );
+      }
+      if (subSpace.parentSpaceId) {
+        throw new ConflictException(
+          'This space already belongs to a super space',
+        );
+      }
+    }
+
+    // Validate requestType against the target space's current type
+    if (requestType === SubSpaceRequestType.JOIN_SUPER) {
+      if (targetSpace.type !== 'SUPER') {
+        throw new BadRequestException(
+          'Target space is not a SUPER space; use CONVERT_AND_JOIN instead',
+        );
+      }
+    } else if (requestType === SubSpaceRequestType.CONVERT_AND_JOIN) {
+      if (targetSpace.type === 'SUPER') {
+        throw new BadRequestException(
+          'Target space is already a SUPER space; use JOIN_SUPER instead',
+        );
+      }
+    } else if (requestType === SubSpaceRequestType.CONVERT_TO_SUPER) {
+      if (targetSpace.type === 'SUPER') {
+        throw new BadRequestException(
+          'Target space is already a SUPER space',
+        );
+      }
+    }
+
+    // Prevent duplicate pending requests
+    const existing = await this.prisma.subSpaceRequest.findFirst({
+      where: {
+        targetSpaceId,
+        subSpaceId: subSpaceId ?? null,
+        requestType,
+        status: 'PENDING',
+      },
+    });
+    if (existing) {
+      throw new ConflictException(
+        'A pending request already exists for this combination',
+      );
+    }
+
+    return this.prisma.subSpaceRequest.create({
+      data: {
+        requestType,
+        subSpaceId: subSpaceId ?? null,
+        targetSpaceId,
+        requestedBy: userId,
+        reason,
+      },
+      include: {
+        subSpace: { select: { id: true, name: true, slug: true } },
+        targetSpace: { select: { id: true, name: true, slug: true } },
+      },
+    });
+  }
+
+  /**
+   * Get the current user's sub-space requests
+   */
+  async getMySubSpaceRequests(userId: string) {
+    return this.prisma.subSpaceRequest.findMany({
+      where: { requestedBy: userId },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        subSpace: { select: { id: true, name: true, slug: true } },
+        targetSpace: { select: { id: true, name: true, slug: true } },
+      },
+    });
+  }
+
+  /**
+   * Get all sub-space requests (ADMIN only)
+   */
+  async getAllSubSpaceRequests(status?: string, page = 1, limit = 20) {
+    const where = status ? { status } : {};
+    const skip = (page - 1) * limit;
+
+    const [items, total] = await Promise.all([
+      this.prisma.subSpaceRequest.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+        include: {
+          subSpace: { select: { id: true, name: true, slug: true } },
+          targetSpace: { select: { id: true, name: true, slug: true } },
+          user: {
+            select: {
+              id: true,
+              fullName: true,
+              username: true,
+              identities: { select: { email: true } },
+            },
+          },
+        },
+      }),
+      this.prisma.subSpaceRequest.count({ where }),
+    ]);
+
+    return {
+      items,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    };
+  }
+
+  /**
+   * Review (approve/reject) a sub-space request (ADMIN only).
+   * On approval, applies the requested space-type / parent-space changes.
+   */
+  async reviewSubSpaceRequest(
+    id: string,
+    reviewerId: string,
+    dto: ReviewSubSpaceRequestDto,
+  ) {
+    const request = await this.prisma.subSpaceRequest.findUnique({
+      where: { id },
+      include: {
+        subSpace: true,
+        targetSpace: true,
+        user: {
+          select: {
+            id: true,
+            fullName: true,
+            username: true,
+            identities: { select: { email: true } },
+          },
+        },
+      },
+    });
+    if (!request) {
+      throw new NotFoundException('Sub-space request not found');
+    }
+    if (request.status !== 'PENDING') {
+      throw new BadRequestException('This request has already been reviewed');
+    }
+
+    const approved = dto.status === 'APPROVED';
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const reviewed = await tx.subSpaceRequest.update({
+        where: { id },
+        data: {
+          status: dto.status,
+          reviewNote: dto.reviewNote ?? null,
+          reviewedBy: reviewerId,
+          reviewedAt: new Date(),
+        },
+      });
+
+      if (approved) {
+        // Convert the target space to SUPER when required
+        if (
+          request.requestType === SubSpaceRequestType.CONVERT_AND_JOIN ||
+          request.requestType === SubSpaceRequestType.CONVERT_TO_SUPER
+        ) {
+          await tx.space.update({
+            where: { id: request.targetSpaceId },
+            data: { type: 'SUPER' },
+          });
+        }
+
+        // Assign the sub-space to the target super space
+        if (
+          request.requestType !== SubSpaceRequestType.CONVERT_TO_SUPER &&
+          request.subSpaceId
+        ) {
+          await tx.space.update({
+            where: { id: request.subSpaceId },
+            data: { parentSpaceId: request.targetSpaceId },
+          });
+        }
+      }
+
+      return reviewed;
+    });
+
+    // Notify requester (fire-and-forget)
+    const email = request.user.identities[0]?.email;
+    if (email) {
+      const name =
+        request.user.fullName || request.user.username || 'there';
+      if (approved) {
+        this.emailService
+          .sendRawEmail(
+            email,
+            `Your sub-space request was approved — Unifesto`,
+            `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px">
+              <h2 style="color:#16a34a">Sub-Space Request Approved</h2>
+              <p>Hi ${name},</p>
+              <p>Your request related to <strong>${request.targetSpace.name}</strong> has been approved.</p>
+              ${dto.reviewNote ? `<p><strong>Note:</strong> ${dto.reviewNote}</p>` : ''}
+            </div>`,
+          )
+          .catch(() => {});
+      } else {
+        this.emailService
+          .sendRawEmail(
+            email,
+            `Your sub-space request was rejected — Unifesto`,
+            `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px">
+              <h2 style="color:#dc2626">Sub-Space Request Rejected</h2>
+              <p>Hi ${name},</p>
+              <p>Your request related to <strong>${request.targetSpace.name}</strong> has been rejected.</p>
+              ${dto.reviewNote ? `<p><strong>Reason:</strong> ${dto.reviewNote}</p>` : ''}
+            </div>`,
+          )
+          .catch(() => {});
+      }
+    }
+
+    return updated;
+  }
 }
 

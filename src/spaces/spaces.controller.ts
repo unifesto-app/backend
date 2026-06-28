@@ -27,6 +27,10 @@ import {
   ReviewSpaceStatusRequestDto,
 } from './dto';
 import { CreateSpaceRequestDto } from './dto/create-space-request.dto';
+import {
+  CreateSubSpaceRequestDto,
+  ReviewSubSpaceRequestDto,
+} from './dto/sub-space-request.dto';
 import { RoleCode, SpaceStatus, SpaceVisibility } from '@prisma/client';
 import type { User } from '@prisma/client';
 
@@ -187,6 +191,59 @@ export class SpacesController {
     @Body() dto: ReviewSpaceStatusRequestDto,
   ) {
     return this.spacesService.reviewSpaceStatusRequest(id, user.id, dto);
+  }
+
+  /**
+   * Submit a sub-space request (authenticated users)
+   * POST /spaces/sub-space-requests
+   */
+  @Post('sub-space-requests')
+  @UseGuards(JwtAuthGuard)
+  async createSubSpaceRequest(
+    @CurrentUser() user: User,
+    @Body() dto: CreateSubSpaceRequestDto,
+  ) {
+    return this.spacesService.createSubSpaceRequest(user.id, dto);
+  }
+
+  /**
+   * Get the current user's sub-space requests
+   * GET /spaces/sub-space-requests/mine
+   */
+  @Get('sub-space-requests/mine')
+  @UseGuards(JwtAuthGuard)
+  async getMySubSpaceRequests(@CurrentUser() user: User) {
+    return this.spacesService.getMySubSpaceRequests(user.id);
+  }
+
+  /**
+   * Get all sub-space requests (ADMIN only)
+   * GET /spaces/sub-space-requests?status=PENDING
+   */
+  @Get('sub-space-requests')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(RoleCode.ADMIN)
+  async getAllSubSpaceRequests(
+    @Query('status') status?: string,
+    @Query('page') page = 1,
+    @Query('limit') limit = 20,
+  ) {
+    return this.spacesService.getAllSubSpaceRequests(status, +page, +limit);
+  }
+
+  /**
+   * Review (approve/reject) a sub-space request (ADMIN only)
+   * PATCH /spaces/sub-space-requests/:id/review
+   */
+  @Patch('sub-space-requests/:id/review')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(RoleCode.ADMIN)
+  async reviewSubSpaceRequest(
+    @CurrentUser() user: User,
+    @Param('id') id: string,
+    @Body() dto: ReviewSubSpaceRequestDto,
+  ) {
+    return this.spacesService.reviewSubSpaceRequest(id, user.id, dto);
   }
 
   /**

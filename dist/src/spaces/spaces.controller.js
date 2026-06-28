@@ -20,6 +20,7 @@ const guards_1 = require("../auth/guards");
 const decorators_1 = require("../auth/decorators");
 const dto_1 = require("./dto");
 const create_space_request_dto_1 = require("./dto/create-space-request.dto");
+const sub_space_request_dto_1 = require("./dto/sub-space-request.dto");
 const client_1 = require("@prisma/client");
 let SpacesController = class SpacesController {
     spacesService;
@@ -65,6 +66,18 @@ let SpacesController = class SpacesController {
     }
     async reviewSpaceStatusRequest(user, id, dto) {
         return this.spacesService.reviewSpaceStatusRequest(id, user.id, dto);
+    }
+    async createSubSpaceRequest(user, dto) {
+        return this.spacesService.createSubSpaceRequest(user.id, dto);
+    }
+    async getMySubSpaceRequests(user) {
+        return this.spacesService.getMySubSpaceRequests(user.id);
+    }
+    async getAllSubSpaceRequests(status, page = 1, limit = 20) {
+        return this.spacesService.getAllSubSpaceRequests(status, +page, +limit);
+    }
+    async reviewSubSpaceRequest(user, id, dto) {
+        return this.spacesService.reviewSubSpaceRequest(id, user.id, dto);
     }
     async getSpaceById(id, auth) {
         let userId;
@@ -214,6 +227,45 @@ __decorate([
     __metadata("design:paramtypes", [Object, String, dto_1.ReviewSpaceStatusRequestDto]),
     __metadata("design:returntype", Promise)
 ], SpacesController.prototype, "reviewSpaceStatusRequest", null);
+__decorate([
+    (0, common_1.Post)('sub-space-requests'),
+    (0, common_1.UseGuards)(guards_1.JwtAuthGuard),
+    __param(0, (0, decorators_1.CurrentUser)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, sub_space_request_dto_1.CreateSubSpaceRequestDto]),
+    __metadata("design:returntype", Promise)
+], SpacesController.prototype, "createSubSpaceRequest", null);
+__decorate([
+    (0, common_1.Get)('sub-space-requests/mine'),
+    (0, common_1.UseGuards)(guards_1.JwtAuthGuard),
+    __param(0, (0, decorators_1.CurrentUser)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], SpacesController.prototype, "getMySubSpaceRequests", null);
+__decorate([
+    (0, common_1.Get)('sub-space-requests'),
+    (0, common_1.UseGuards)(guards_1.JwtAuthGuard, guards_1.RolesGuard),
+    (0, decorators_1.Roles)(client_1.RoleCode.ADMIN),
+    __param(0, (0, common_1.Query)('status')),
+    __param(1, (0, common_1.Query)('page')),
+    __param(2, (0, common_1.Query)('limit')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object, Object]),
+    __metadata("design:returntype", Promise)
+], SpacesController.prototype, "getAllSubSpaceRequests", null);
+__decorate([
+    (0, common_1.Patch)('sub-space-requests/:id/review'),
+    (0, common_1.UseGuards)(guards_1.JwtAuthGuard, guards_1.RolesGuard),
+    (0, decorators_1.Roles)(client_1.RoleCode.ADMIN),
+    __param(0, (0, decorators_1.CurrentUser)()),
+    __param(1, (0, common_1.Param)('id')),
+    __param(2, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String, sub_space_request_dto_1.ReviewSubSpaceRequestDto]),
+    __metadata("design:returntype", Promise)
+], SpacesController.prototype, "reviewSubSpaceRequest", null);
 __decorate([
     (0, common_1.Get)(':id'),
     __param(0, (0, common_1.Param)('id')),

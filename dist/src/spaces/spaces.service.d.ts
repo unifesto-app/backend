@@ -3,6 +3,7 @@ import { StorageService } from '../storage/storage.service';
 import { EmailService } from '../email/email.service';
 import { ConfigService } from '@nestjs/config';
 import { CreateSpaceDto, UpdateSpaceDto, UpdateSpaceStatusDto, CreateSpaceStatusRequestDto, ReviewSpaceStatusRequestDto } from './dto';
+import { CreateSubSpaceRequestDto, ReviewSubSpaceRequestDto } from './dto/sub-space-request.dto';
 import { SpaceStatus, SpaceVisibility } from '@prisma/client';
 export declare class SpacesService {
     private readonly prisma;
@@ -398,6 +399,109 @@ export declare class SpacesService {
         reviewedBy: string | null;
         requestedBy: string;
         currentStatus: string;
+        reviewedAt: Date | null;
+    }>;
+    createSubSpaceRequest(userId: string, dto: CreateSubSpaceRequestDto): Promise<{
+        subSpace: {
+            id: string;
+            name: string;
+            slug: string;
+        } | null;
+        targetSpace: {
+            id: string;
+            name: string;
+            slug: string;
+        };
+    } & {
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        status: string;
+        reason: string;
+        reviewNote: string | null;
+        requestType: import("@prisma/client").$Enums.SubSpaceRequestType;
+        subSpaceId: string | null;
+        targetSpaceId: string;
+        reviewedBy: string | null;
+        requestedBy: string;
+        reviewedAt: Date | null;
+    }>;
+    getMySubSpaceRequests(userId: string): Promise<({
+        subSpace: {
+            id: string;
+            name: string;
+            slug: string;
+        } | null;
+        targetSpace: {
+            id: string;
+            name: string;
+            slug: string;
+        };
+    } & {
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        status: string;
+        reason: string;
+        reviewNote: string | null;
+        requestType: import("@prisma/client").$Enums.SubSpaceRequestType;
+        subSpaceId: string | null;
+        targetSpaceId: string;
+        reviewedBy: string | null;
+        requestedBy: string;
+        reviewedAt: Date | null;
+    })[]>;
+    getAllSubSpaceRequests(status?: string, page?: number, limit?: number): Promise<{
+        items: ({
+            user: {
+                id: string;
+                username: string | null;
+                fullName: string | null;
+                identities: {
+                    email: string | null;
+                }[];
+            };
+            subSpace: {
+                id: string;
+                name: string;
+                slug: string;
+            } | null;
+            targetSpace: {
+                id: string;
+                name: string;
+                slug: string;
+            };
+        } & {
+            id: string;
+            createdAt: Date;
+            updatedAt: Date;
+            status: string;
+            reason: string;
+            reviewNote: string | null;
+            requestType: import("@prisma/client").$Enums.SubSpaceRequestType;
+            subSpaceId: string | null;
+            targetSpaceId: string;
+            reviewedBy: string | null;
+            requestedBy: string;
+            reviewedAt: Date | null;
+        })[];
+        total: number;
+        page: number;
+        limit: number;
+        totalPages: number;
+    }>;
+    reviewSubSpaceRequest(id: string, reviewerId: string, dto: ReviewSubSpaceRequestDto): Promise<{
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        status: string;
+        reason: string;
+        reviewNote: string | null;
+        requestType: import("@prisma/client").$Enums.SubSpaceRequestType;
+        subSpaceId: string | null;
+        targetSpaceId: string;
+        reviewedBy: string | null;
+        requestedBy: string;
         reviewedAt: Date | null;
     }>;
 }

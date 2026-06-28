@@ -16,6 +16,7 @@ const prisma_service_1 = require("../prisma/prisma.service");
 const storage_service_1 = require("../storage/storage.service");
 const email_service_1 = require("../email/email.service");
 const config_1 = require("@nestjs/config");
+const sub_space_request_dto_1 = require("./dto/sub-space-request.dto");
 const client_1 = require("@prisma/client");
 let SpacesService = SpacesService_1 = class SpacesService {
     prisma;
@@ -705,6 +706,190 @@ let SpacesService = SpacesService_1 = class SpacesService {
             ${dto.reviewNote ? `<p><strong>Reason:</strong> ${dto.reviewNote}</p>` : ''}
             <a href="https://forge.unifesto.app/dashboard/spaces/${req.spaceId}" style="display:inline-block;margin-top:16px;padding:12px 24px;background:#7c3aed;color:white;text-decoration:none;border-radius:8px">View Space</a>
           </div>`).catch(() => { });
+            }
+        }
+        return updated;
+    }
+    async createSubSpaceRequest(userId, dto) {
+        const { requestType, subSpaceId, targetSpaceId, reason } = dto;
+        const targetSpace = await this.prisma.space.findUnique({
+            where: { id: targetSpaceId },
+        });
+        if (!targetSpace) {
+            throw new common_1.NotFoundException('Target space not found');
+        }
+        if (requestType !== sub_space_request_dto_1.SubSpaceRequestType.CONVERT_TO_SUPER) {
+            if (!subSpaceId) {
+                throw new common_1.BadRequestException('subSpaceId is required for this request type');
+            }
+            const subSpace = await this.prisma.space.findUnique({
+                where: { id: subSpaceId },
+            });
+            if (!subSpace) {
+                throw new common_1.NotFoundException('Sub-space not found');
+            }
+            if (subSpaceId === targetSpaceId) {
+                throw new common_1.BadRequestException('A space cannot be made a sub-space of itself');
+            }
+            if (subSpace.parentSpaceId) {
+                throw new common_1.ConflictException('This space already belongs to a super space');
+            }
+        }
+        if (requestType === sub_space_request_dto_1.SubSpaceRequestType.JOIN_SUPER) {
+            if (targetSpace.type !== 'SUPER') {
+                throw new common_1.BadRequestException('Target space is not a SUPER space; use CONVERT_AND_JOIN instead');
+            }
+        }
+        else if (requestType === sub_space_request_dto_1.SubSpaceRequestType.CONVERT_AND_JOIN) {
+            if (targetSpace.type === 'SUPER') {
+                throw new common_1.BadRequestException('Target space is already a SUPER space; use JOIN_SUPER instead');
+            }
+        }
+        else if (requestType === sub_space_request_dto_1.SubSpaceRequestType.CONVERT_TO_SUPER) {
+            if (targetSpace.type === 'SUPER') {
+                throw new common_1.BadRequestException('Target space is already a SUPER space');
+            }
+        }
+        const existing = await this.prisma.subSpaceRequest.findFirst({
+            where: {
+                targetSpaceId,
+                subSpaceId: subSpaceId ?? null,
+                requestType,
+                status: 'PENDING',
+            },
+        });
+        if (existing) {
+            throw new common_1.ConflictException('A pending request already exists for this combination');
+        }
+        return this.prisma.subSpaceRequest.create({
+            data: {
+                requestType,
+                subSpaceId: subSpaceId ?? null,
+                targetSpaceId,
+                requestedBy: userId,
+                reason,
+            },
+            include: {
+                subSpace: { select: { id: true, name: true, slug: true } },
+                targetSpace: { select: { id: true, name: true, slug: true } },
+            },
+        });
+    }
+    async getMySubSpaceRequests(userId) {
+        return this.prisma.subSpaceRequest.findMany({
+            where: { requestedBy: userId },
+            orderBy: { createdAt: 'desc' },
+            include: {
+                subSpace: { select: { id: true, name: true, slug: true } },
+                targetSpace: { select: { id: true, name: true, slug: true } },
+            },
+        });
+    }
+    async getAllSubSpaceRequests(status, page = 1, limit = 20) {
+        const where = status ? { status } : {};
+        const skip = (page - 1) * limit;
+        const [items, total] = await Promise.all([
+            this.prisma.subSpaceRequest.findMany({
+                where,
+                orderBy: { createdAt: 'desc' },
+                skip,
+                take: limit,
+                include: {
+                    subSpace: { select: { id: true, name: true, slug: true } },
+                    targetSpace: { select: { id: true, name: true, slug: true } },
+                    user: {
+                        select: {
+                            id: true,
+                            fullName: true,
+                            username: true,
+                            identities: { select: { email: true } },
+                        },
+                    },
+                },
+            }),
+            this.prisma.subSpaceRequest.count({ where }),
+        ]);
+        return {
+            items,
+            total,
+            page,
+            limit,
+            totalPages: Math.ceil(total / limit),
+        };
+    }
+    async reviewSubSpaceRequest(id, reviewerId, dto) {
+        const request = await this.prisma.subSpaceRequest.findUnique({
+            where: { id },
+            include: {
+                subSpace: true,
+                targetSpace: true,
+                user: {
+                    select: {
+                        id: true,
+                        fullName: true,
+                        username: true,
+                        identities: { select: { email: true } },
+                    },
+                },
+            },
+        });
+        if (!request) {
+            throw new common_1.NotFoundException('Sub-space request not found');
+        }
+        if (request.status !== 'PENDING') {
+            throw new common_1.BadRequestException('This request has already been reviewed');
+        }
+        const approved = dto.status === 'APPROVED';
+        const updated = await this.prisma.$transaction(async (tx) => {
+            const reviewed = await tx.subSpaceRequest.update({
+                where: { id },
+                data: {
+                    status: dto.status,
+                    reviewNote: dto.reviewNote ?? null,
+                    reviewedBy: reviewerId,
+                    reviewedAt: new Date(),
+                },
+            });
+            if (approved) {
+                if (request.requestType === sub_space_request_dto_1.SubSpaceRequestType.CONVERT_AND_JOIN ||
+                    request.requestType === sub_space_request_dto_1.SubSpaceRequestType.CONVERT_TO_SUPER) {
+                    await tx.space.update({
+                        where: { id: request.targetSpaceId },
+                        data: { type: 'SUPER' },
+                    });
+                }
+                if (request.requestType !== sub_space_request_dto_1.SubSpaceRequestType.CONVERT_TO_SUPER &&
+                    request.subSpaceId) {
+                    await tx.space.update({
+                        where: { id: request.subSpaceId },
+                        data: { parentSpaceId: request.targetSpaceId },
+                    });
+                }
+            }
+            return reviewed;
+        });
+        const email = request.user.identities[0]?.email;
+        if (email) {
+            const name = request.user.fullName || request.user.username || 'there';
+            if (approved) {
+                this.emailService
+                    .sendRawEmail(email, `Your sub-space request was approved — Unifesto`, `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px">
+              <h2 style="color:#16a34a">Sub-Space Request Approved</h2>
+              <p>Hi ${name},</p>
+              <p>Your request related to <strong>${request.targetSpace.name}</strong> has been approved.</p>
+              ${dto.reviewNote ? `<p><strong>Note:</strong> ${dto.reviewNote}</p>` : ''}
+            </div>`)
+                    .catch(() => { });
+            }
+            else {
+                this.emailService
+                    .sendRawEmail(email, `Your sub-space request was rejected — Unifesto`, `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px">
+              <h2 style="color:#dc2626">Sub-Space Request Rejected</h2>
+              <p>Hi ${name},</p>
+              <p>Your request related to <strong>${request.targetSpace.name}</strong> has been rejected.</p>
+              ${dto.reviewNote ? `<p><strong>Reason:</strong> ${dto.reviewNote}</p>` : ''}
+            </div>`)
+                    .catch(() => { });
             }
         }
         return updated;
