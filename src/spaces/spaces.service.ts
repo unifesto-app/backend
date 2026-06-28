@@ -200,6 +200,14 @@ export class SpacesService {
             avatarUrl: true,
           },
         },
+        parentSpace: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            type: true,
+          },
+        },
         userRoles: {
           include: {
             user: {
@@ -1075,13 +1083,14 @@ export class SpacesService {
         skip,
         take: limit,
         include: {
-          subSpace: { select: { id: true, name: true, slug: true } },
-          targetSpace: { select: { id: true, name: true, slug: true } },
+          subSpace: { select: { id: true, name: true, slug: true, type: true, logoUrl: true } },
+          targetSpace: { select: { id: true, name: true, slug: true, type: true, logoUrl: true } },
           user: {
             select: {
               id: true,
               fullName: true,
               username: true,
+              mobileNumber: true,
               identities: { select: { email: true } },
             },
           },
