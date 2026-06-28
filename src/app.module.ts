@@ -25,6 +25,7 @@ import { ReferralsModule } from './referrals/referrals.module';
 import { EventsModule } from './events/events.module';
 import { RegistrationsModule } from './registrations/registrations.module';
 import { CheckinModule } from './checkin/checkin.module';
+import { PayoutsModule } from './payouts/payouts.module';
 
 @Module({
   imports: [
@@ -93,6 +94,7 @@ import { CheckinModule } from './checkin/checkin.module';
     EventsModule,
     RegistrationsModule,
     CheckinModule,
+    PayoutsModule,
   ],
   controllers: [AppController],
   providers: [

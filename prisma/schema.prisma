@@ -231,6 +231,8 @@ model User {
   redeemCodeUsages   RedeemCodeUsage[]
   emailCampaignsSent EmailCampaign[]     @relation("EmailCampaignsSent")
   adminDevices       AdminDevice[]
+  bankAccounts       OrganiserBankAccount[]
+  payoutsReceived    Payout[]            @relation("PayoutUser")
 
   @@map("users")
 }
@@ -615,6 +617,7 @@ model Event {
   agenda        EventAgenda[]
   speakers      EventSpeaker[]
   formFields    EventFormField[]
+  payouts       Payout[]
 
   @@index([spaceId])
   @@index([status])
@@ -1052,4 +1055,112 @@ model EventCategory {
   updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@map("event_categories")
+}
+
+// =====================================================
+// PAYOUT SYSTEM
+// Organiser bank accounts and settlement records
+// =====================================================
+
+enum PayoutStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  CANCELLED
+
+  @@map("payout_status")
+}
+
+enum PayoutType {
+  T2
+  INSTANT
+
+  @@map("payout_type")
+}
+
+enum BankAccountStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+
+  @@map("bank_account_status")
+}
+
+model OrganiserBankAccount {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  userId String @map("user_id") @db.Uuid
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  accountHolderName String @map("account_holder_name") @db.VarChar(255)
+  accountNumber     String @map("account_number") @db.VarChar(50)
+  ifscCode          String @map("ifsc_code") @db.VarChar(20)
+  bankName          String @map("bank_name") @db.VarChar(255)
+  accountType       String @default("savings") @map("account_type") @db.VarChar(20)
+
+  upiId String? @map("upi_id") @db.VarChar(100)
+
+  razorpayContactId     String? @map("razorpay_contact_id") @db.VarChar(100)
+  razorpayFundAccountId String? @map("razorpay_fund_account_id") @db.VarChar(100)
+
+  status          BankAccountStatus @default(PENDING)
+  verifiedAt      DateTime?         @map("verified_at") @db.Timestamptz(6)
+  verifiedBy      String?           @map("verified_by") @db.Uuid
+  rejectionReason String?           @map("rejection_reason") @db.Text
+
+  isPrimary Boolean @default(false) @map("is_primary")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  payouts Payout[]
+
+  @@index([userId])
+  @@index([status])
+  @@map("organiser_bank_accounts")
+}
+
+model Payout {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  eventId String @map("event_id") @db.Uuid
+  event   Event  @relation(fields: [eventId], references: [id])
+
+  userId String @map("user_id") @db.Uuid
+  user   User   @relation("PayoutUser", fields: [userId], references: [id])
+
+  bankAccountId String               @map("bank_account_id") @db.Uuid
+  bankAccount   OrganiserBankAccount @relation(fields: [bankAccountId], references: [id])
+
+  grossRevenue       Decimal @map("gross_revenue") @db.Decimal(12, 2)
+  platformFeePercent Decimal @map("platform_fee_percent") @db.Decimal(5, 2)
+  platformFee        Decimal @map("platform_fee") @db.Decimal(12, 2)
+  instantFee         Decimal @default(0) @map("instant_fee") @db.Decimal(12, 2)
+  netAmount          Decimal @map("net_amount") @db.Decimal(12, 2)
+
+  type        PayoutType @default(T2)
+  scheduledAt DateTime   @map("scheduled_at") @db.Timestamptz(6)
+
+  status        PayoutStatus @default(PENDING)
+  processedAt   DateTime?    @map("processed_at") @db.Timestamptz(6)
+  completedAt   DateTime?    @map("completed_at") @db.Timestamptz(6)
+  failedAt      DateTime?    @map("failed_at") @db.Timestamptz(6)
+  failureReason String?      @map("failure_reason") @db.Text
+
+  razorpayTransferId String? @map("razorpay_transfer_id") @db.VarChar(100)
+  razorpayPayoutId   String? @map("razorpay_payout_id") @db.VarChar(100)
+  utr                String? @db.VarChar(50)
+
+  createdBy String? @map("created_by") @db.Uuid
+  notes     String? @db.Text
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([eventId])
+  @@index([userId])
+  @@index([status])
+  @@index([scheduledAt])
+  @@map("payouts")
 }
