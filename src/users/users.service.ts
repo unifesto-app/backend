@@ -64,6 +64,7 @@ export class UsersService {
               provider: true,
               email: true,
               emailVerified: true,
+              isPrimary: true,
             },
           },
           roles: {
@@ -126,6 +127,7 @@ export class UsersService {
             provider: true,
             email: true,
             emailVerified: true,
+            isPrimary: true,
             createdAt: true,
           },
         },
@@ -212,6 +214,7 @@ export class UsersService {
             provider: true,
             email: true,
             emailVerified: true,
+            isPrimary: true,
           },
         },
         roles: {
