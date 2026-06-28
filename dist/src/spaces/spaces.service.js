@@ -250,6 +250,7 @@ let SpacesService = SpacesService_1 = class SpacesService {
                 tags: dto.tags,
                 visibility: dto.visibility,
                 coOrganiserLimit: dto.coOrganiserLimit,
+                type: dto.type,
             },
             include: {
                 creator: {

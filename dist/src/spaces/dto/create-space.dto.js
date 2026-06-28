@@ -22,6 +22,7 @@ class CreateSpaceDto {
     country;
     tags;
     visibility;
+    type;
     coOrganiserLimit;
 }
 exports.CreateSpaceDto = CreateSpaceDto;
@@ -77,6 +78,11 @@ __decorate([
     (0, class_validator_1.IsEnum)(client_1.SpaceVisibility),
     __metadata("design:type", String)
 ], CreateSpaceDto.prototype, "visibility", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsEnum)(client_1.SpaceType),
+    __metadata("design:type", String)
+], CreateSpaceDto.prototype, "type", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsInt)(),

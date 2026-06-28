@@ -1,4 +1,4 @@
-import { SpaceVisibility } from '@prisma/client';
+import { SpaceVisibility, SpaceType } from '@prisma/client';
 export declare class CreateSpaceDto {
     name: string;
     slug: string;
@@ -9,5 +9,6 @@ export declare class CreateSpaceDto {
     country?: string;
     tags?: string[];
     visibility?: SpaceVisibility;
+    type?: SpaceType;
     coOrganiserLimit?: number;
 }

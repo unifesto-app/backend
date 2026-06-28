@@ -9,7 +9,7 @@ import {
   MinLength,
   Matches,
 } from 'class-validator';
-import { SpaceVisibility } from '@prisma/client';
+import { SpaceVisibility, SpaceType } from '@prisma/client';
 
 export class CreateSpaceDto {
   @IsString()
@@ -54,6 +54,9 @@ export class CreateSpaceDto {
   @IsOptional()
   @IsEnum(SpaceVisibility)
   visibility?: SpaceVisibility;
+  @IsOptional()
+  @IsEnum(SpaceType)
+  type?: SpaceType;
 
   @IsOptional()
   @IsInt()
