@@ -17,7 +17,7 @@ import {
   CreateSpaceStatusRequestDto,
   ReviewSpaceStatusRequestDto,
 } from './dto';
-import { SpaceStatus, SpaceVisibility } from '@prisma/client';
+import { RoleCode, SpaceStatus, SpaceVisibility } from '@prisma/client';
 
 @Injectable()
 export class SpacesService {
@@ -191,6 +191,7 @@ export class SpacesService {
             id: true,
             fullName: true,
             username: true,
+            avatarUrl: true,
           },
         },
         userRoles: {
@@ -224,8 +225,24 @@ export class SpacesService {
       ? (space.userRoles.find((ur: any) => ur.userId === userId) || null)
       : null;
 
+    // Expose the organiser team (co-organisers + organisers) publicly so clients can
+    // display them. Only organiser-type roles are surfaced; regular members are not.
+    const organiserRoleCodes = [
+      RoleCode.SUPER_ORGANISER,
+      RoleCode.ORGANISER,
+      RoleCode.CO_ORGANISER,
+    ];
+    const organisers = space.userRoles
+      .filter((ur: any) => organiserRoleCodes.includes(ur.role?.code))
+      .map((ur: any) => ({
+        id: ur.id,
+        user: ur.user,
+        role: ur.role,
+        createdAt: ur.createdAt,
+      }));
+
     // Strip internal/sensitive fields and the raw member-role list before returning publicly.
-    // Only the requester's own role (userRole) and aggregate counts are exposed.
+    // Only the requester's own role (userRole), the organiser team, and aggregate counts are exposed.
     const {
       userRoles,
       approvedBy,
@@ -239,7 +256,7 @@ export class SpacesService {
       ...publicSpace
     } = space as any;
 
-    return { ...publicSpace, userRole };
+    return { ...publicSpace, userRole, organisers };
   }
 
   /**
