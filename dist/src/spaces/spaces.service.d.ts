@@ -455,6 +455,7 @@ export declare class SpacesService {
         items: ({
             user: {
                 id: string;
+                mobileNumber: string;
                 username: string | null;
                 fullName: string | null;
                 identities: {
@@ -465,11 +466,15 @@ export declare class SpacesService {
                 id: string;
                 name: string;
                 slug: string;
+                type: import("@prisma/client").$Enums.SpaceType;
+                logoUrl: string | null;
             } | null;
             targetSpace: {
                 id: string;
                 name: string;
                 slug: string;
+                type: import("@prisma/client").$Enums.SpaceType;
+                logoUrl: string | null;
             };
         } & {
             id: string;
