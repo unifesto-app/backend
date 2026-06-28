@@ -782,7 +782,8 @@ export class SpacesService {
     const allowedTransitions: Record<string, string[]> = {
       ACTIVE: ['INACTIVE'],
       INACTIVE: ['ACTIVE'],
-      SUSPENDED: ['ACTIVE'], // appeal
+      SUSPENDED: ['ACTIVE'],
+      ARCHIVED: ['ACTIVE'], // restoration appeal
     };
     const allowed = allowedTransitions[space.status] || [];
     if (!allowed.includes(dto.requestedStatus)) {
