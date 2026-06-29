@@ -329,6 +329,23 @@ export class SpacesService {
     }
     this.logger.log(`parentSpace: ${JSON.stringify((space as any).parentSpace)}`);
 
+    // Rule 1: A child space (has parentSpaceId) cannot be converted to SUPER
+    if (dto.type === 'SUPER' && space.parentSpaceId) {
+      throw new BadRequestException('A child space cannot be converted to SUPER. Remove the parent space relationship first.');
+    }
+
+    // Rule 2: A SUPER space cannot be assigned another SUPER space as parent
+    if (dto.parentSpaceId) {
+      if (space.type === 'SUPER') {
+        throw new BadRequestException('A SUPER space cannot be assigned a parent space.');
+      }
+      const parentSpace = await this.prisma.space.findUnique({ where: { id: dto.parentSpaceId } });
+      if (!parentSpace) throw new NotFoundException('Parent space not found');
+      if (parentSpace.type !== 'SUPER') {
+        throw new BadRequestException('Parent space must be a SUPER space.');
+      }
+    }
+
     // Check slug uniqueness if being changed
     if (dto.slug && dto.slug !== space.slug) {
       const existing = await this.prisma.space.findUnique({
@@ -354,6 +371,7 @@ export class SpacesService {
         visibility: dto.visibility,
         coOrganiserLimit: dto.coOrganiserLimit,
         type: dto.type,
+        ...(dto.parentSpaceId !== undefined ? { parentSpaceId: dto.parentSpaceId } : {}),
       },
       include: {
         creator: {

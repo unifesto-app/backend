@@ -15,8 +15,14 @@ const create_space_dto_1 = require("./create-space.dto");
 const class_validator_1 = require("class-validator");
 const client_1 = require("@prisma/client");
 class UpdateSpaceDto extends (0, mapped_types_1.PartialType)(create_space_dto_1.CreateSpaceDto) {
+    parentSpaceId;
 }
 exports.UpdateSpaceDto = UpdateSpaceDto;
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsUUID)(),
+    __metadata("design:type", Object)
+], UpdateSpaceDto.prototype, "parentSpaceId", void 0);
 class UpdateSpaceStatusDto {
     status;
     rejectionReason;
