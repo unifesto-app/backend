@@ -4,6 +4,7 @@ export class AuthResponseDto {
   accessToken: string;
   user: UserProfileDto;
   requiresMobileVerification: boolean;
+  isNewUser?: boolean;
   tempToken?: string;
 }
 
