@@ -24,6 +24,7 @@ export class UserProfileDto {
   isOnboarded: boolean;
   createdAt: string;
   roles?: { role: { code: string; name: string } }[];
+  hasAppliedReferral: boolean;
 
   static fromUser(user: User, roles?: any[]): UserProfileDto {
     return {
@@ -42,6 +43,7 @@ export class UserProfileDto {
       isOnboarded: user.isOnboarded,
       createdAt: user.createdAt.toISOString(),
       roles: roles || [],
+      hasAppliedReferral: (user as any).referredBy != null,
     };
   }
 }

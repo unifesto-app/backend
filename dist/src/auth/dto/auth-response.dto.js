@@ -5,6 +5,7 @@ class AuthResponseDto {
     accessToken;
     user;
     requiresMobileVerification;
+    isNewUser;
     tempToken;
 }
 exports.AuthResponseDto = AuthResponseDto;
@@ -24,6 +25,7 @@ class UserProfileDto {
     isOnboarded;
     createdAt;
     roles;
+    hasAppliedReferral;
     static fromUser(user, roles) {
         return {
             id: user.id,
@@ -41,6 +43,7 @@ class UserProfileDto {
             isOnboarded: user.isOnboarded,
             createdAt: user.createdAt.toISOString(),
             roles: roles || [],
+            hasAppliedReferral: user.referredBy != null,
         };
     }
 }
