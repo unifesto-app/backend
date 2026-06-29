@@ -9,7 +9,7 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { SkipThrottle } from '@nestjs/throttler';
+import { SkipThrottle, Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import {
@@ -59,6 +59,7 @@ export class AuthController {
   }
 
   @Post('email')
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @HttpCode(HttpStatus.OK)
   async loginWithEmail(
     @Body() dto: EmailLoginDto,
@@ -71,6 +72,7 @@ export class AuthController {
    * POST /auth/email/verify
    */
   @Post('email/verify')
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @HttpCode(HttpStatus.OK)
   async verifyEmailOtp(
     @Body() body: { email: string; otp: string },
@@ -83,6 +85,7 @@ export class AuthController {
    * POST /auth/mobile/send-otp
    */
   @Post('mobile/send-otp')
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @HttpCode(HttpStatus.OK)
   async sendMobileOtp(
     @Body() dto: SendMobileOtpDto,

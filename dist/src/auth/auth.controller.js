@@ -82,6 +82,7 @@ __decorate([
 ], AuthController.prototype, "loginWithCognito", null);
 __decorate([
     (0, common_1.Post)('email'),
+    (0, throttler_1.Throttle)({ default: { limit: 5, ttl: 60000 } }),
     (0, common_1.HttpCode)(common_1.HttpStatus.OK),
     __param(0, (0, common_1.Body)()),
     __metadata("design:type", Function),
@@ -90,6 +91,7 @@ __decorate([
 ], AuthController.prototype, "loginWithEmail", null);
 __decorate([
     (0, common_1.Post)('email/verify'),
+    (0, throttler_1.Throttle)({ default: { limit: 5, ttl: 60000 } }),
     (0, common_1.HttpCode)(common_1.HttpStatus.OK),
     __param(0, (0, common_1.Body)()),
     __metadata("design:type", Function),
@@ -98,6 +100,7 @@ __decorate([
 ], AuthController.prototype, "verifyEmailOtp", null);
 __decorate([
     (0, common_1.Post)('mobile/send-otp'),
+    (0, throttler_1.Throttle)({ default: { limit: 5, ttl: 60000 } }),
     (0, common_1.HttpCode)(common_1.HttpStatus.OK),
     __param(0, (0, common_1.Body)()),
     __metadata("design:type", Function),

@@ -2,6 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import helmet from 'helmet';
+import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
@@ -53,6 +54,9 @@ async function bootstrap() {
     exposedHeaders: ['Content-Length', 'Content-Type'],
     maxAge: 86400, // 24 hours
   });
+
+  // Catch-all exception filter: logs stack traces and returns clean JSON.
+  app.useGlobalFilters(new GlobalExceptionFilter());
 
   // Enable validation pipes globally
   app.useGlobalPipes(
