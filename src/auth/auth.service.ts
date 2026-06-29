@@ -216,6 +216,16 @@ export class AuthService {
       this.logger.log(`Verifying email OTP for: ${email}`);
       this.logger.log(`OTP received: ${otp}`);
 
+      // Apple App Review bypass — static test account
+      if (email === 'test-user@unifesto.app' && otp === '098765') {
+        return await this.handleProviderLogin(
+          Provider.EMAIL,
+          email,
+          email,
+          true,
+        );
+      }
+
       // Check if OTP attempts are blocked
       const isBlocked = await this.cache.isOtpBlocked(email);
       if (isBlocked) {
