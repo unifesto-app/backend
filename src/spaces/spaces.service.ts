@@ -234,6 +234,7 @@ export class SpacesService {
     if (!space) {
       throw new NotFoundException('Space not found');
     }
+    this.logger.log(`parentSpace: ${JSON.stringify((space as any).parentSpace)}`);
 
     const userRole = userId
       ? (space.userRoles.find((ur: any) => ur.userId === userId) || null)
@@ -300,6 +301,7 @@ export class SpacesService {
     if (!space) {
       throw new NotFoundException('Space not found');
     }
+    this.logger.log(`parentSpace: ${JSON.stringify((space as any).parentSpace)}`);
 
     const {
       approvedBy,
@@ -325,6 +327,7 @@ export class SpacesService {
     if (!space) {
       throw new NotFoundException('Space not found');
     }
+    this.logger.log(`parentSpace: ${JSON.stringify((space as any).parentSpace)}`);
 
     // Check slug uniqueness if being changed
     if (dto.slug && dto.slug !== space.slug) {
@@ -388,6 +391,7 @@ export class SpacesService {
     if (!space) {
       throw new NotFoundException('Space not found');
     }
+    this.logger.log(`parentSpace: ${JSON.stringify((space as any).parentSpace)}`);
 
     const updateData: any = {
       status: dto.status,
@@ -443,6 +447,7 @@ export class SpacesService {
     if (!space) {
       throw new NotFoundException('Space not found');
     }
+    this.logger.log(`parentSpace: ${JSON.stringify((space as any).parentSpace)}`);
 
     await this.prisma.space.delete({ where: { id } });
 
@@ -458,6 +463,7 @@ export class SpacesService {
     if (!space) {
       throw new NotFoundException('Space not found');
     }
+    this.logger.log(`parentSpace: ${JSON.stringify((space as any).parentSpace)}`);
 
     // Upload to S3 using StorageService
     const logoUrl = await this.storageService.uploadFile(
@@ -483,6 +489,7 @@ export class SpacesService {
     if (!space) {
       throw new NotFoundException('Space not found');
     }
+    this.logger.log(`parentSpace: ${JSON.stringify((space as any).parentSpace)}`);
 
     // Upload to S3 using StorageService
     const bannerUrl = await this.storageService.uploadFile(
@@ -510,6 +517,7 @@ export class SpacesService {
     if (!space) {
       throw new NotFoundException('Space not found');
     }
+    this.logger.log(`parentSpace: ${JSON.stringify((space as any).parentSpace)}`);
 
     const members = await this.prisma.userRole.findMany({
       where: { spaceId },
@@ -542,6 +550,7 @@ export class SpacesService {
     if (!space) {
       throw new NotFoundException('Space not found');
     }
+    this.logger.log(`parentSpace: ${JSON.stringify((space as any).parentSpace)}`);
 
     if (space.status !== SpaceStatus.ACTIVE) {
       throw new BadRequestException('Space is not active');
@@ -608,6 +617,7 @@ export class SpacesService {
     if (!space) {
       throw new NotFoundException('Space not found');
     }
+    this.logger.log(`parentSpace: ${JSON.stringify((space as any).parentSpace)}`);
 
     // Check if user is a member
     const membership = await this.prisma.userRole.findFirst({

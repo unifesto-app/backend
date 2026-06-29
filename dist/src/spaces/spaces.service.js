@@ -188,6 +188,7 @@ let SpacesService = SpacesService_1 = class SpacesService {
         if (!space) {
             throw new common_1.NotFoundException('Space not found');
         }
+        this.logger.log(`parentSpace: ${JSON.stringify(space.parentSpace)}`);
         const userRole = userId
             ? (space.userRoles.find((ur) => ur.userId === userId) || null)
             : null;
@@ -230,6 +231,7 @@ let SpacesService = SpacesService_1 = class SpacesService {
         if (!space) {
             throw new common_1.NotFoundException('Space not found');
         }
+        this.logger.log(`parentSpace: ${JSON.stringify(space.parentSpace)}`);
         const { approvedBy, rejectionReason, requestedParentId, parentRequestPending, plan, planActivatedAt, planExpiresAt, coOrganiserLimit, ...publicSpace } = space;
         return publicSpace;
     }
@@ -238,6 +240,7 @@ let SpacesService = SpacesService_1 = class SpacesService {
         if (!space) {
             throw new common_1.NotFoundException('Space not found');
         }
+        this.logger.log(`parentSpace: ${JSON.stringify(space.parentSpace)}`);
         if (dto.slug && dto.slug !== space.slug) {
             const existing = await this.prisma.space.findUnique({
                 where: { slug: dto.slug },
@@ -287,6 +290,7 @@ let SpacesService = SpacesService_1 = class SpacesService {
         if (!space) {
             throw new common_1.NotFoundException('Space not found');
         }
+        this.logger.log(`parentSpace: ${JSON.stringify(space.parentSpace)}`);
         const updateData = {
             status: dto.status,
         };
@@ -332,6 +336,7 @@ let SpacesService = SpacesService_1 = class SpacesService {
         if (!space) {
             throw new common_1.NotFoundException('Space not found');
         }
+        this.logger.log(`parentSpace: ${JSON.stringify(space.parentSpace)}`);
         await this.prisma.space.delete({ where: { id } });
         return { message: 'Space deleted successfully' };
     }
@@ -340,6 +345,7 @@ let SpacesService = SpacesService_1 = class SpacesService {
         if (!space) {
             throw new common_1.NotFoundException('Space not found');
         }
+        this.logger.log(`parentSpace: ${JSON.stringify(space.parentSpace)}`);
         const logoUrl = await this.storageService.uploadFile(file, 'space-logos/', id);
         await this.prisma.space.update({
             where: { id },
@@ -352,6 +358,7 @@ let SpacesService = SpacesService_1 = class SpacesService {
         if (!space) {
             throw new common_1.NotFoundException('Space not found');
         }
+        this.logger.log(`parentSpace: ${JSON.stringify(space.parentSpace)}`);
         const bannerUrl = await this.storageService.uploadFile(file, 'space-banners/', id);
         await this.prisma.space.update({
             where: { id },
@@ -366,6 +373,7 @@ let SpacesService = SpacesService_1 = class SpacesService {
         if (!space) {
             throw new common_1.NotFoundException('Space not found');
         }
+        this.logger.log(`parentSpace: ${JSON.stringify(space.parentSpace)}`);
         const members = await this.prisma.userRole.findMany({
             where: { spaceId },
             include: {
@@ -390,6 +398,7 @@ let SpacesService = SpacesService_1 = class SpacesService {
         if (!space) {
             throw new common_1.NotFoundException('Space not found');
         }
+        this.logger.log(`parentSpace: ${JSON.stringify(space.parentSpace)}`);
         if (space.status !== client_1.SpaceStatus.ACTIVE) {
             throw new common_1.BadRequestException('Space is not active');
         }
@@ -440,6 +449,7 @@ let SpacesService = SpacesService_1 = class SpacesService {
         if (!space) {
             throw new common_1.NotFoundException('Space not found');
         }
+        this.logger.log(`parentSpace: ${JSON.stringify(space.parentSpace)}`);
         const membership = await this.prisma.userRole.findFirst({
             where: {
                 userId,
