@@ -18,7 +18,11 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { UsersService } from './users.service';
 import { JwtAuthGuard, RolesGuard } from '../auth/guards';
 import { CurrentUser, Roles } from '../auth/decorators';
-import { UpdateProfileDto, CheckUsernameDto } from './dto';
+import {
+  UpdateProfileDto,
+  CheckUsernameDto,
+  UpdateNotificationSettingsDto,
+} from './dto';
 import type { User } from '@prisma/client';
 import { UserProfileDto } from '../auth/dto';
 import { RoleCode } from '@prisma/client';
@@ -133,6 +137,29 @@ export class UsersController {
   @UseGuards(JwtAuthGuard)
   async getMySpaces(@CurrentUser() user: User) {
     return this.usersService.getUserSpaces(user.id);
+  }
+
+  /**
+   * Get current user's notification settings
+   * GET /users/me/notification-settings
+   */
+  @Get('me/notification-settings')
+  @UseGuards(JwtAuthGuard)
+  async getNotificationSettings(@CurrentUser() user: User) {
+    return this.usersService.getNotificationSettings(user.id);
+  }
+
+  /**
+   * Update current user's notification settings
+   * PATCH /users/me/notification-settings
+   */
+  @Patch('me/notification-settings')
+  @UseGuards(JwtAuthGuard)
+  async updateNotificationSettings(
+    @CurrentUser() user: User,
+    @Body() dto: UpdateNotificationSettingsDto,
+  ) {
+    return this.usersService.updateNotificationSettings(user.id, dto);
   }
 
   /**

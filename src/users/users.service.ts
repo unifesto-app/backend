@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
-import { UpdateProfileDto } from './dto';
+import { UpdateProfileDto, UpdateNotificationSettingsDto } from './dto';
 import { User } from '@prisma/client';
 import { UserProfileDto } from '../auth/dto';
 import { StorageService } from '../storage/storage.service';
@@ -551,5 +551,53 @@ export class UsersService {
     }
     await this.prisma.user.delete({ where: { id: userId } });
     return { message: 'Account deleted successfully' };
+  }
+
+  /**
+   * Get current user's notification settings.
+   * Creates the row with defaults on first access.
+   */
+  async getNotificationSettings(userId: string) {
+    const settings = await this.prisma.notificationSettings.upsert({
+      where: { userId },
+      update: {},
+      create: { userId },
+    });
+
+    return this.toNotificationSettingsDto(settings);
+  }
+
+  /**
+   * Update current user's notification settings (partial).
+   */
+  async updateNotificationSettings(
+    userId: string,
+    dto: UpdateNotificationSettingsDto,
+  ) {
+    const settings = await this.prisma.notificationSettings.upsert({
+      where: { userId },
+      update: { ...dto },
+      create: { userId, ...dto },
+    });
+
+    return this.toNotificationSettingsDto(settings);
+  }
+
+  private toNotificationSettingsDto(settings: {
+    pushEnabled: boolean;
+    emailEnabled: boolean;
+    eventReminders: boolean;
+    newEvents: boolean;
+    referralUpdates: boolean;
+    promotions: boolean;
+  }) {
+    return {
+      pushEnabled: settings.pushEnabled,
+      emailEnabled: settings.emailEnabled,
+      eventReminders: settings.eventReminders,
+      newEvents: settings.newEvents,
+      referralUpdates: settings.referralUpdates,
+      promotions: settings.promotions,
+    };
   }
 }

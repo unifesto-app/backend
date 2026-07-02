@@ -243,8 +243,36 @@ model User {
   payoutsReceived    Payout[]            @relation("PayoutUser")
   spaceStatusRequests SpaceStatusRequest[] @relation("SpaceStatusRequestUser")
   subSpaceRequests   SubSpaceRequest[]   @relation("SubSpaceRequestUser")
+  notificationSettings NotificationSettings?
 
   @@map("users")
+}
+
+// =====================================================
+// NOTIFICATION SETTINGS MODEL
+// Per-user notification preferences
+// =====================================================
+
+model NotificationSettings {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  // User Reference (one-to-one)
+  userId String @unique @map("user_id") @db.Uuid
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Preferences
+  pushEnabled     Boolean @default(true) @map("push_enabled")
+  emailEnabled    Boolean @default(true) @map("email_enabled")
+  eventReminders  Boolean @default(true) @map("event_reminders")
+  newEvents       Boolean @default(true) @map("new_events")
+  referralUpdates Boolean @default(true) @map("referral_updates")
+  promotions      Boolean @default(false) @map("promotions")
+
+  // Timestamps
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("notification_settings")
 }
 
 // =====================================================
