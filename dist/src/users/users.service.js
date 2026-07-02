@@ -231,6 +231,7 @@ let UsersService = UsersService_1 = class UsersService {
                         role: { select: { code: true, name: true } },
                     },
                 },
+                referredBy: true,
             },
         });
         if (!user) {

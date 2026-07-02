@@ -352,6 +352,7 @@ export class AuthService {
             accessToken,
             user: UserProfileDto.fromUser(existingMobileUser, userRoles),
             requiresMobileVerification: false,
+            isNewUser: false,
           };
         }
 
@@ -392,6 +393,7 @@ export class AuthService {
           accessToken,
           user: UserProfileDto.fromUser(existingUser),
           requiresMobileVerification: false,
+          isNewUser: false,
         };
       } else {
         // Create new user
@@ -416,6 +418,7 @@ export class AuthService {
           accessToken,
           user: UserProfileDto.fromUser(newUser),
           requiresMobileVerification: false,
+          isNewUser: true,
         };
       }
     } catch (error) {

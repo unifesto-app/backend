@@ -3,6 +3,7 @@ export declare class AuthResponseDto {
     accessToken: string;
     user: UserProfileDto;
     requiresMobileVerification: boolean;
+    isNewUser?: boolean;
     tempToken?: string;
 }
 export declare class UserProfileDto {
@@ -26,5 +27,6 @@ export declare class UserProfileDto {
             name: string;
         };
     }[];
+    hasAppliedReferral: boolean;
     static fromUser(user: User, roles?: any[]): UserProfileDto;
 }
