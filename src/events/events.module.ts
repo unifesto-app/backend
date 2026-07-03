@@ -9,6 +9,7 @@ import { SubscriptionModule } from '../subscription/subscription.module';
 import { CacheModule } from '../cache/cache.module';
 import { EmailModule } from '../email/email.module';
 import { WhatsAppModule } from '../whatsapp/whatsapp.module';
+import { ChatModule } from '../chat/chat.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { WhatsAppModule } from '../whatsapp/whatsapp.module';
     CacheModule,
     EmailModule,
     WhatsAppModule,
+    ChatModule,
   ],
   controllers: [EventsController],
   providers: [EventsService, EventSchedulerService],

@@ -11,6 +11,7 @@ import { SubscriptionService } from '../subscription/subscription.service';
 import { CacheService } from '../cache/cache.service';
 import { EmailService } from '../email/email.service';
 import { PLAN_LIMITS } from '../subscription/plan-limits.config';
+import { ChatService } from '../chat/chat.service';
 import {
   EventStatus,
   RoleCode,
@@ -41,6 +42,7 @@ export class EventsService {
     private readonly subscriptionService: SubscriptionService,
     private readonly cache: CacheService,
     private readonly emailService: EmailService,
+    private readonly chatService: ChatService,
   ) {}
 
   async canManageEvent(userId: string, spaceId: string): Promise<boolean> {
@@ -135,6 +137,20 @@ export class EventsService {
     });
 
     this.logger.log(`Created event ${event.id} by user ${userId}`);
+
+    // Auto-create the event chat group. Non-fatal: never block event creation
+    // if the chat group fails to provision.
+    try {
+      await this.chatService.createGroupForEvent(event.id, event.spaceId, [
+        userId,
+      ]);
+    } catch (err) {
+      this.logger.error(
+        `Failed to create chat group for event ${event.id}: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    }
 
     return event;
   }

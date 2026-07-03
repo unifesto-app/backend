@@ -268,6 +268,12 @@ model NotificationSettings {
   referralUpdates Boolean @default(true) @map("referral_updates")
   promotions      Boolean @default(false) @map("promotions")
 
+  // Chat + registration/wallet/space category switches (added by chat feature)
+  chatMessages        Boolean @default(true) @map("chat_messages")
+  registrationUpdates Boolean @default(true) @map("registration_updates")
+  walletUpdates       Boolean @default(true) @map("wallet_updates")
+  spaceUpdates        Boolean @default(true) @map("space_updates")
+
   // Timestamps
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
@@ -711,6 +717,7 @@ model Event {
   speakers      EventSpeaker[]
   formFields    EventFormField[]
   payouts       Payout[]
+  chatGroup     ChatGroup?
 
   @@index([spaceId])
   @@index([status])
@@ -1256,4 +1263,136 @@ model Payout {
   @@index([status])
   @@index([scheduledAt])
   @@map("payouts")
+}
+
+// =====================================================
+// CHAT + MODERATION MODELS (added by chat feature)
+// =====================================================
+
+enum ChatGroupType {
+  EVENT
+}
+
+enum ChatGroupStatus {
+  ACTIVE
+  ARCHIVED
+  CLOSED
+}
+
+enum ChatParticipantRole {
+  ORGANISER
+  CO_ORGANISER
+  ATTENDEE
+}
+
+enum ChatMessageStatus {
+  VISIBLE
+  BLOCKED
+  REMOVED_ADMIN
+  DELETED_USER
+}
+
+enum ChatMessageType {
+  TEXT
+  IMAGE
+  SYSTEM
+}
+
+enum ModerationFlagReason {
+  ADULT_TEXT
+  ADULT_IMAGE
+  KEYWORD_MATCH
+  API_FLAGGED
+}
+
+enum ModerationActionType {
+  DISMISSED
+  WARNED
+  MESSAGE_REMOVED
+  USER_SUSPENDED
+}
+
+model ChatGroup {
+  id           String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  eventId      String            @unique @map("event_id") @db.Uuid
+  event        Event             @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  spaceId      String            @map("space_id") @db.Uuid
+  type         ChatGroupType     @default(EVENT)
+  status       ChatGroupStatus   @default(ACTIVE)
+  createdAt    DateTime          @default(now()) @map("created_at")
+  archivedAt   DateTime?         @map("archived_at")
+
+  participants ChatParticipant[]
+  messages     ChatMessage[]
+
+  @@map("chat_groups")
+}
+
+model ChatParticipant {
+  id                  String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  chatGroupId         String              @map("chat_group_id") @db.Uuid
+  chatGroup           ChatGroup           @relation(fields: [chatGroupId], references: [id], onDelete: Cascade)
+  userId              String              @map("user_id") @db.Uuid
+  role                ChatParticipantRole
+  joinedAt            DateTime            @default(now()) @map("joined_at")
+  leftAt              DateTime?           @map("left_at")
+
+  // User's own preference — mute this one chat's notifications
+  notificationsMuted  Boolean             @default(false) @map("notifications_muted")
+
+  // Moderation-imposed mute (admin action) — separate from the user's own preference
+  adminMutedUntil     DateTime?           @map("admin_muted_until")
+
+  lastReadAt          DateTime?           @map("last_read_at")
+
+  @@unique([chatGroupId, userId])
+  @@index([userId])
+  @@map("chat_participants")
+}
+
+model ChatMessage {
+  id             String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  chatGroupId    String             @map("chat_group_id") @db.Uuid
+  chatGroup      ChatGroup          @relation(fields: [chatGroupId], references: [id], onDelete: Cascade)
+  senderId       String             @map("sender_id") @db.Uuid
+  type           ChatMessageType    @default(TEXT)
+  ciphertext     Bytes
+  iv             Bytes
+  authTag        Bytes              @map("auth_tag")
+  mediaUrl       String?            @map("media_url") @db.Text
+  status         ChatMessageStatus  @default(VISIBLE)
+  createdAt      DateTime           @default(now()) @map("created_at")
+  editedAt       DateTime?          @map("edited_at")
+
+  flags          ChatModerationFlag[]
+
+  @@index([chatGroupId, createdAt])
+  @@index([senderId])
+  @@map("chat_messages")
+}
+
+model ChatModerationFlag {
+  id            String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  messageId     String                @map("message_id") @db.Uuid
+  message       ChatMessage           @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  reason        ModerationFlagReason
+  confidence    Float?
+  matchedTerm   String?               @map("matched_term") @db.Text
+  createdAt     DateTime              @default(now()) @map("created_at")
+
+  action        ChatModerationAction?
+
+  @@map("chat_moderation_flags")
+}
+
+model ChatModerationAction {
+  id             String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  flagId         String               @unique @map("flag_id") @db.Uuid
+  flag           ChatModerationFlag   @relation(fields: [flagId], references: [id], onDelete: Cascade)
+  adminId        String               @map("admin_id") @db.Uuid
+  actionType     ModerationActionType
+  notes          String?              @db.Text
+  createdAt      DateTime             @default(now()) @map("created_at")
+
+  @@map("chat_moderation_actions")
 }

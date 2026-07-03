@@ -7,6 +7,7 @@ import { WalletModule } from '../wallet/wallet.module';
 import { EmailModule } from '../email/email.module';
 import { WhatsAppModule } from '../whatsapp/whatsapp.module';
 import { CacheModule } from '../cache/cache.module';
+import { ChatModule } from '../chat/chat.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { CacheModule } from '../cache/cache.module';
     EmailModule,
     WhatsAppModule,
     CacheModule,
+    ChatModule,
   ],
   controllers: [RegistrationsController],
   providers: [RegistrationsService],

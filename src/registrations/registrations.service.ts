@@ -11,6 +11,7 @@ import { WhatsAppService } from '../whatsapp/whatsapp.service';
 import { CacheService } from '../cache/cache.service';
 import { PLAN_LIMITS } from '../subscription/plan-limits.config';
 import { coinsToINR } from '../wallet/coin.constants';
+import { ChatService } from '../chat/chat.service';
 import {
   CoinSource,
   PaymentStatus,
@@ -40,6 +41,7 @@ export class RegistrationsService {
     private readonly emailService: EmailService,
     private readonly whatsappService: WhatsAppService,
     private readonly cache: CacheService,
+    private readonly chatService: ChatService,
   ) {
     this.razorpay = new Razorpay({
       key_id: process.env.RAZORPAY_KEY_ID,
@@ -477,6 +479,17 @@ export class RegistrationsService {
     }
 
     this.logger.log(`RSVP completed for user ${userId}, event ${eventId}`);
+
+    // Add attendee to the event chat group (non-fatal).
+    try {
+      await this.chatService.addParticipant(eventId, userId);
+    } catch (err) {
+      this.logger.error(
+        `Failed to add chat participant (event ${eventId}, user ${userId}): ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    }
 
     return {
       registrationId: registration.id,
@@ -1331,6 +1344,17 @@ export class RegistrationsService {
 
     this.logger.log(`Payment verified for registration ${registration.id}`);
 
+    // Add attendee to the event chat group (non-fatal).
+    try {
+      await this.chatService.addParticipant(eventId, userId);
+    } catch (err) {
+      this.logger.error(
+        `Failed to add chat participant (event ${eventId}, user ${userId}): ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    }
+
     return {
       registrationId: registration.id,
       message: 'Payment verified, registration complete',
@@ -1688,6 +1712,17 @@ export class RegistrationsService {
     await this.cache.invalidateCheckinCache(eventId);
 
     this.logger.log(`Cancelled registration ${registration.id}`);
+
+    // Remove the attendee from the event chat group (non-fatal).
+    try {
+      await this.chatService.removeParticipant(eventId, userId);
+    } catch (err) {
+      this.logger.error(
+        `Failed to remove chat participant (event ${eventId}, user ${userId}): ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    }
 
     return {
       message: 'Registration cancelled successfully',
