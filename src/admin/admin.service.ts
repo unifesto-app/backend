@@ -6,6 +6,7 @@ import { RedisService } from '../redis/redis.service';
 import { StorageService } from '../storage/storage.service';
 import { EmailService } from '../email/email.service';
 import { S3Client, ListObjectsV2Command } from '@aws-sdk/client-s3';
+import { getFirebaseAdmin } from '../firebase/firebase-admin.provider';
 
 export interface ServiceStatus {
   status: 'connected' | 'disconnected';
@@ -319,7 +320,46 @@ export class AdminService {
 
     if (adminDevices.length === 0) return;
 
-    // FCM sending logic will be added when firebase-admin is configured
+    const tokens = adminDevices.map((d) => d.fcmToken);
+
+    // Data payloads must be string-only key/value pairs for FCM.
+    const stringData = data
+      ? Object.fromEntries(Object.entries(data).map(([k, v]) => [k, String(v)]))
+      : undefined;
+
+    try {
+      const messaging = getFirebaseAdmin().messaging();
+      const response = await messaging.sendEachForMulticast({
+        tokens,
+        notification: { title, body },
+        data: stringData,
+      });
+
+      this.logger.log(
+        `Admin push sent: ${response.successCount} succeeded, ${response.failureCount} failed`,
+      );
+
+      // Clean up tokens that are no longer valid (uninstalled app, expired token, etc)
+      // so admin_devices doesn't accumulate dead rows over time.
+      const invalidTokens: string[] = [];
+      response.responses.forEach((r, i) => {
+        if (
+          !r.success &&
+          (r.error?.code === 'messaging/invalid-registration-token' ||
+            r.error?.code === 'messaging/registration-token-not-registered')
+        ) {
+          invalidTokens.push(tokens[i]);
+        }
+      });
+      if (invalidTokens.length > 0) {
+        await this.prisma.adminDevice.deleteMany({
+          where: { fcmToken: { in: invalidTokens } },
+        });
+        this.logger.log(`Removed ${invalidTokens.length} stale admin device token(s).`);
+      }
+    } catch (err) {
+      this.logger.error(`Failed to send admin push notifications: ${err.message}`);
+    }
   }
 
   /**

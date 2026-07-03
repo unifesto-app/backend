@@ -118,6 +118,7 @@ export class RegistrationsService {
     const paidRegistration = event.registrations.find(
       (r) =>
         r.paymentStatus === PaymentStatus.PAID &&
+        r.status !== RegistrationStatus.CANCELLED &&
         (r.ticketTypeId || null) === requestedTicketTypeId,
     );
     if (paidRegistration) {
@@ -865,6 +866,7 @@ export class RegistrationsService {
     const paidOrderReg = event.registrations.find(
       (r) =>
         r.paymentStatus === PaymentStatus.PAID &&
+        r.status !== RegistrationStatus.CANCELLED &&
         r.ticketTypeId === dto.ticketTypeId,
     );
     if (paidOrderReg) {

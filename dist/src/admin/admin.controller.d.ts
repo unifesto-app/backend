@@ -88,6 +88,17 @@ export declare class AdminController {
             totalPages: number;
         };
     }>;
+    getLogs(lines?: string, search?: string): Promise<{
+        lines: string[];
+        total: number;
+        fetchedAt: string;
+        error?: undefined;
+    } | {
+        lines: never[];
+        total: number;
+        error: string;
+        fetchedAt: string;
+    }>;
     registerDeviceToken(user: User, body: {
         fcmToken: string;
         platform?: string;

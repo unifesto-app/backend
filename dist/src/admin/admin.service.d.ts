@@ -70,6 +70,20 @@ export declare class AdminService {
         };
         generatedAt: string;
     }>;
+    getPm2Logs(params: {
+        lines: number;
+        search?: string;
+    }): Promise<{
+        lines: string[];
+        total: number;
+        fetchedAt: string;
+        error?: undefined;
+    } | {
+        lines: never[];
+        total: number;
+        error: string;
+        fetchedAt: string;
+    }>;
     getAllEvents(params: {
         page: number;
         limit: number;

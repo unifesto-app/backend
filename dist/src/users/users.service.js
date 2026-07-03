@@ -452,6 +452,32 @@ let UsersService = UsersService_1 = class UsersService {
         await this.prisma.user.delete({ where: { id: userId } });
         return { message: 'Account deleted successfully' };
     }
+    async getNotificationSettings(userId) {
+        const settings = await this.prisma.notificationSettings.upsert({
+            where: { userId },
+            update: {},
+            create: { userId },
+        });
+        return this.toNotificationSettingsDto(settings);
+    }
+    async updateNotificationSettings(userId, dto) {
+        const settings = await this.prisma.notificationSettings.upsert({
+            where: { userId },
+            update: { ...dto },
+            create: { userId, ...dto },
+        });
+        return this.toNotificationSettingsDto(settings);
+    }
+    toNotificationSettingsDto(settings) {
+        return {
+            pushEnabled: settings.pushEnabled,
+            emailEnabled: settings.emailEnabled,
+            eventReminders: settings.eventReminders,
+            newEvents: settings.newEvents,
+            referralUpdates: settings.referralUpdates,
+            promotions: settings.promotions,
+        };
+    }
 };
 exports.UsersService = UsersService;
 exports.UsersService = UsersService = UsersService_1 = __decorate([

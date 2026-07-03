@@ -1,16 +1,17 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { StorageService } from '../storage/storage.service';
 import { ChatEncryptionService } from './chat-encryption.service';
 import {
   ModerationService,
   ModerationResult,
 } from './moderation/moderation.service';
-import { AdminAlertService } from './admin-alert.service';
 import {
   ChatMessageStatus,
   ChatMessageType,
   ChatParticipantRole,
   ModerationFlagReason,
+  ModerationActionType,
 } from '@prisma/client';
 
 @Injectable()
@@ -19,7 +20,7 @@ export class ChatService {
     private readonly prisma: PrismaService,
     private readonly encryption: ChatEncryptionService,
     private readonly moderation: ModerationService,
-    private readonly adminAlerts: AdminAlertService,
+    private readonly storage: StorageService,
   ) {}
 
   // ---------------------------------------------------------------------
@@ -165,7 +166,7 @@ export class ChatService {
     if (params.type === ChatMessageType.TEXT && params.text) {
       moderationResult = await this.moderation.checkText(params.text);
     } else if (params.type === ChatMessageType.IMAGE && params.mediaUrl) {
-      moderationResult = await this.moderation.checkImage(params.mediaUrl);
+      moderationResult = await this.moderation.checkImage(this.extractS3Key(params.mediaUrl));
     }
 
     const bodyToEncrypt = params.text ?? '';
@@ -196,17 +197,9 @@ export class ChatService {
         },
       });
       // Fire admin alert asynchronously — don't block the response on push delivery.
-      this.adminAlerts
-        .notifyFlaggedMessage({
-          flagId: flag.id,
-          messageId: message.id,
-          chatGroupId: params.chatGroupId,
-          senderId: params.senderId,
-          plaintext: bodyToEncrypt, // admin alert needs to show the actual text — see AdminAlertService for handling
-        })
-        .catch(() => {
-          /* logged inside AdminAlertService */
-        });
+      // No push here — flagged messages are surfaced to admins via the
+      // moderation queue endpoints below (listModerationFlags), which Apex
+      // polls/displays. The flag row created above IS the notification.
     }
 
     return {
@@ -284,5 +277,99 @@ export class ChatService {
     if (participant.notificationsMuted) return false;
     if (participant.adminMutedUntil && participant.adminMutedUntil > new Date()) return false;
     return true;
+  }
+
+
+  // ---------------------------------------------------------------------
+  // Admin moderation queue (surfaced in Apex)
+  // ---------------------------------------------------------------------
+
+  async listModerationFlags(
+    status: 'PENDING' | 'RESOLVED' = 'PENDING',
+    page = 1,
+    limit = 20,
+  ) {
+    const flags = await this.prisma.chatModerationFlag.findMany({
+      where: status === 'PENDING' ? { action: null } : { action: { isNot: null } },
+      include: {
+        message: {
+          include: {
+            chatGroup: { include: { event: { select: { id: true, title: true } } } },
+          },
+        },
+        action: true,
+      },
+      orderBy: { createdAt: 'desc' },
+      skip: (page - 1) * limit,
+      take: limit,
+    });
+
+    return flags.map((f) => ({
+      flagId: f.id,
+      reason: f.reason,
+      matchedTerm: f.matchedTerm,
+      confidence: f.confidence,
+      createdAt: f.createdAt,
+      messageId: f.message.id,
+      senderId: f.message.senderId,
+      text: this.encryption.decrypt(
+        Buffer.from(f.message.ciphertext),
+        Buffer.from(f.message.iv),
+        Buffer.from(f.message.authTag),
+      ),
+      messageStatus: f.message.status,
+      eventId: f.message.chatGroup.event.id,
+      eventTitle: f.message.chatGroup.event.title,
+      action: f.action,
+    }));
+  }
+
+  async resolveModerationFlag(
+    flagId: string,
+    adminId: string,
+    actionType: ModerationActionType,
+    notes?: string,
+  ) {
+    const flag = await this.prisma.chatModerationFlag.findUnique({
+      where: { id: flagId },
+      include: { action: true },
+    });
+    if (!flag) throw new NotFoundException('Flag not found');
+    if (flag.action) throw new BadRequestException('Flag already resolved');
+
+    const action = await this.prisma.chatModerationAction.create({
+      data: { flagId, adminId, actionType, notes },
+    });
+
+    if (actionType === ModerationActionType.DISMISSED) {
+      await this.prisma.chatMessage.update({
+        where: { id: flag.messageId },
+        data: { status: ChatMessageStatus.VISIBLE },
+      });
+    } else if (actionType === ModerationActionType.MESSAGE_REMOVED) {
+      await this.prisma.chatMessage.update({
+        where: { id: flag.messageId },
+        data: { status: ChatMessageStatus.REMOVED_ADMIN },
+      });
+    }
+
+    return action;
+  }
+
+
+  // ---------------------------------------------------------------------
+  // Image upload (chat-scoped, feeds into Rekognition moderation)
+  // ---------------------------------------------------------------------
+
+  async uploadChatImage(chatGroupId: string, userId: string, file: Express.Multer.File) {
+    await this.assertMember(chatGroupId, userId);
+    const mediaUrl = await this.storage.uploadFile(file, 'chat-media/', chatGroupId);
+    return { mediaUrl };
+  }
+
+  private extractS3Key(mediaUrl: string): string {
+    const marker = '.amazonaws.com/';
+    const idx = mediaUrl.indexOf(marker);
+    return idx >= 0 ? mediaUrl.slice(idx + marker.length) : mediaUrl;
   }
 }

@@ -21,6 +21,7 @@ const subscription_service_1 = require("../subscription/subscription.service");
 const cache_service_1 = require("../cache/cache.service");
 const email_service_1 = require("../email/email.service");
 const plan_limits_config_1 = require("../subscription/plan-limits.config");
+const chat_service_1 = require("../chat/chat.service");
 const client_1 = require("@prisma/client");
 const slugify_1 = __importDefault(require("slugify"));
 let EventsService = EventsService_1 = class EventsService {
@@ -29,13 +30,15 @@ let EventsService = EventsService_1 = class EventsService {
     subscriptionService;
     cache;
     emailService;
+    chatService;
     logger = new common_1.Logger(EventsService_1.name);
-    constructor(prisma, storageService, subscriptionService, cache, emailService) {
+    constructor(prisma, storageService, subscriptionService, cache, emailService, chatService) {
         this.prisma = prisma;
         this.storageService = storageService;
         this.subscriptionService = subscriptionService;
         this.cache = cache;
         this.emailService = emailService;
+        this.chatService = chatService;
     }
     async canManageEvent(userId, spaceId) {
         const userRoles = await this.prisma.userRole.findMany({
@@ -111,6 +114,14 @@ let EventsService = EventsService_1 = class EventsService {
             },
         });
         this.logger.log(`Created event ${event.id} by user ${userId}`);
+        try {
+            await this.chatService.createGroupForEvent(event.id, event.spaceId, [
+                userId,
+            ]);
+        }
+        catch (err) {
+            this.logger.error(`Failed to create chat group for event ${event.id}: ${err instanceof Error ? err.message : String(err)}`);
+        }
         return event;
     }
     async getEvents(filters) {
@@ -709,6 +720,7 @@ exports.EventsService = EventsService = EventsService_1 = __decorate([
         storage_service_1.StorageService,
         subscription_service_1.SubscriptionService,
         cache_service_1.CacheService,
-        email_service_1.EmailService])
+        email_service_1.EmailService,
+        chat_service_1.ChatService])
 ], EventsService);
 //# sourceMappingURL=events.service.js.map

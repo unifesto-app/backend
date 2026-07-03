@@ -18,6 +18,7 @@ const subscription_module_1 = require("../subscription/subscription.module");
 const cache_module_1 = require("../cache/cache.module");
 const email_module_1 = require("../email/email.module");
 const whatsapp_module_1 = require("../whatsapp/whatsapp.module");
+const chat_module_1 = require("../chat/chat.module");
 let EventsModule = class EventsModule {
 };
 exports.EventsModule = EventsModule;
@@ -31,6 +32,7 @@ exports.EventsModule = EventsModule = __decorate([
             cache_module_1.CacheModule,
             email_module_1.EmailModule,
             whatsapp_module_1.WhatsAppModule,
+            chat_module_1.ChatModule,
         ],
         controllers: [events_controller_1.EventsController],
         providers: [events_service_1.EventsService, event_scheduler_service_1.EventSchedulerService],

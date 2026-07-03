@@ -55,6 +55,7 @@ const whatsapp_service_1 = require("../whatsapp/whatsapp.service");
 const cache_service_1 = require("../cache/cache.service");
 const plan_limits_config_1 = require("../subscription/plan-limits.config");
 const coin_constants_1 = require("../wallet/coin.constants");
+const chat_service_1 = require("../chat/chat.service");
 const client_1 = require("@prisma/client");
 const razorpay_1 = __importDefault(require("razorpay"));
 const crypto = __importStar(require("crypto"));
@@ -64,14 +65,16 @@ let RegistrationsService = RegistrationsService_1 = class RegistrationsService {
     emailService;
     whatsappService;
     cache;
+    chatService;
     logger = new common_1.Logger(RegistrationsService_1.name);
     razorpay;
-    constructor(prisma, walletService, emailService, whatsappService, cache) {
+    constructor(prisma, walletService, emailService, whatsappService, cache, chatService) {
         this.prisma = prisma;
         this.walletService = walletService;
         this.emailService = emailService;
         this.whatsappService = whatsappService;
         this.cache = cache;
+        this.chatService = chatService;
         this.razorpay = new razorpay_1.default({
             key_id: process.env.RAZORPAY_KEY_ID,
             key_secret: process.env.RAZORPAY_KEY_SECRET,
@@ -125,6 +128,7 @@ let RegistrationsService = RegistrationsService_1 = class RegistrationsService {
         }
         const requestedTicketTypeId = dto.ticketTypeId || null;
         const paidRegistration = event.registrations.find((r) => r.paymentStatus === client_1.PaymentStatus.PAID &&
+            r.status !== client_1.RegistrationStatus.CANCELLED &&
             (r.ticketTypeId || null) === requestedTicketTypeId);
         if (paidRegistration) {
             throw new common_1.BadRequestException('You already have a ticket of this type for this event');
@@ -393,6 +397,12 @@ let RegistrationsService = RegistrationsService_1 = class RegistrationsService {
             }).catch(err => this.logger.error('Failed to send registration confirmation email', err));
         }
         this.logger.log(`RSVP completed for user ${userId}, event ${eventId}`);
+        try {
+            await this.chatService.addParticipant(eventId, userId);
+        }
+        catch (err) {
+            this.logger.error(`Failed to add chat participant (event ${eventId}, user ${userId}): ${err instanceof Error ? err.message : String(err)}`);
+        }
         return {
             registrationId: registration.id,
             message: 'RSVP successful',
@@ -702,6 +712,7 @@ let RegistrationsService = RegistrationsService_1 = class RegistrationsService {
             throw new common_1.BadRequestException('Event is not open for registration');
         }
         const paidOrderReg = event.registrations.find((r) => r.paymentStatus === client_1.PaymentStatus.PAID &&
+            r.status !== client_1.RegistrationStatus.CANCELLED &&
             r.ticketTypeId === dto.ticketTypeId);
         if (paidOrderReg) {
             throw new common_1.BadRequestException('You already have a ticket of this type for this event');
@@ -1058,6 +1069,12 @@ let RegistrationsService = RegistrationsService_1 = class RegistrationsService {
         await this.cache.invalidateCheckinCache(eventId);
         await this.cache.incrementEventScore(eventId);
         this.logger.log(`Payment verified for registration ${registration.id}`);
+        try {
+            await this.chatService.addParticipant(eventId, userId);
+        }
+        catch (err) {
+            this.logger.error(`Failed to add chat participant (event ${eventId}, user ${userId}): ${err instanceof Error ? err.message : String(err)}`);
+        }
         return {
             registrationId: registration.id,
             message: 'Payment verified, registration complete',
@@ -1325,6 +1342,12 @@ let RegistrationsService = RegistrationsService_1 = class RegistrationsService {
         }
         await this.cache.invalidateCheckinCache(eventId);
         this.logger.log(`Cancelled registration ${registration.id}`);
+        try {
+            await this.chatService.removeParticipant(eventId, userId);
+        }
+        catch (err) {
+            this.logger.error(`Failed to remove chat participant (event ${eventId}, user ${userId}): ${err instanceof Error ? err.message : String(err)}`);
+        }
         return {
             message: 'Registration cancelled successfully',
             coinsRefunded: registration.coinsUsed,
@@ -1339,6 +1362,7 @@ exports.RegistrationsService = RegistrationsService = RegistrationsService_1 = _
         wallet_service_1.WalletService,
         email_service_1.EmailService,
         whatsapp_service_1.WhatsAppService,
-        cache_service_1.CacheService])
+        cache_service_1.CacheService,
+        chat_service_1.ChatService])
 ], RegistrationsService);
 //# sourceMappingURL=registrations.service.js.map

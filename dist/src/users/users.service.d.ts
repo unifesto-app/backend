@@ -1,6 +1,6 @@
 import { PrismaService } from '../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
-import { UpdateProfileDto } from './dto';
+import { UpdateProfileDto, UpdateNotificationSettingsDto } from './dto';
 import { UserProfileDto } from '../auth/dto';
 import { StorageService } from '../storage/storage.service';
 export declare class UsersService {
@@ -164,4 +164,21 @@ export declare class UsersService {
     deleteAccount(userId: string): Promise<{
         message: string;
     }>;
+    getNotificationSettings(userId: string): Promise<{
+        pushEnabled: boolean;
+        emailEnabled: boolean;
+        eventReminders: boolean;
+        newEvents: boolean;
+        referralUpdates: boolean;
+        promotions: boolean;
+    }>;
+    updateNotificationSettings(userId: string, dto: UpdateNotificationSettingsDto): Promise<{
+        pushEnabled: boolean;
+        emailEnabled: boolean;
+        eventReminders: boolean;
+        newEvents: boolean;
+        referralUpdates: boolean;
+        promotions: boolean;
+    }>;
+    private toNotificationSettingsDto;
 }

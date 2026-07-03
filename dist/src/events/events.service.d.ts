@@ -3,6 +3,7 @@ import { StorageService } from '../storage/storage.service';
 import { SubscriptionService } from '../subscription/subscription.service';
 import { CacheService } from '../cache/cache.service';
 import { EmailService } from '../email/email.service';
+import { ChatService } from '../chat/chat.service';
 import { Prisma } from '@prisma/client';
 import { CancelEventDto, CreateAgendaDto, CreateEventDto, CreateFormFieldDto, CreateSpeakerDto, CreateTicketTypeDto, EventFilterDto, UpdateEventDto, UpdateTicketTypeDto } from './dto';
 export declare class EventsService {
@@ -11,8 +12,9 @@ export declare class EventsService {
     private readonly subscriptionService;
     private readonly cache;
     private readonly emailService;
+    private readonly chatService;
     private readonly logger;
-    constructor(prisma: PrismaService, storageService: StorageService, subscriptionService: SubscriptionService, cache: CacheService, emailService: EmailService);
+    constructor(prisma: PrismaService, storageService: StorageService, subscriptionService: SubscriptionService, cache: CacheService, emailService: EmailService, chatService: ChatService);
     canManageEvent(userId: string, spaceId: string): Promise<boolean>;
     private generateSlug;
     createEvent(userId: string, dto: CreateEventDto): Promise<{

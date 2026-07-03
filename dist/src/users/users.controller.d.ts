@@ -1,5 +1,5 @@
 import { UsersService } from './users.service';
-import { UpdateProfileDto, CheckUsernameDto } from './dto';
+import { UpdateProfileDto, CheckUsernameDto, UpdateNotificationSettingsDto } from './dto';
 import type { User } from '@prisma/client';
 import { UserProfileDto } from '../auth/dto';
 export declare class UsersController {
@@ -60,6 +60,22 @@ export declare class UsersController {
         createdAt: Date;
         updatedAt: Date;
     }[]>;
+    getNotificationSettings(user: User): Promise<{
+        pushEnabled: boolean;
+        emailEnabled: boolean;
+        eventReminders: boolean;
+        newEvents: boolean;
+        referralUpdates: boolean;
+        promotions: boolean;
+    }>;
+    updateNotificationSettings(user: User, dto: UpdateNotificationSettingsDto): Promise<{
+        pushEnabled: boolean;
+        emailEnabled: boolean;
+        eventReminders: boolean;
+        newEvents: boolean;
+        referralUpdates: boolean;
+        promotions: boolean;
+    }>;
     checkUsername(dto: CheckUsernameDto): Promise<{
         available: boolean;
     }>;

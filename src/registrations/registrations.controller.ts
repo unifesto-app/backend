@@ -109,7 +109,7 @@ export class RegistrationsController {
     @Param('id') id: string,
     @Query('ticketTypeId') ticketTypeId?: string,
   ) {
-    return this.registrationsService.cancelRegistration(req.user.id, id, ticketTypeId);
+    return this.registrationsService.cancelRegistration(id, req.user.id, ticketTypeId);
   }
 
   @Get('events/:id/registrations')

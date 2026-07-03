@@ -52,6 +52,12 @@ let UsersController = class UsersController {
     async getMySpaces(user) {
         return this.usersService.getUserSpaces(user.id);
     }
+    async getNotificationSettings(user) {
+        return this.usersService.getNotificationSettings(user.id);
+    }
+    async updateNotificationSettings(user, dto) {
+        return this.usersService.updateNotificationSettings(user.id, dto);
+    }
     async checkUsername(dto) {
         return this.usersService.checkUsernameAvailability(dto.username);
     }
@@ -161,6 +167,23 @@ __decorate([
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", Promise)
 ], UsersController.prototype, "getMySpaces", null);
+__decorate([
+    (0, common_1.Get)('me/notification-settings'),
+    (0, common_1.UseGuards)(guards_1.JwtAuthGuard),
+    __param(0, (0, decorators_1.CurrentUser)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], UsersController.prototype, "getNotificationSettings", null);
+__decorate([
+    (0, common_1.Patch)('me/notification-settings'),
+    (0, common_1.UseGuards)(guards_1.JwtAuthGuard),
+    __param(0, (0, decorators_1.CurrentUser)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, dto_1.UpdateNotificationSettingsDto]),
+    __metadata("design:returntype", Promise)
+], UsersController.prototype, "updateNotificationSettings", null);
 __decorate([
     (0, common_1.Post)('check-username'),
     __param(0, (0, common_1.Body)()),

@@ -12,12 +12,14 @@ var AdminService_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AdminService = void 0;
 const common_1 = require("@nestjs/common");
+const child_process_1 = require("child_process");
 const config_1 = require("@nestjs/config");
 const prisma_service_1 = require("../prisma/prisma.service");
 const redis_service_1 = require("../redis/redis.service");
 const storage_service_1 = require("../storage/storage.service");
 const email_service_1 = require("../email/email.service");
 const client_s3_1 = require("@aws-sdk/client-s3");
+const firebase_admin_provider_1 = require("../firebase/firebase-admin.provider");
 let AdminService = AdminService_1 = class AdminService {
     prisma;
     redis;
@@ -241,6 +243,36 @@ let AdminService = AdminService_1 = class AdminService {
         const adminDevices = devices.filter(d => d.user.roles.some(r => r.role.code === 'ADMIN'));
         if (adminDevices.length === 0)
             return;
+        const tokens = adminDevices.map((d) => d.fcmToken);
+        const stringData = data
+            ? Object.fromEntries(Object.entries(data).map(([k, v]) => [k, String(v)]))
+            : undefined;
+        try {
+            const messaging = (0, firebase_admin_provider_1.getFirebaseAdmin)().messaging();
+            const response = await messaging.sendEachForMulticast({
+                tokens,
+                notification: { title, body },
+                data: stringData,
+            });
+            this.logger.log(`Admin push sent: ${response.successCount} succeeded, ${response.failureCount} failed`);
+            const invalidTokens = [];
+            response.responses.forEach((r, i) => {
+                if (!r.success &&
+                    (r.error?.code === 'messaging/invalid-registration-token' ||
+                        r.error?.code === 'messaging/registration-token-not-registered')) {
+                    invalidTokens.push(tokens[i]);
+                }
+            });
+            if (invalidTokens.length > 0) {
+                await this.prisma.adminDevice.deleteMany({
+                    where: { fcmToken: { in: invalidTokens } },
+                });
+                this.logger.log(`Removed ${invalidTokens.length} stale admin device token(s).`);
+            }
+        }
+        catch (err) {
+            this.logger.error(`Failed to send admin push notifications: ${err.message}`);
+        }
     }
     async getAnalyticsOverview() {
         const now = new Date();
@@ -271,6 +303,29 @@ let AdminService = AdminService_1 = class AdminService {
             revenue: { totalPaid: revenueAgg._sum.totalAmount ?? 0 },
             generatedAt: now.toISOString(),
         };
+    }
+    async getPm2Logs(params) {
+        try {
+            const raw = (0, child_process_1.execSync)(`pm2 logs unifesto --lines ${params.lines} --nostream`, { encoding: 'utf8', timeout: 10000 });
+            const ansi = /\x1B\[[0-9;]*m|\x1B\[[0-9;]*[A-Za-z]/g;
+            const lines = raw.split('\n').filter(Boolean).map(l => l.replace(ansi, ''));
+            const filtered = params.search
+                ? lines.filter(l => l.toLowerCase().includes(params.search.toLowerCase()))
+                : lines;
+            return {
+                lines: filtered.slice(-params.lines),
+                total: filtered.length,
+                fetchedAt: new Date().toISOString(),
+            };
+        }
+        catch (error) {
+            return {
+                lines: [],
+                total: 0,
+                error: 'Failed to fetch PM2 logs',
+                fetchedAt: new Date().toISOString(),
+            };
+        }
     }
     async getAllEvents(params) {
         const { page, limit, status, search } = params;

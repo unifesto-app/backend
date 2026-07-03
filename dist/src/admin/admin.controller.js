@@ -42,6 +42,12 @@ let AdminController = AdminController_1 = class AdminController {
             search,
         });
     }
+    async getLogs(lines, search) {
+        return this.adminService.getPm2Logs({
+            lines: lines ? parseInt(lines, 10) : 200,
+            search,
+        });
+    }
     async registerDeviceToken(user, body) {
         return this.adminService.registerDeviceToken(user.id, body.fcmToken, body.platform || 'ios');
     }
@@ -75,6 +81,15 @@ __decorate([
     __metadata("design:paramtypes", [String, String, String, String]),
     __metadata("design:returntype", Promise)
 ], AdminController.prototype, "getAllEvents", null);
+__decorate([
+    (0, common_1.Get)('logs'),
+    (0, roles_decorator_1.Roles)(client_1.RoleCode.ADMIN),
+    __param(0, (0, common_1.Query)('lines')),
+    __param(1, (0, common_1.Query)('search')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String]),
+    __metadata("design:returntype", Promise)
+], AdminController.prototype, "getLogs", null);
 __decorate([
     (0, common_1.Post)('device-token'),
     (0, roles_decorator_1.Roles)(client_1.RoleCode.ADMIN),

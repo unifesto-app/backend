@@ -39,7 +39,7 @@ let RegistrationsController = class RegistrationsController {
         return this.registrationsService.getMyRegistrationsForEvent(req.user.id, id);
     }
     async cancelRegistration(req, id, ticketTypeId) {
-        return this.registrationsService.cancelRegistration(req.user.id, id, ticketTypeId);
+        return this.registrationsService.cancelRegistration(id, req.user.id, ticketTypeId);
     }
     async getEventRegistrations(req, id, page = 1, limit = 50) {
         return this.registrationsService.getEventRegistrations(req.user.id, id, +page, +limit);

@@ -3,6 +3,7 @@ import { WalletService } from '../wallet/wallet.service';
 import { EmailService } from '../email/email.service';
 import { WhatsAppService } from '../whatsapp/whatsapp.service';
 import { CacheService } from '../cache/cache.service';
+import { ChatService } from '../chat/chat.service';
 import { Prisma } from '@prisma/client';
 import { RegisterForEventDto, CreateOrderDto, VerifyPaymentDto, OrderResponseDto, RegistrationResponseDto } from './dto';
 export declare class RegistrationsService {
@@ -11,9 +12,10 @@ export declare class RegistrationsService {
     private readonly emailService;
     private readonly whatsappService;
     private readonly cache;
+    private readonly chatService;
     private readonly logger;
     private razorpay;
-    constructor(prisma: PrismaService, walletService: WalletService, emailService: EmailService, whatsappService: WhatsAppService, cache: CacheService);
+    constructor(prisma: PrismaService, walletService: WalletService, emailService: EmailService, whatsappService: WhatsAppService, cache: CacheService, chatService: ChatService);
     private generateQRCode;
     private generateTicketCode;
     private formatEventDate;

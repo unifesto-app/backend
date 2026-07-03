@@ -1390,7 +1390,7 @@ model ChatModerationAction {
   flagId         String               @unique @map("flag_id") @db.Uuid
   flag           ChatModerationFlag   @relation(fields: [flagId], references: [id], onDelete: Cascade)
   adminId        String               @map("admin_id") @db.Uuid
-  actionType     ModerationActionType
+  actionType     ModerationActionType @map("action_type")
   notes          String?              @db.Text
   createdAt      DateTime             @default(now()) @map("created_at")
 

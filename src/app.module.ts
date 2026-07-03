@@ -27,7 +27,6 @@ import { RegistrationsModule } from './registrations/registrations.module';
 import { CheckinModule } from './checkin/checkin.module';
 import { PayoutsModule } from './payouts/payouts.module';
 import { ChatModule } from './chat/chat.module';
-import { NotificationSettingsModule } from './notification-settings/notification-settings.module';
 
 @Module({
   imports: [
@@ -98,7 +97,6 @@ import { NotificationSettingsModule } from './notification-settings/notification
     CheckinModule,
     PayoutsModule,
     ChatModule,
-    NotificationSettingsModule,
   ],
   controllers: [AppController],
   providers: [

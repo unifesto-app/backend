@@ -16,6 +16,7 @@ const wallet_module_1 = require("../wallet/wallet.module");
 const email_module_1 = require("../email/email.module");
 const whatsapp_module_1 = require("../whatsapp/whatsapp.module");
 const cache_module_1 = require("../cache/cache.module");
+const chat_module_1 = require("../chat/chat.module");
 let RegistrationsModule = class RegistrationsModule {
 };
 exports.RegistrationsModule = RegistrationsModule;
@@ -28,6 +29,7 @@ exports.RegistrationsModule = RegistrationsModule = __decorate([
             email_module_1.EmailModule,
             whatsapp_module_1.WhatsAppModule,
             cache_module_1.CacheModule,
+            chat_module_1.ChatModule,
         ],
         controllers: [registrations_controller_1.RegistrationsController],
         providers: [registrations_service_1.RegistrationsService],

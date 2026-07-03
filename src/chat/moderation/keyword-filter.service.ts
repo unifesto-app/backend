@@ -1,54 +1,44 @@
 import { Injectable } from '@nestjs/common';
-import { WORD_BOUNDARY_TERMS, SUBSTRING_TERMS } from './keyword-list';
+import {
+  RegExpMatcher,
+  englishDataset,
+  englishRecommendedTransformers,
+} from 'obscenity';
 
 export interface KeywordMatchResult {
   matched: boolean;
   matchedTerm?: string;
 }
 
+/**
+ * Uses `obscenity` (npm) — a maintained profanity/explicit-content detection
+ * library with a curated English dataset and built-in transformers that
+ * catch common obfuscation tricks (leetspeak, spacing, repeated chars).
+ *
+ * This replaces a hand-maintained wordlist: obscenity's dataset covers
+ * general profanity broadly. For content specifically flagged as adult/18+
+ * (as opposed to general profanity), extend englishDataset with your own
+ * custom terms via .addPhrase() — see obscenity's docs for the builder API:
+ * https://www.npmjs.com/package/obscenity
+ */
 @Injectable()
 export class KeywordFilterService {
-  private wordBoundaryRegexes: RegExp[];
-
-  constructor() {
-    this.wordBoundaryRegexes = WORD_BOUNDARY_TERMS.map(
-      (term) => new RegExp(`\\b${this.escapeRegex(term)}\\b`, 'i'),
-    );
-  }
+  private readonly matcher = new RegExpMatcher({
+    ...englishDataset.build(),
+    ...englishRecommendedTransformers,
+  });
 
   check(text: string): KeywordMatchResult {
-    const normalized = text.toLowerCase();
-
-    for (let i = 0; i < this.wordBoundaryRegexes.length; i++) {
-      if (this.wordBoundaryRegexes[i].test(normalized)) {
-        return { matched: true, matchedTerm: WORD_BOUNDARY_TERMS[i] };
-      }
+    const matches = this.matcher.getAllMatches(text);
+    if (matches.length === 0) {
+      return { matched: false };
     }
-
-    for (const term of SUBSTRING_TERMS) {
-      if (normalized.includes(term.toLowerCase())) {
-        return { matched: true, matchedTerm: term };
-      }
-    }
-
-    return { matched: false };
+    return { matched: true, matchedTerm: `term_id:${matches[0].termId}` };
   }
 
-  /**
-   * Lightweight heuristic to decide whether a *clean* message (per keyword
-   * check) is still worth sending to the paid moderation API — keeps API
-   * costs down by not checking every single message.
-   * Tune this based on what you see in production false-negatives.
-   */
   isBorderlineCandidate(text: string): boolean {
     if (text.length < 3) return false;
-    // Very rough heuristic — expand with your own signals over time
-    // (e.g. certain word combinations, repeated punctuation masking, etc).
     const suspiciousPatterns = [/\b\d{1,2}\s*(yo|y\/o|years? old)\b/i];
     return suspiciousPatterns.some((p) => p.test(text));
-  }
-
-  private escapeRegex(str: string): string {
-    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   }
 }
