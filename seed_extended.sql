@@ -22,7 +22,7 @@ INSERT INTO event_categories (id, name, slug, description, color, is_active, "or
 ('cccccccc-0000-0000-0000-000000000008', 'Research',        'research',        'Academic and applied research sessions',      '#14B8A6', true, 8, NOW(), NOW()),
 ('cccccccc-0000-0000-0000-000000000009', 'Product',         'product',         'Product strategy, UX, and teardowns',         '#F97316', true, 9, NOW(), NOW()),
 ('cccccccc-0000-0000-0000-000000000010', 'Entrepreneurship','entrepreneurship', 'Startup, founder, and business events',      '#64748B', true, 10, NOW(), NOW());
-
+ON CONFLICT (name) DO NOTHING;
 
 -- ========================
 -- EVENT TICKET TYPES
