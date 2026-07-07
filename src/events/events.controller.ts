@@ -55,6 +55,21 @@ export class EventsController {
     return this.eventsService.getEvents(filters);
   }
 
+  @Get('space/:spaceId')
+  @ApiOperation({ summary: 'Get all events for a space (including drafts)' })
+  @ApiResponse({ status: 200 })
+  async getSpaceEvents(
+    @Param('spaceId') spaceId: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.eventsService.getSpaceEvents(
+      spaceId,
+      page ? parseInt(page, 10) : 1,
+      limit ? parseInt(limit, 10) : 20,
+    );
+  }
+
   @Get(':slug')
   @ApiOperation({ summary: 'Get event details by slug' })
   @ApiResponse({ status: 200 })
