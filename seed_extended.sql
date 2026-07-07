@@ -38,7 +38,7 @@ INSERT INTO event_ticket_types (
 
 -- ---- Hackathon: 24-Hour Build Sprint (eeeeeeee-0001-...0002) ----
 (
-  'tttttttt-0001-0002-0001-000000000001',
+  'd1d1d1d1-0001-0002-0001-000000000001',
   'eeeeeeee-0001-0000-0000-000000000002',
   'Solo Participant', 'Individual entry. Compete alone.',
   299.00, 'INR', 60, 42,
@@ -46,7 +46,7 @@ INSERT INTO event_ticket_types (
   1, true, true, 1, NOW() - INTERVAL '15 days'
 ),
 (
-  'tttttttt-0001-0002-0002-000000000001',
+  'd1d1d1d1-0001-0002-0002-000000000001',
   'eeeeeeee-0001-0000-0000-000000000002',
   'Team of 2', 'Entry for a team of 2. Both members must register.',
   499.00, 'INR', 60, 36,
@@ -54,7 +54,7 @@ INSERT INTO event_ticket_types (
   2, true, true, 2, NOW() - INTERVAL '15 days'
 ),
 (
-  'tttttttt-0001-0002-0003-000000000001',
+  'd1d1d1d1-0001-0002-0003-000000000001',
   'eeeeeeee-0001-0000-0000-000000000002',
   'Team of 3-4', 'Entry for a team of 3-4 members.',
   799.00, 'INR', 30, 11,
@@ -64,7 +64,7 @@ INSERT INTO event_ticket_types (
 
 -- ---- Workshop: System Design for Senior Engineers (eeeeeeee-0001-...0003) ----
 (
-  'tttttttt-0001-0003-0001-000000000001',
+  'd1d1d1d1-0001-0003-0001-000000000001',
   'eeeeeeee-0001-0000-0000-000000000003',
   'In-Person Seat', 'Attend at Microsoft Reactor. Includes printed workbook and lunch.',
   999.00, 'INR', 60, 45,
@@ -72,7 +72,7 @@ INSERT INTO event_ticket_types (
   1, true, true, 1, NOW() - INTERVAL '20 days'
 ),
 (
-  'tttttttt-0001-0003-0002-000000000001',
+  'd1d1d1d1-0001-0003-0002-000000000001',
   'eeeeeeee-0001-0000-0000-000000000003',
   'Online Access', 'Live stream + recording access for 30 days.',
   499.00, 'INR', 40, 22,
@@ -82,7 +82,7 @@ INSERT INTO event_ticket_types (
 
 -- ---- Annual Founder Summit 2026 (eeeeeeee-0002-...0004) ----
 (
-  'tttttttt-0002-0004-0001-000000000001',
+  'd1d1d1d1-0002-0004-0001-000000000001',
   'eeeeeeee-0002-0000-0000-000000000004',
   'General Pass', '2-day access to all keynotes and tracks. Lunch included.',
   2999.00, 'INR', 500, 312,
@@ -90,7 +90,7 @@ INSERT INTO event_ticket_types (
   2, true, true, 1, NOW() - INTERVAL '30 days'
 ),
 (
-  'tttttttt-0002-0004-0002-000000000001',
+  'd1d1d1d1-0002-0004-0002-000000000001',
   'eeeeeeee-0002-0000-0000-000000000004',
   'VIP Founder Pass', 'All-access + speaker dinner + private networking lounge.',
   7999.00, 'INR', 100, 71,
@@ -98,7 +98,7 @@ INSERT INTO event_ticket_types (
   1, true, true, 2, NOW() - INTERVAL '30 days'
 ),
 (
-  'tttttttt-0002-0004-0003-000000000001',
+  'd1d1d1d1-0002-0004-0003-000000000001',
   'eeeeeeee-0002-0000-0000-000000000004',
   'Investor Pass', 'Investors only. Includes deal-flow sessions and founder speed-dating.',
   0.00, 'INR', 50, 38,
@@ -108,7 +108,7 @@ INSERT INTO event_ticket_types (
 
 -- ---- GTM Masterclass (eeeeeeee-0002-...0003) ----
 (
-  'tttttttt-0002-0003-0001-000000000001',
+  'd1d1d1d1-0002-0003-0001-000000000001',
   'eeeeeeee-0002-0000-0000-000000000003',
   'Standard', 'Live session + 30-day recording access + templates.',
   1499.00, 'INR', 150, 112,
@@ -116,7 +116,7 @@ INSERT INTO event_ticket_types (
   1, true, true, 1, NOW() - INTERVAL '10 days'
 ),
 (
-  'tttttttt-0002-0003-0002-000000000001',
+  'd1d1d1d1-0002-0003-0002-000000000001',
   'eeeeeeee-0002-0000-0000-000000000003',
   'With 1:1 Review', 'Standard + 30-min 1:1 GTM strategy review with the instructor.',
   3499.00, 'INR', 20, 14,
@@ -126,7 +126,7 @@ INSERT INTO event_ticket_types (
 
 -- ---- LLM Fine-Tuning Workshop (eeeeeeee-0003-...0001) ----
 (
-  'tttttttt-0003-0001-0001-000000000001',
+  'd1d1d1d1-0003-0001-0001-000000000001',
   'eeeeeeee-0003-0000-0000-000000000001',
   'Participant', 'Hands-on seat with GPU access (A100 sponsored). Includes lunch.',
   1999.00, 'INR', 60, 60,
@@ -134,7 +134,7 @@ INSERT INTO event_ticket_types (
   1, true, true, 1, NOW() - INTERVAL '25 days'
 ),
 (
-  'tttttttt-0003-0001-0002-000000000001',
+  'd1d1d1d1-0003-0001-0002-000000000001',
   'eeeeeeee-0003-0000-0000-000000000001',
   'Online Observer', 'Watch live but no hands-on GPU access.',
   499.00, 'INR', 50, 18,
@@ -144,7 +144,7 @@ INSERT INTO event_ticket_types (
 
 -- ---- MLOps India Conference 2026 (eeeeeeee-0003-...0003) ----
 (
-  'tttttttt-0003-0003-0001-000000000001',
+  'd1d1d1d1-0003-0003-0001-000000000001',
   'eeeeeeee-0003-0000-0000-000000000003',
   'Early Bird', 'Full day conference access. Sold out.',
   1499.00, 'INR', 100, 100,
@@ -152,7 +152,7 @@ INSERT INTO event_ticket_types (
   2, true, false, 1, NOW() - INTERVAL '45 days'
 ),
 (
-  'tttttttt-0003-0003-0002-000000000001',
+  'd1d1d1d1-0003-0003-0002-000000000001',
   'eeeeeeee-0003-0000-0000-000000000003',
   'Standard', 'Full day conference access. Lunch included.',
   2499.00, 'INR', 300, 189,
@@ -160,7 +160,7 @@ INSERT INTO event_ticket_types (
   2, true, true, 2, NOW() - INTERVAL '45 days'
 ),
 (
-  'tttttttt-0003-0003-0003-000000000001',
+  'd1d1d1d1-0003-0003-0003-000000000001',
   'eeeeeeee-0003-0000-0000-000000000003',
   'Workshop Add-on', 'Conference + afternoon hands-on lab session.',
   3999.00, 'INR', 100, 0,
@@ -170,7 +170,7 @@ INSERT INTO event_ticket_types (
 
 -- ---- Solidity Bootcamp (eeeeeeee-0004-...0001) ----
 (
-  'tttttttt-0004-0001-0001-000000000001',
+  'd1d1d1d1-0004-0001-0001-000000000001',
   'eeeeeeee-0004-0000-0000-000000000001',
   'Bootcamp Seat', 'In-person seat with laptop setup support. Tea included.',
   799.00, 'INR', 60, 54,
@@ -180,7 +180,7 @@ INSERT INTO event_ticket_types (
 
 -- ---- Ethical Hacking Bootcamp (eeeeeeee-0010-...0002) ----
 (
-  'tttttttt-0010-0002-0001-000000000001',
+  'd1d1d1d1-0010-0002-0001-000000000001',
   'eeeeeeee-0010-0000-0000-000000000002',
   'Standard',    'Full day bootcamp + lunch + lab VM access for 7 days.',
   1499.00, 'INR', 40, 40,
@@ -190,7 +190,7 @@ INSERT INTO event_ticket_types (
 
 -- ---- Flutter Fest Bangalore 2026 (eeeeeeee-0011-...0001) ----
 (
-  'tttttttt-0011-0001-0001-000000000001',
+  'd1d1d1d1-0011-0001-0001-000000000001',
   'eeeeeeee-0011-0000-0000-000000000001',
   'General Admission', 'Full day access to all tracks. Lunch + swag bag.',
   999.00, 'INR', 400, 334,
@@ -198,7 +198,7 @@ INSERT INTO event_ticket_types (
   2, true, true, 1, NOW() - INTERVAL '60 days'
 ),
 (
-  'tttttttt-0011-0001-0002-000000000001',
+  'd1d1d1d1-0011-0001-0002-000000000001',
   'eeeeeeee-0011-0000-0000-000000000001',
   'Speaker / Sponsor', 'Complementary pass for speakers and sponsors.',
   0.00, 'INR', 60, 56,
@@ -206,7 +206,7 @@ INSERT INTO event_ticket_types (
   1, false, true, 2, NOW() - INTERVAL '60 days'
 ),
 (
-  'tttttttt-0011-0001-0003-000000000001',
+  'd1d1d1d1-0011-0001-0003-000000000001',
   'eeeeeeee-0011-0000-0000-000000000001',
   'Student', 'Discounted ticket for students (valid ID required at entry).',
   299.00, 'INR', 150, 97,
@@ -216,7 +216,7 @@ INSERT INTO event_ticket_types (
 
 -- ---- Mobile App Security Workshop (eeeeeeee-0011-...0004) ----
 (
-  'tttttttt-0011-0004-0001-000000000001',
+  'd1d1d1d1-0011-0004-0001-000000000001',
   'eeeeeeee-0011-0000-0000-000000000004',
   'Workshop Seat', 'Hands-on session. Bring your own laptop (macOS preferred for iOS labs).',
   1999.00, 'INR', 60, 41,
@@ -226,7 +226,7 @@ INSERT INTO event_ticket_types (
 
 -- ---- SQL for Data Scientists (eeeeeeee-0012-...0002) ----
 (
-  'tttttttt-0012-0002-0001-000000000001',
+  'd1d1d1d1-0012-0002-0001-000000000001',
   'eeeeeeee-0012-0000-0000-000000000002',
   'Live + Recording', 'Attend live + 60-day recording access + exercise dataset.',
   799.00, 'INR', 150, 128,
@@ -234,7 +234,7 @@ INSERT INTO event_ticket_types (
   1, true, true, 1, NOW() - INTERVAL '28 days'
 ),
 (
-  'tttttttt-0012-0002-0002-000000000001',
+  'd1d1d1d1-0012-0002-0002-000000000001',
   'eeeeeeee-0012-0000-0000-000000000002',
   'Recording Only', '60-day recording access. No live interaction.',
   399.00, 'INR', 100, 34,
@@ -244,7 +244,7 @@ INSERT INTO event_ticket_types (
 
 -- ---- PM Interview Prep Sprint (eeeeeeee-0007-...0003) ----
 (
-  'tttttttt-0007-0003-0001-000000000001',
+  'd1d1d1d1-0007-0003-0001-000000000001',
   'eeeeeeee-0007-0000-0000-000000000003',
   '3-Day Sprint Access', 'Live sessions all 3 days + Slack group + mock interview.',
   2499.00, 'INR', 50, 38,
@@ -254,7 +254,7 @@ INSERT INTO event_ticket_types (
 
 -- ---- Multicloud Architecture Workshop (eeeeeeee-0009-...0002) ----
 (
-  'tttttttt-0009-0002-0001-000000000001',
+  'd1d1d1d1-0009-0002-0001-000000000001',
   'eeeeeeee-0009-0000-0000-000000000002',
   'Standard Seat', 'Full workshop. Lunch + certificate of completion.',
   1499.00, 'INR', 60, 48,
@@ -272,91 +272,91 @@ INSERT INTO event_speakers (
 ) VALUES
 
 -- BLR Tech Meetup #24 (eeeeeeee-0001-0000-0000-000000000001)
-('ssssssss-0001-0001-0001-000000000001', 'eeeeeeee-0001-0000-0000-000000000001',
+('d3d3d3d3-0001-0001-0001-000000000001', 'eeeeeeee-0001-0000-0000-000000000001',
  'Arjun Mehta', 'Staff Engineer at Razorpay. Building payment infrastructure at scale. Ex-Google.',
  'https://example.com/avatars/arjun-mehta.png', 'Staff Engineer', 'Razorpay',
  'https://linkedin.com/in/arjun-mehta', 1, NOW()),
-('ssssssss-0001-0001-0002-000000000001', 'eeeeeeee-0001-0000-0000-000000000001',
+('d3d3d3d3-0001-0001-0002-000000000001', 'eeeeeeee-0001-0000-0000-000000000001',
  'Priya Iyer', 'Developer Advocate at Anthropic India. Helping developers build with Claude.',
  'https://example.com/avatars/priya-iyer.png', 'Developer Advocate', 'Anthropic',
  'https://linkedin.com/in/priya-iyer-dev', 2, NOW()),
-('ssssssss-0001-0001-0003-000000000001', 'eeeeeeee-0001-0000-0000-000000000001',
+('d3d3d3d3-0001-0001-0003-000000000001', 'eeeeeeee-0001-0000-0000-000000000001',
  'Rahul Verma', 'Founder at Supergig. Previously built AI products at Flipkart.',
  'https://example.com/avatars/rahul-verma.png', 'Founder & CEO', 'Supergig',
  'https://linkedin.com/in/rahul-verma-ai', 3, NOW()),
 
 -- LLM Fine-Tuning Workshop (eeeeeeee-0003-0000-0000-000000000001)
-('ssssssss-0003-0001-0001-000000000001', 'eeeeeeee-0003-0000-0000-000000000001',
+('d3d3d3d3-0003-0001-0001-000000000001', 'eeeeeeee-0003-0000-0000-000000000001',
  'Dr. Ananya Krishnamurthy', 'ML Research Lead at Microsoft Research India. PhD from IISc. Focus on efficient fine-tuning.',
  'https://example.com/avatars/ananya-k.png', 'ML Research Lead', 'Microsoft Research India',
  'https://linkedin.com/in/ananya-krishnamurthy', 1, NOW()),
-('ssssssss-0003-0001-0002-000000000001', 'eeeeeeee-0003-0000-0000-000000000001',
+('d3d3d3d3-0003-0001-0002-000000000001', 'eeeeeeee-0003-0000-0000-000000000001',
  'Siddharth Rao', 'Senior ML Engineer at Sarvam AI. Specialises in LoRA and quantised models.',
  'https://example.com/avatars/siddharth-rao.png', 'Senior ML Engineer', 'Sarvam AI',
  'https://linkedin.com/in/siddharth-rao-ml', 2, NOW()),
 
 -- Annual Founder Summit 2026 (eeeeeeee-0002-0000-0000-000000000004)
-('ssssssss-0002-0004-0001-000000000001', 'eeeeeeee-0002-0000-0000-000000000004',
+('d3d3d3d3-0002-0004-0001-000000000001', 'eeeeeeee-0002-0000-0000-000000000004',
  'Neha Bansal', 'Co-founder & CEO of Kredivo India. Previously General Catalyst Partner.',
  'https://example.com/avatars/neha-bansal.png', 'Co-founder & CEO', 'Kredivo India',
  'https://linkedin.com/in/neha-bansal-vc', 1, NOW()),
-('ssssssss-0002-0004-0002-000000000001', 'eeeeeeee-0002-0000-0000-000000000004',
+('d3d3d3d3-0002-0004-0002-000000000001', 'eeeeeeee-0002-0000-0000-000000000004',
  'Vikram Chopra', 'Founder at CARS24. Built India''s largest auto marketplace from 0 to $1B.',
  'https://example.com/avatars/vikram-chopra.png', 'Founder & CEO', 'CARS24',
  'https://linkedin.com/in/vikram-chopra-cars24', 2, NOW()),
-('ssssssss-0002-0004-0003-000000000001', 'eeeeeeee-0002-0000-0000-000000000004',
+('d3d3d3d3-0002-0004-0003-000000000001', 'eeeeeeee-0002-0000-0000-000000000004',
  'Divya Gokulnath', 'Co-founder at BYJU''S. Education entrepreneur and TEDx speaker.',
  'https://example.com/avatars/divya-g.png', 'Co-founder', 'BYJU''S',
  'https://linkedin.com/in/divya-gokulnath', 3, NOW()),
-('ssssssss-0002-0004-0004-000000000001', 'eeeeeeee-0002-0000-0000-000000000004',
+('d3d3d3d3-0002-0004-0004-000000000001', 'eeeeeeee-0002-0000-0000-000000000004',
  'Rohit Bansal', 'Partner at Sequoia India. 15 years investing in Indian consumer internet.',
  'https://example.com/avatars/rohit-bansal.png', 'Partner', 'Sequoia India',
  'https://linkedin.com/in/rohit-bansal-seq', 4, NOW()),
 
 -- MLOps Conference (eeeeeeee-0003-0000-0000-000000000003)
-('ssssssss-0003-0003-0001-000000000001', 'eeeeeeee-0003-0000-0000-000000000003',
+('d3d3d3d3-0003-0003-0001-000000000001', 'eeeeeeee-0003-0000-0000-000000000003',
  'Karthik Subramaniam', 'Principal Engineer at Swiggy. Runs ML infrastructure for 100M+ users.',
  'https://example.com/avatars/karthik-s.png', 'Principal Engineer', 'Swiggy',
  'https://linkedin.com/in/karthik-subra', 1, NOW()),
-('ssssssss-0003-0003-0002-000000000001', 'eeeeeeee-0003-0000-0000-000000000003',
+('d3d3d3d3-0003-0003-0002-000000000001', 'eeeeeeee-0003-0000-0000-000000000003',
  'Meena Sundaram', 'ML Platform Lead at PhonePe. Speaker at MLConf and Data+AI Summit.',
  'https://example.com/avatars/meena-s.png', 'ML Platform Lead', 'PhonePe',
  'https://linkedin.com/in/meena-sundaram-ml', 2, NOW()),
-('ssssssss-0003-0003-0003-000000000001', 'eeeeeeee-0003-0000-0000-000000000003',
+('d3d3d3d3-0003-0003-0003-000000000001', 'eeeeeeee-0003-0000-0000-000000000003',
  'Ajay Nair', 'Founder of Censius AI (acquired). ML observability and model monitoring expert.',
  'https://example.com/avatars/ajay-nair.png', 'Founder (acquired)', 'Censius AI',
  'https://linkedin.com/in/ajay-nair-mlops', 3, NOW()),
 
 -- Flutter Fest (eeeeeeee-0011-0000-0000-000000000001)
-('ssssssss-0011-0001-0001-000000000001', 'eeeeeeee-0011-0000-0000-000000000001',
+('d3d3d3d3-0011-0001-0001-000000000001', 'eeeeeeee-0011-0000-0000-000000000001',
  'Pooja Bhatt', 'Flutter GDE and Senior Mobile Engineer at Meesho. Core Flutter contributor.',
  'https://example.com/avatars/pooja-bhatt.png', 'Flutter GDE & Senior Engineer', 'Meesho',
  'https://linkedin.com/in/pooja-bhatt-flutter', 1, NOW()),
-('ssssssss-0011-0001-0002-000000000001', 'eeeeeeee-0011-0000-0000-000000000001',
+('d3d3d3d3-0011-0001-0002-000000000001', 'eeeeeeee-0011-0000-0000-000000000001',
  'Tanveer Sheikh', 'Engineering Manager at Dream11. Leading a 20-person Flutter team.',
  'https://example.com/avatars/tanveer-s.png', 'Engineering Manager', 'Dream11',
  'https://linkedin.com/in/tanveer-sheikh', 2, NOW()),
-('ssssssss-0011-0001-0003-000000000001', 'eeeeeeee-0011-0000-0000-000000000001',
+('d3d3d3d3-0011-0001-0003-000000000001', 'eeeeeeee-0011-0000-0000-000000000001',
  'Lakshmi Prasad', 'Staff Software Engineer at Google. Works on Flutter DevTools.',
  'https://example.com/avatars/lakshmi-p.png', 'Staff Software Engineer', 'Google',
  'https://linkedin.com/in/lakshmi-prasad-flutter', 3, NOW()),
 
 -- Ethical Hacking Bootcamp (eeeeeeee-0010-0000-0000-000000000002)
-('ssssssss-0010-0002-0001-000000000001', 'eeeeeeee-0010-0000-0000-000000000002',
+('d3d3d3d3-0010-0002-0001-000000000001', 'eeeeeeee-0010-0000-0000-000000000002',
  'Amit Dubey', 'OSCP certified pentester. 8 years in offensive security. Ex-Deloitte.',
  'https://example.com/avatars/amit-dubey.png', 'Senior Security Consultant', 'Independent',
  'https://linkedin.com/in/amit-dubey-sec', 1, NOW()),
-('ssssssss-0010-0002-0002-000000000001', 'eeeeeeee-0010-0000-0000-000000000002',
+('d3d3d3d3-0010-0002-0002-000000000001', 'eeeeeeee-0010-0000-0000-000000000002',
  'Sneha Kulkarni', 'Bug bounty hunter. Top 50 on HackerOne India. Specialises in API security.',
  'https://example.com/avatars/sneha-k.png', 'Bug Bounty Hunter', 'Independent',
  'https://linkedin.com/in/sneha-kulkarni-sec', 2, NOW()),
 
 -- System Design Workshop (eeeeeeee-0001-0000-0000-000000000003)
-('ssssssss-0001-0003-0001-000000000001', 'eeeeeeee-0001-0000-0000-000000000003',
+('d3d3d3d3-0001-0003-0001-000000000001', 'eeeeeeee-0001-0000-0000-000000000003',
  'Deepak Sharma', 'Principal SDE at Amazon. 12 years designing distributed systems.',
  'https://example.com/avatars/deepak-s.png', 'Principal SDE', 'Amazon',
  'https://linkedin.com/in/deepak-sharma-amzn', 1, NOW()),
-('ssssssss-0001-0003-0002-000000000001', 'eeeeeeee-0001-0000-0000-000000000003',
+('d3d3d3d3-0001-0003-0002-000000000001', 'eeeeeeee-0001-0000-0000-000000000003',
  'Kavya Reddy', 'Engineering Manager at Google Bangalore. Previously Meta (WhatsApp infra).',
  'https://example.com/avatars/kavya-r.png', 'Engineering Manager', 'Google',
  'https://linkedin.com/in/kavya-reddy-eng', 2, NOW());
@@ -618,7 +618,7 @@ INSERT INTO event_registrations (
 
 -- 1. BLR Tech Meetup #24 — free RSVP
 (
-  'rrrrrrrr-0001-0001-0001-000000000001',
+  'd2d2d2d2-0001-0001-0001-000000000001',
   'eeeeeeee-0001-0000-0000-000000000001',
   'cb45e236-3d65-46e2-83d4-13d2e0d87b21',
   NULL, 1,
@@ -633,10 +633,10 @@ INSERT INTO event_registrations (
 
 -- 2. Hackathon: 24-Hour Build Sprint — paid, solo ticket
 (
-  'rrrrrrrr-0001-0002-0001-000000000001',
+  'd2d2d2d2-0001-0002-0001-000000000001',
   'eeeeeeee-0001-0000-0000-000000000002',
   'cb45e236-3d65-46e2-83d4-13d2e0d87b21',
-  'tttttttt-0001-0002-0001-000000000001', 1,
+  'd1d1d1d1-0001-0002-0001-000000000001', 1,
   299.00, 0, 0.00, 299.00, 8.97,
   'PAID', 'pay_QZ1a2b3c4d5e6f', 'order_RZ7g8h9i0j1k2l', NOW() - INTERVAL '10 days',
   'REGISTERED', false,
@@ -648,10 +648,10 @@ INSERT INTO event_registrations (
 
 -- 3. LLM Fine-Tuning Workshop — paid, participant ticket
 (
-  'rrrrrrrr-0003-0001-0001-000000000001',
+  'd2d2d2d2-0003-0001-0001-000000000001',
   'eeeeeeee-0003-0000-0000-000000000001',
   'cb45e236-3d65-46e2-83d4-13d2e0d87b21',
-  'tttttttt-0003-0001-0001-000000000001', 1,
+  'd1d1d1d1-0003-0001-0001-000000000001', 1,
   1999.00, 0, 0.00, 1999.00, 59.97,
   'PAID', 'pay_LLM9a8b7c6d5e4f', 'order_LLM3g2h1i0j9k8l', NOW() - INTERVAL '20 days',
   'REGISTERED', false,
@@ -663,10 +663,10 @@ INSERT INTO event_registrations (
 
 -- 4. Annual Founder Summit — VIP Founder Pass (paid)
 (
-  'rrrrrrrr-0002-0004-0001-000000000001',
+  'd2d2d2d2-0002-0004-0001-000000000001',
   'eeeeeeee-0002-0000-0000-000000000004',
   'cb45e236-3d65-46e2-83d4-13d2e0d87b21',
-  'tttttttt-0002-0004-0002-000000000001', 1,
+  'd1d1d1d1-0002-0004-0002-000000000001', 1,
   7999.00, 500, 500.00, 7499.00, 224.97,
   'PAID', 'pay_SUM8a7b6c5d4e3f', 'order_SUM2g1h0i9j8k7l', NOW() - INTERVAL '15 days',
   'REGISTERED', false,
@@ -678,10 +678,10 @@ INSERT INTO event_registrations (
 
 -- 5. Flutter Fest — General Admission (paid)
 (
-  'rrrrrrrr-0011-0001-0001-000000000001',
+  'd2d2d2d2-0011-0001-0001-000000000001',
   'eeeeeeee-0011-0000-0000-000000000001',
   'cb45e236-3d65-46e2-83d4-13d2e0d87b21',
-  'tttttttt-0011-0001-0001-000000000001', 1,
+  'd1d1d1d1-0011-0001-0001-000000000001', 1,
   999.00, 0, 0.00, 999.00, 29.97,
   'PAID', 'pay_FLT7a6b5c4d3e2f', 'order_FLT1g0h9i8j7k6l', NOW() - INTERVAL '30 days',
   'REGISTERED', false,
@@ -693,10 +693,10 @@ INSERT INTO event_registrations (
 
 -- 6. System Design Workshop — In-Person Seat
 (
-  'rrrrrrrr-0001-0003-0001-000000000001',
+  'd2d2d2d2-0001-0003-0001-000000000001',
   'eeeeeeee-0001-0000-0000-000000000003',
   'cb45e236-3d65-46e2-83d4-13d2e0d87b21',
-  'tttttttt-0001-0003-0001-000000000001', 1,
+  'd1d1d1d1-0001-0003-0001-000000000001', 1,
   999.00, 0, 0.00, 999.00, 29.97,
   'PAID', 'pay_SDS6a5b4c3d2e1f', 'order_SDS0g9h8i7j6k5l', NOW() - INTERVAL '5 days',
   'REGISTERED', false,
@@ -707,10 +707,10 @@ INSERT INTO event_registrations (
 
 -- 7. MLOps Conference — Standard ticket
 (
-  'rrrrrrrr-0003-0003-0001-000000000001',
+  'd2d2d2d2-0003-0003-0001-000000000001',
   'eeeeeeee-0003-0000-0000-000000000003',
   'cb45e236-3d65-46e2-83d4-13d2e0d87b21',
-  'tttttttt-0003-0003-0002-000000000001', 1,
+  'd1d1d1d1-0003-0003-0002-000000000001', 1,
   2499.00, 0, 0.00, 2499.00, 74.97,
   'PAID', 'pay_MOP5a4b3c2d1e0f', 'order_MOP9g8h7i6j5k4l', NOW() - INTERVAL '8 days',
   'REGISTERED', false,
@@ -721,7 +721,7 @@ INSERT INTO event_registrations (
 
 -- 8. AI Paper Reading Club — free RSVP
 (
-  'rrrrrrrr-0003-0002-0001-000000000001',
+  'd2d2d2d2-0003-0002-0001-000000000001',
   'eeeeeeee-0003-0000-0000-000000000002',
   'cb45e236-3d65-46e2-83d4-13d2e0d87b21',
   NULL, 1,
@@ -748,8 +748,8 @@ INSERT INTO event_tickets (
 
 -- Ticket for BLR Tech Meetup registration
 (
-  'tttttttt-reg1-0001-0001-000000000001',
-  'rrrrrrrr-0001-0001-0001-000000000001',
+  'd4d4d4d4-0e91-0001-0001-000000000001',
+  'd2d2d2d2-0001-0001-0001-000000000001',
   'TCB-M24-00143', 'QR-TCB-M24-00143-TICK',
   'Chai Thallapureddy', 'chaitanya9thallapureddy@gmail.com',
   'ACTIVE', NULL, NOW() - INTERVAL '4 days'
@@ -757,8 +757,8 @@ INSERT INTO event_tickets (
 
 -- Ticket for Hackathon registration
 (
-  'tttttttt-reg2-0001-0002-000000000001',
-  'rrrrrrrr-0001-0002-0001-000000000001',
+  'd4d4d4d4-0e92-0001-0002-000000000001',
+  'd2d2d2d2-0001-0002-0001-000000000001',
   'HACK24-SOLO-00089', 'QR-HACK24-SOLO-00089-TICK',
   'Chai Thallapureddy', 'chaitanya9thallapureddy@gmail.com',
   'ACTIVE', NULL, NOW() - INTERVAL '10 days'
@@ -766,8 +766,8 @@ INSERT INTO event_tickets (
 
 -- Ticket for LLM Workshop registration
 (
-  'tttttttt-reg3-0003-0001-000000000001',
-  'rrrrrrrr-0003-0001-0001-000000000001',
+  'd4d4d4d4-0e93-0003-0001-000000000001',
+  'd2d2d2d2-0003-0001-0001-000000000001',
   'LLMWKSP-IN-00060', 'QR-LLMWKSP-IN-00060-TICK',
   'Chai Thallapureddy', 'chaitanya9thallapureddy@gmail.com',
   'ACTIVE', NULL, NOW() - INTERVAL '20 days'
@@ -775,8 +775,8 @@ INSERT INTO event_tickets (
 
 -- Ticket for Annual Founder Summit
 (
-  'tttttttt-reg4-0002-0004-000000000001',
-  'rrrrrrrr-0002-0004-0001-000000000001',
+  'd4d4d4d4-0e94-0002-0004-000000000001',
+  'd2d2d2d2-0002-0004-0001-000000000001',
   'SFN-SUM26-VIP-00071', 'QR-SFN-SUM26-VIP-00071-TICK',
   'Chai Thallapureddy', 'chaitanya9thallapureddy@gmail.com',
   'ACTIVE', NULL, NOW() - INTERVAL '15 days'
@@ -784,8 +784,8 @@ INSERT INTO event_tickets (
 
 -- Ticket for Flutter Fest
 (
-  'tttttttt-reg5-0011-0001-000000000001',
-  'rrrrrrrr-0011-0001-0001-000000000001',
+  'd4d4d4d4-0e95-0011-0001-000000000001',
+  'd2d2d2d2-0011-0001-0001-000000000001',
   'FLUTFEST-GA-00334', 'QR-FLUTFEST-GA-00334-TICK',
   'Chai Thallapureddy', 'chaitanya9thallapureddy@gmail.com',
   'ACTIVE', NULL, NOW() - INTERVAL '30 days'
@@ -793,8 +793,8 @@ INSERT INTO event_tickets (
 
 -- Ticket for System Design Workshop
 (
-  'tttttttt-reg6-0001-0003-000000000001',
-  'rrrrrrrr-0001-0003-0001-000000000001',
+  'd4d4d4d4-0e96-0001-0003-000000000001',
+  'd2d2d2d2-0001-0003-0001-000000000001',
   'SYSDES-IN-00045', 'QR-SYSDES-IN-00045-TICK',
   'Chai Thallapureddy', 'chaitanya9thallapureddy@gmail.com',
   'ACTIVE', NULL, NOW() - INTERVAL '5 days'
@@ -802,8 +802,8 @@ INSERT INTO event_tickets (
 
 -- Ticket for MLOps Conference
 (
-  'tttttttt-reg7-0003-0003-000000000001',
-  'rrrrrrrr-0003-0003-0001-000000000001',
+  'd4d4d4d4-0e97-0003-0003-000000000001',
+  'd2d2d2d2-0003-0003-0001-000000000001',
   'MLOPS26-STD-00189', 'QR-MLOPS26-STD-00189-TICK',
   'Chai Thallapureddy', 'chaitanya9thallapureddy@gmail.com',
   'ACTIVE', NULL, NOW() - INTERVAL '8 days'
@@ -811,8 +811,8 @@ INSERT INTO event_tickets (
 
 -- Ticket for AI Paper Club
 (
-  'tttttttt-reg8-0003-0002-000000000001',
-  'rrrrrrrr-0003-0002-0001-000000000001',
+  'd4d4d4d4-0e98-0003-0002-000000000001',
+  'd2d2d2d2-0003-0002-0001-000000000001',
   'AIPPR-JUL26-00187', 'QR-AIPPR-JUL26-00187-TICK',
   'Chai Thallapureddy', 'chaitanya9thallapureddy@gmail.com',
   'ACTIVE', NULL, NOW() - INTERVAL '2 days'
