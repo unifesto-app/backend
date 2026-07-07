@@ -30,6 +30,9 @@ let EventsController = class EventsController {
     async getEvents(filters) {
         return this.eventsService.getEvents(filters);
     }
+    async getSpaceEvents(spaceId, page, limit) {
+        return this.eventsService.getSpaceEvents(spaceId, page ? parseInt(page, 10) : 1, limit ? parseInt(limit, 10) : 20);
+    }
     async getEventBySlug(slug) {
         return this.eventsService.getEventBySlug(slug);
     }
@@ -89,6 +92,17 @@ __decorate([
     __metadata("design:paramtypes", [dto_1.EventFilterDto]),
     __metadata("design:returntype", Promise)
 ], EventsController.prototype, "getEvents", null);
+__decorate([
+    (0, common_1.Get)('space/:spaceId'),
+    (0, swagger_1.ApiOperation)({ summary: 'Get all events for a space (including drafts)' }),
+    (0, swagger_1.ApiResponse)({ status: 200 }),
+    __param(0, (0, common_1.Param)('spaceId')),
+    __param(1, (0, common_1.Query)('page')),
+    __param(2, (0, common_1.Query)('limit')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String, String]),
+    __metadata("design:returntype", Promise)
+], EventsController.prototype, "getSpaceEvents", null);
 __decorate([
     (0, common_1.Get)(':slug'),
     (0, swagger_1.ApiOperation)({ summary: 'Get event details by slug' }),

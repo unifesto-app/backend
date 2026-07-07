@@ -107,6 +107,60 @@ export declare class EventsController {
         limit: number;
         totalPages: number;
     }>;
+    getSpaceEvents(spaceId: string, page?: string, limit?: string): Promise<{
+        data: ({
+            _count: {
+                registrations: number;
+            };
+            creator: {
+                id: string;
+                username: string | null;
+                fullName: string | null;
+            };
+        } & {
+            id: string;
+            createdAt: Date;
+            slug: string;
+            description: string | null;
+            updatedAt: Date;
+            title: string;
+            coverImageUrl: string | null;
+            type: import("@prisma/client").$Enums.EventType;
+            registrationType: import("@prisma/client").$Enums.RegistrationType;
+            startDateTime: Date;
+            endDateTime: Date;
+            timezone: string;
+            venueName: string | null;
+            venueAddress: string | null;
+            city: string | null;
+            state: string | null;
+            country: string | null;
+            latitude: number | null;
+            longitude: number | null;
+            onlineUrl: string | null;
+            onlinePlatform: string | null;
+            capacity: number | null;
+            registeredCount: number;
+            waitlistEnabled: boolean;
+            waitlistCount: number;
+            isFree: boolean;
+            tags: string[];
+            category: string | null;
+            visibility: import("@prisma/client").$Enums.EventVisibility;
+            status: import("@prisma/client").$Enums.EventStatus;
+            isRecurring: boolean;
+            recurringRule: string | null;
+            spaceId: string;
+            createdBy: string;
+            publishedAt: Date | null;
+            cancelledAt: Date | null;
+            cancellationReason: string | null;
+        })[];
+        total: number;
+        page: number;
+        limit: number;
+        totalPages: number;
+    }>;
     getEventBySlug(slug: string): Promise<any>;
     updateEvent(req: any, id: string, dto: UpdateEventDto): Promise<{
         id: string;
