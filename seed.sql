@@ -963,5 +963,4 @@ INSERT INTO events (
 --   12 spaces  (2 SUPER, 10 REGULAR | STARTER/GROWTH/PRO/ENTERPRISE)
 --   40 events  (IN_PERSON / ONLINE / HYBRID, free & paid, recurring)
 --   All created_by: cb45e236-3d65-46e2-83d4-13d2e0d87b21
--- =============================================================cclear
-
+-- =============================================================
