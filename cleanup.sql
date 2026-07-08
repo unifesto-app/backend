@@ -1,9 +1,0 @@
-DELETE FROM event_tickets       WHERE id::text LIKE 'd4d4d4d4%';
-DELETE FROM event_registrations WHERE id::text LIKE 'd2d2d2d2%';
-DELETE FROM event_form_fields   WHERE id::text LIKE 'ffffffff%';
-DELETE FROM event_agenda        WHERE id::text LIKE 'aaaaaaaa%';
-DELETE FROM event_speakers      WHERE id::text LIKE 'd3d3d3d3%';
-DELETE FROM event_ticket_types  WHERE id::text LIKE 'd1d1d1d1%';
-DELETE FROM event_categories    WHERE id::text LIKE 'cccccccc%';
-DELETE FROM events              WHERE id::text LIKE 'eeeeeeee%';
-DELETE FROM spaces              WHERE id::text LIKE '11111111%';
