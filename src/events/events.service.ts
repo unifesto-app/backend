@@ -16,7 +16,6 @@ import {
   EventStatus,
   RoleCode,
   SpaceStatus,
-  SpaceType,
   Prisma,
 } from '@prisma/client';
 import {
@@ -74,10 +73,6 @@ export class EventsService {
 
     if (!space) {
       throw new NotFoundException('Space not found');
-    }
-
-    if (space.type === SpaceType.SUPER) {
-      throw new BadRequestException('Cannot create events in SUPER spaces');
     }
 
     if (space.status !== SpaceStatus.APPROVED) {

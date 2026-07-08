@@ -66,9 +66,6 @@ let EventsService = EventsService_1 = class EventsService {
         if (!space) {
             throw new common_1.NotFoundException('Space not found');
         }
-        if (space.type === client_1.SpaceType.SUPER) {
-            throw new common_1.BadRequestException('Cannot create events in SUPER spaces');
-        }
         if (space.status !== client_1.SpaceStatus.APPROVED) {
             throw new common_1.BadRequestException('Space must be approved to create events');
         }
