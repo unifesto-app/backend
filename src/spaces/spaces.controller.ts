@@ -25,6 +25,8 @@ import {
   UpdateSpaceStatusDto,
   CreateSpaceStatusRequestDto,
   ReviewSpaceStatusRequestDto,
+  AddSpaceMemberDto,
+  UpdateSpaceMemberRoleDto,
 } from './dto';
 import { CreateSpaceRequestDto } from './dto/create-space-request.dto';
 import {
@@ -377,13 +379,87 @@ export class SpacesController {
   }
 
   /**
-   * Get space members (ADMIN only)
-   * GET /spaces/:id/members
+   * Get space members with pagination and search.
+   * Accessible by platform admins and the space's organiser/co-organiser team.
+   * GET /spaces/:id/members?page=1&limit=20&search=&role=MEMBER
    */
   @Get(':id/members')
   @UseGuards(JwtAuthGuard, SpaceRoleGuard)
-  async getSpaceMembers(@Param('id') id: string) {
-    return this.spacesService.getSpaceMembers(id);
+  async getSpaceMembers(
+    @Param('id') id: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('search') search?: string,
+    @Query('role') role?: RoleCode,
+  ) {
+    return this.spacesService.getSpaceMembers(id, {
+      page: page ? parseInt(page, 10) : 1,
+      limit: limit ? parseInt(limit, 10) : 20,
+      search,
+      roleCode: role,
+    });
+  }
+
+  /**
+   * Search users who can be added to a space (excludes current members).
+   * GET /spaces/:id/member-search?q=jane
+   */
+  @Get(':id/member-search')
+  @UseGuards(JwtAuthGuard, SpaceRoleGuard)
+  async searchAddableUsers(
+    @Param('id') id: string,
+    @Query('q') q?: string,
+  ) {
+    return this.spacesService.searchAddableUsers(id, q);
+  }
+
+  /**
+   * Add a member to a space with a given role.
+   * Admins may assign any role; organisers may assign co-organiser and below.
+   * POST /spaces/:id/members
+   */
+  @Post(':id/members')
+  @UseGuards(JwtAuthGuard, SpaceRoleGuard)
+  async addSpaceMember(
+    @Param('id') id: string,
+    @Body() dto: AddSpaceMemberDto,
+    @CurrentUser() user: User,
+  ) {
+    return this.spacesService.addSpaceMember(id, user.id, dto.userId, dto.role);
+  }
+
+  /**
+   * Update a member's role within a space.
+   * PATCH /spaces/:id/members/:userRoleId
+   */
+  @Patch(':id/members/:userRoleId')
+  @UseGuards(JwtAuthGuard, SpaceRoleGuard)
+  async updateSpaceMemberRole(
+    @Param('id') id: string,
+    @Param('userRoleId') userRoleId: string,
+    @Body() dto: UpdateSpaceMemberRoleDto,
+    @CurrentUser() user: User,
+  ) {
+    return this.spacesService.updateSpaceMemberRole(
+      id,
+      userRoleId,
+      user.id,
+      dto.role,
+    );
+  }
+
+  /**
+   * Remove a member from a space.
+   * DELETE /spaces/:id/members/:userRoleId
+   */
+  @Delete(':id/members/:userRoleId')
+  @UseGuards(JwtAuthGuard, SpaceRoleGuard)
+  async removeSpaceMember(
+    @Param('id') id: string,
+    @Param('userRoleId') userRoleId: string,
+    @CurrentUser() user: User,
+  ) {
+    return this.spacesService.removeSpaceMember(id, userRoleId, user.id);
   }
   /**
    * Submit a space request (authenticated users)

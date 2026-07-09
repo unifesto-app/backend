@@ -536,7 +536,15 @@ export class SpacesService {
   /**
    * Get space members with roles
    */
-  async getSpaceMembers(spaceId: string) {
+  async getSpaceMembers(
+    spaceId: string,
+    options: {
+      page?: number;
+      limit?: number;
+      search?: string;
+      roleCode?: RoleCode;
+    } = {},
+  ) {
     const space = await this.prisma.space.findUnique({
       where: { id: spaceId },
     });
@@ -544,25 +552,363 @@ export class SpacesService {
     if (!space) {
       throw new NotFoundException('Space not found');
     }
-    this.logger.log(`parentSpace: ${JSON.stringify((space as any).parentSpace)}`);
 
-    const members = await this.prisma.userRole.findMany({
+    const page = Math.max(1, options.page ?? 1);
+    const limit = Math.min(100, Math.max(1, options.limit ?? 20));
+    const search = options.search?.trim();
+
+    const where: any = { spaceId };
+    if (options.roleCode) {
+      where.role = { code: options.roleCode };
+    }
+    if (search) {
+      where.user = {
+        OR: [
+          { fullName: { contains: search, mode: 'insensitive' } },
+          { username: { contains: search, mode: 'insensitive' } },
+          { email: { contains: search, mode: 'insensitive' } },
+        ],
+      };
+    }
+
+    const [members, total] = await Promise.all([
+      this.prisma.userRole.findMany({
+        where,
+        include: {
+          user: {
+            select: {
+              id: true,
+              fullName: true,
+              username: true,
+              email: true,
+              avatarUrl: true,
+            },
+          },
+          role: true,
+        },
+        orderBy: [{ role: { code: 'asc' } }, { createdAt: 'asc' }],
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      this.prisma.userRole.count({ where }),
+    ]);
+
+    return {
+      members,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit) || 1,
+      },
+    };
+  }
+
+  /**
+   * Search users who can be added to a space (excludes existing members).
+   * Available to admins and organisers/co-organisers of the space.
+   */
+  async searchAddableUsers(spaceId: string, search?: string) {
+    const space = await this.prisma.space.findUnique({
+      where: { id: spaceId },
+      select: { id: true },
+    });
+    if (!space) {
+      throw new NotFoundException('Space not found');
+    }
+
+    const term = search?.trim();
+    if (!term || term.length < 2) {
+      return { users: [] };
+    }
+
+    const existing = await this.prisma.userRole.findMany({
       where: { spaceId },
+      select: { userId: true },
+    });
+    const excludeIds = existing.map((e) => e.userId);
+
+    const users = await this.prisma.user.findMany({
+      where: {
+        id: { notIn: excludeIds.length ? excludeIds : undefined },
+        OR: [
+          { fullName: { contains: term, mode: 'insensitive' } },
+          { username: { contains: term, mode: 'insensitive' } },
+          { email: { contains: term, mode: 'insensitive' } },
+        ],
+      },
+      select: {
+        id: true,
+        fullName: true,
+        username: true,
+        email: true,
+        avatarUrl: true,
+      },
+      take: 10,
+      orderBy: { fullName: 'asc' },
+    });
+
+    return { users };
+  }
+
+  /**
+   * Roles a given actor is permitted to assign/manage within a space.
+   *   - ADMIN            → every space role.
+   *   - ORGANISER        → CO_ORGANISER, MEMBER, VOLUNTEER (never other ORGANISERs).
+   *   - CO_ORGANISER     → none (view only).
+   */
+  private manageableRolesFor(
+    isAdmin: boolean,
+    actorRoleCode: RoleCode | null,
+  ): RoleCode[] {
+    if (isAdmin) {
+      return [
+        RoleCode.ORGANISER,
+        RoleCode.CO_ORGANISER,
+        RoleCode.MEMBER,
+        RoleCode.VOLUNTEER,
+      ];
+    }
+    if (actorRoleCode === RoleCode.ORGANISER) {
+      return [RoleCode.CO_ORGANISER, RoleCode.MEMBER, RoleCode.VOLUNTEER];
+    }
+    return [];
+  }
+
+  /** Resolve the acting user's tier within a space (admin flag + space role). */
+  private async resolveActor(spaceId: string, actingUserId: string) {
+    const roles = await this.prisma.userRole.findMany({
+      where: { userId: actingUserId },
+      include: { role: true },
+    });
+    const isAdmin = roles.some((r) => r.role.code === RoleCode.ADMIN);
+    const spaceRole =
+      roles.find((r) => r.spaceId === spaceId)?.role.code ?? null;
+    return { isAdmin, spaceRole };
+  }
+
+  /**
+   * Add a member to a space with a specific role. The acting user must be an
+   * admin or a space organiser, and may only assign roles at or below their tier.
+   */
+  async addSpaceMember(
+    spaceId: string,
+    actingUserId: string,
+    userId: string,
+    roleCode: RoleCode,
+  ) {
+    const space = await this.prisma.space.findUnique({
+      where: { id: spaceId },
+    });
+    if (!space) {
+      throw new NotFoundException('Space not found');
+    }
+
+    const { isAdmin, spaceRole } = await this.resolveActor(
+      spaceId,
+      actingUserId,
+    );
+    const allowed = this.manageableRolesFor(isAdmin, spaceRole);
+    if (!allowed.includes(roleCode)) {
+      throw new ForbiddenException(
+        'You are not allowed to assign this role in this space',
+      );
+    }
+
+    const role = await this.prisma.role.findFirst({
+      where: { code: roleCode, scope: 'SPACE' },
+    });
+    if (!role) {
+      throw new NotFoundException(`Role ${roleCode} not found`);
+    }
+
+    const targetUser = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true },
+    });
+    if (!targetUser) {
+      throw new NotFoundException('User not found');
+    }
+
+    const existing = await this.prisma.userRole.findFirst({
+      where: { userId, spaceId },
+    });
+    if (existing) {
+      throw new ConflictException('User is already a member of this space');
+    }
+
+    await this.enforceRoleLimits(space, roleCode);
+
+    const userRole = await this.prisma.userRole.create({
+      data: { userId, roleId: role.id, spaceId, assignedBy: actingUserId },
       include: {
         user: {
           select: {
             id: true,
             fullName: true,
             username: true,
+            email: true,
             avatarUrl: true,
           },
         },
         role: true,
       },
-      orderBy: [{ role: { code: 'asc' } }, { createdAt: 'asc' }],
     });
 
-    return members;
+    return { message: 'Member added', member: userRole };
+  }
+
+  /**
+   * Update a member's role within a space. Enforces the acting user's tier for
+   * both the member's current role and the requested role.
+   */
+  async updateSpaceMemberRole(
+    spaceId: string,
+    userRoleId: string,
+    actingUserId: string,
+    roleCode: RoleCode,
+  ) {
+    const space = await this.prisma.space.findUnique({
+      where: { id: spaceId },
+    });
+    if (!space) {
+      throw new NotFoundException('Space not found');
+    }
+
+    const membership = await this.prisma.userRole.findUnique({
+      where: { id: userRoleId },
+      include: { role: true },
+    });
+    if (!membership || membership.spaceId !== spaceId) {
+      throw new NotFoundException('Member not found in this space');
+    }
+
+    const { isAdmin, spaceRole } = await this.resolveActor(
+      spaceId,
+      actingUserId,
+    );
+    const allowed = this.manageableRolesFor(isAdmin, spaceRole);
+    // Must be allowed to manage both the current role and the target role.
+    if (
+      !allowed.includes(membership.role.code) ||
+      !allowed.includes(roleCode)
+    ) {
+      throw new ForbiddenException(
+        'You are not allowed to change this member’s role',
+      );
+    }
+
+    if (membership.role.code === roleCode) {
+      return { message: 'No change', member: membership };
+    }
+
+    // Prevent demoting the space creator away from organiser control.
+    if (
+      space.createdBy === membership.userId &&
+      roleCode !== RoleCode.ORGANISER
+    ) {
+      throw new BadRequestException(
+        'The space creator must remain the Organiser',
+      );
+    }
+
+    const role = await this.prisma.role.findFirst({
+      where: { code: roleCode, scope: 'SPACE' },
+    });
+    if (!role) {
+      throw new NotFoundException(`Role ${roleCode} not found`);
+    }
+
+    await this.enforceRoleLimits(space, roleCode);
+
+    const updated = await this.prisma.userRole.update({
+      where: { id: userRoleId },
+      data: { roleId: role.id, assignedBy: actingUserId },
+      include: {
+        user: {
+          select: {
+            id: true,
+            fullName: true,
+            username: true,
+            email: true,
+            avatarUrl: true,
+          },
+        },
+        role: true,
+      },
+    });
+
+    return { message: 'Member role updated', member: updated };
+  }
+
+  /**
+   * Remove a member from a space. The acting user must be permitted to manage
+   * the member's current role tier.
+   */
+  async removeSpaceMember(
+    spaceId: string,
+    userRoleId: string,
+    actingUserId: string,
+  ) {
+    const space = await this.prisma.space.findUnique({
+      where: { id: spaceId },
+    });
+    if (!space) {
+      throw new NotFoundException('Space not found');
+    }
+
+    const membership = await this.prisma.userRole.findUnique({
+      where: { id: userRoleId },
+      include: { role: true },
+    });
+    if (!membership || membership.spaceId !== spaceId) {
+      throw new NotFoundException('Member not found in this space');
+    }
+
+    if (space.createdBy === membership.userId) {
+      throw new BadRequestException(
+        'The space creator cannot be removed from the space',
+      );
+    }
+
+    const { isAdmin, spaceRole } = await this.resolveActor(
+      spaceId,
+      actingUserId,
+    );
+    const allowed = this.manageableRolesFor(isAdmin, spaceRole);
+    if (!allowed.includes(membership.role.code)) {
+      throw new ForbiddenException(
+        'You are not allowed to remove this member',
+      );
+    }
+
+    await this.prisma.userRole.delete({ where: { id: userRoleId } });
+
+    return { message: 'Member removed' };
+  }
+
+  /** Enforce per-space role limits (1 organiser, coOrganiserLimit co-organisers). */
+  private async enforceRoleLimits(space: any, roleCode: RoleCode) {
+    if (roleCode === RoleCode.ORGANISER) {
+      const count = await this.prisma.userRole.count({
+        where: { spaceId: space.id, role: { code: RoleCode.ORGANISER } },
+      });
+      if (count >= 1) {
+        throw new BadRequestException(
+          'Space already has an Organiser. Only one Organiser is allowed per space.',
+        );
+      }
+    }
+    if (roleCode === RoleCode.CO_ORGANISER) {
+      const count = await this.prisma.userRole.count({
+        where: { spaceId: space.id, role: { code: RoleCode.CO_ORGANISER } },
+      });
+      if (count >= (space.coOrganiserLimit ?? 0)) {
+        throw new BadRequestException(
+          `Space has reached the Co-Organiser limit of ${space.coOrganiserLimit}.`,
+        );
+      }
+    }
   }
 
   /**
