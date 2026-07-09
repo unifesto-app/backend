@@ -72,6 +72,9 @@ enum SubSpaceRequestType {
   JOIN_SUPER // target already SUPER, just assign parentSpaceId
   CONVERT_AND_JOIN // target is REGULAR, convert to SUPER then assign parentSpaceId
   CONVERT_TO_SUPER // just convert a space from REGULAR to SUPER, no sub-space assignment
+  CONVERT_TO_REGULAR // convert a SUPER space back to REGULAR (only when it has no children)
+  REMOVE_CHILD // detach a child (subSpace) from its parent (targetSpace)
+  REMOVE_PARENT // detach this space (subSpace) from its parent (targetSpace)
 
   @@map("sub_space_request_type")
 }

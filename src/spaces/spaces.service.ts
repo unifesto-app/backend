@@ -226,6 +226,7 @@ export class SpacesService {
             discussions: true,
             userRoles: true,
             events: true,
+            childSpaces: true,
           },
         },
       },
@@ -1015,8 +1016,19 @@ export class SpacesService {
       throw new NotFoundException('Target space not found');
     }
 
-    // For JOIN/CONVERT_AND_JOIN, a sub-space is required
-    if (requestType !== SubSpaceRequestType.CONVERT_TO_SUPER) {
+    // Request types that operate on a sub-space (assignment or removal).
+    const typesNeedingSubSpace = [
+      SubSpaceRequestType.JOIN_SUPER,
+      SubSpaceRequestType.CONVERT_AND_JOIN,
+      SubSpaceRequestType.REMOVE_CHILD,
+      SubSpaceRequestType.REMOVE_PARENT,
+    ];
+    // Request types that only operate on the target space itself.
+    const isSelfConversion =
+      requestType === SubSpaceRequestType.CONVERT_TO_SUPER ||
+      requestType === SubSpaceRequestType.CONVERT_TO_REGULAR;
+
+    if (typesNeedingSubSpace.includes(requestType)) {
       if (!subSpaceId) {
         throw new BadRequestException(
           'subSpaceId is required for this request type',
@@ -1030,13 +1042,32 @@ export class SpacesService {
       }
       if (subSpaceId === targetSpaceId) {
         throw new BadRequestException(
-          'A space cannot be made a sub-space of itself',
+          'A space cannot be a sub-space of itself',
         );
       }
-      if (subSpace.parentSpaceId) {
-        throw new ConflictException(
-          'This space already belongs to a super space',
-        );
+
+      // Assignment requests: the sub-space must be free (no existing parent).
+      if (
+        requestType === SubSpaceRequestType.JOIN_SUPER ||
+        requestType === SubSpaceRequestType.CONVERT_AND_JOIN
+      ) {
+        if (subSpace.parentSpaceId) {
+          throw new ConflictException(
+            'This space already belongs to a super space',
+          );
+        }
+      }
+
+      // Removal requests: the sub-space must currently be a child of target.
+      if (
+        requestType === SubSpaceRequestType.REMOVE_CHILD ||
+        requestType === SubSpaceRequestType.REMOVE_PARENT
+      ) {
+        if (subSpace.parentSpaceId !== targetSpaceId) {
+          throw new BadRequestException(
+            'This space is not a child of the target super space',
+          );
+        }
       }
     }
 
@@ -1055,11 +1086,25 @@ export class SpacesService {
       }
     } else if (requestType === SubSpaceRequestType.CONVERT_TO_SUPER) {
       if (targetSpace.type === 'SUPER') {
-        throw new BadRequestException(
-          'Target space is already a SUPER space',
+        throw new BadRequestException('Target space is already a SUPER space');
+      }
+    } else if (requestType === SubSpaceRequestType.CONVERT_TO_REGULAR) {
+      if (targetSpace.type !== 'SUPER') {
+        throw new BadRequestException('Target space is already a REGULAR space');
+      }
+      // A super space can only be converted back once all children are removed.
+      const childCount = await this.prisma.space.count({
+        where: { parentSpaceId: targetSpaceId },
+      });
+      if (childCount > 0) {
+        throw new ConflictException(
+          'Remove all child spaces before converting this space back to REGULAR',
         );
       }
     }
+
+    // (isSelfConversion is documented above for readers; no extra branch needed.)
+    void isSelfConversion;
 
     // Prevent duplicate pending requests
     const existing = await this.prisma.subSpaceRequest.findFirst({
@@ -1189,26 +1234,66 @@ export class SpacesService {
       });
 
       if (approved) {
-        // Convert the target space to SUPER when required
-        if (
-          request.requestType === SubSpaceRequestType.CONVERT_AND_JOIN ||
-          request.requestType === SubSpaceRequestType.CONVERT_TO_SUPER
-        ) {
-          await tx.space.update({
-            where: { id: request.targetSpaceId },
-            data: { type: 'SUPER' },
-          });
-        }
-
-        // Assign the sub-space to the target super space
-        if (
-          request.requestType !== SubSpaceRequestType.CONVERT_TO_SUPER &&
-          request.subSpaceId
-        ) {
-          await tx.space.update({
-            where: { id: request.subSpaceId },
-            data: { parentSpaceId: request.targetSpaceId },
-          });
+        switch (request.requestType) {
+          case SubSpaceRequestType.CONVERT_TO_SUPER: {
+            // Convert the target space to SUPER (no assignment).
+            await tx.space.update({
+              where: { id: request.targetSpaceId },
+              data: { type: 'SUPER' },
+            });
+            break;
+          }
+          case SubSpaceRequestType.CONVERT_AND_JOIN: {
+            // Convert the target to SUPER, then attach the sub-space.
+            await tx.space.update({
+              where: { id: request.targetSpaceId },
+              data: { type: 'SUPER' },
+            });
+            if (request.subSpaceId) {
+              await tx.space.update({
+                where: { id: request.subSpaceId },
+                data: { parentSpaceId: request.targetSpaceId },
+              });
+            }
+            break;
+          }
+          case SubSpaceRequestType.JOIN_SUPER: {
+            // Attach the sub-space to the already-SUPER target.
+            if (request.subSpaceId) {
+              await tx.space.update({
+                where: { id: request.subSpaceId },
+                data: { parentSpaceId: request.targetSpaceId },
+              });
+            }
+            break;
+          }
+          case SubSpaceRequestType.REMOVE_CHILD:
+          case SubSpaceRequestType.REMOVE_PARENT: {
+            // Detach the child from its parent.
+            if (request.subSpaceId) {
+              await tx.space.update({
+                where: { id: request.subSpaceId },
+                data: { parentSpaceId: null },
+              });
+            }
+            break;
+          }
+          case SubSpaceRequestType.CONVERT_TO_REGULAR: {
+            // Guard again inside the transaction: only convert when childless.
+            const childCount = await tx.space.count({
+              where: { parentSpaceId: request.targetSpaceId },
+            });
+            if (childCount > 0) {
+              throw new ConflictException(
+                'This space still has child spaces and cannot be converted to REGULAR',
+              );
+            }
+            await tx.space.update({
+              where: { id: request.targetSpaceId },
+              data: { type: 'REGULAR' },
+            });
+            break;
+          }
         }
       }
 
