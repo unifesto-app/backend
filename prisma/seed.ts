@@ -34,6 +34,11 @@ async function main() {
       name: 'Volunteer',
       scope: RoleScope.EVENT,
     },
+    {
+      code: RoleCode.GATE,
+      name: 'Gate',
+      scope: RoleScope.EVENT,
+    },
   ];
 
   for (const role of roles) {
