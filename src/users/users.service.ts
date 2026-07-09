@@ -479,6 +479,7 @@ export class UsersService {
             _count: {
               select: {
                 userRoles: true,
+                childSpaces: true,
               },
             },
           },
@@ -512,6 +513,12 @@ export class UsersService {
         country: ur.space!.country,
         visibility: ur.space!.visibility,
         status: ur.space!.status,
+        // Structural hierarchy fields — required by the organiser dashboard to
+        // filter parent/child candidates (SUPER vs REGULAR, existing parent,
+        // and current child count).
+        type: ur.space!.type,
+        parentSpaceId: ur.space!.parentSpaceId,
+        sub_org_count: ur.space!._count.childSpaces,
         member_count: ur.space!._count.userRoles,
         event_count: 0, // Events not yet implemented
         creator: ur.space!.creator,
