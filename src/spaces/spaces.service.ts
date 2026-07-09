@@ -338,20 +338,29 @@ export class SpacesService {
     }
     this.logger.log(`parentSpace: ${JSON.stringify((space as any).parentSpace)}`);
 
-    // Rule 1: A child space (has parentSpaceId) cannot be converted to SUPER
-    if (dto.type === 'SUPER' && space.parentSpaceId) {
-      throw new BadRequestException('A child space cannot be converted to SUPER. Remove the parent space relationship first.');
-    }
-
-    // Rule 2: A SUPER space cannot be assigned another SUPER space as parent
+    // Space hierarchy rules:
+    //  - Only SUPER spaces can be a parent (have children).
+    //  - Both SUPER and REGULAR spaces may be a sub-space, but only of a SUPER.
+    //  - Every space has at most one parent.
+    // A space keeps its parent when converting to SUPER — a SUPER space is
+    // allowed to be a sub-space of another SUPER space.
     if (dto.parentSpaceId) {
-      if (space.type === 'SUPER') {
-        throw new BadRequestException('A SUPER space cannot be assigned a parent space.');
-      }
       const parentSpace = await this.prisma.space.findUnique({ where: { id: dto.parentSpaceId } });
       if (!parentSpace) throw new NotFoundException('Parent space not found');
+      if (parentSpace.id === space.id) {
+        throw new BadRequestException('A space cannot be its own parent.');
+      }
       if (parentSpace.type !== 'SUPER') {
-        throw new BadRequestException('Parent space must be a SUPER space.');
+        throw new BadRequestException('A parent space must be a SUPER space. A REGULAR space cannot be a parent.');
+      }
+    }
+
+    // A space that has children (is a parent) must remain SUPER — it cannot be
+    // converted back to REGULAR while it still has sub-spaces.
+    if (dto.type === 'REGULAR') {
+      const childCount = await this.prisma.space.count({ where: { parentSpaceId: space.id } });
+      if (childCount > 0) {
+        throw new BadRequestException('Remove all child spaces before converting this space to REGULAR.');
       }
     }
 
@@ -1401,6 +1410,25 @@ export class SpacesService {
           throw new ConflictException(
             'This space already belongs to a super space',
           );
+        }
+
+        // Cycle guard: the target (future parent) must not be a descendant of
+        // the sub-space, otherwise we would create a loop in the hierarchy.
+        let ancestorId: string | null = targetSpace.parentSpaceId;
+        const visited = new Set<string>();
+        while (ancestorId) {
+          if (ancestorId === subSpaceId) {
+            throw new BadRequestException(
+              'This assignment would create a cycle in the space hierarchy',
+            );
+          }
+          if (visited.has(ancestorId)) break;
+          visited.add(ancestorId);
+          const ancestor = await this.prisma.space.findUnique({
+            where: { id: ancestorId },
+            select: { parentSpaceId: true },
+          });
+          ancestorId = ancestor?.parentSpaceId ?? null;
         }
       }
 
