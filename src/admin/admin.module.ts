@@ -9,9 +9,10 @@ import { RedisModule } from '../redis/redis.module';
 import { StorageModule } from '../storage/storage.module';
 import { AuthModule } from '../auth/auth.module';
 import { EmailModule } from '../email/email.module';
+import { UsersModule } from '../users/users.module';
 
 @Module({
-  imports: [PrismaModule, RedisModule, StorageModule, AuthModule, EmailModule],
+  imports: [PrismaModule, RedisModule, StorageModule, AuthModule, EmailModule, UsersModule],
   controllers: [AdminController, AdminEmailController],
   providers: [AdminService, AdminEmailService, AdminSchedulerService],
   exports: [AdminService, AdminEmailService],

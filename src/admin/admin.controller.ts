@@ -1,5 +1,6 @@
 import { Controller, Get, Post, Delete, Body, Query, UseGuards, Logger, Request } from '@nestjs/common';
 import { AdminService } from './admin.service';
+import { UsersService } from '../users/users.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -11,13 +12,34 @@ import { RoleCode } from '@prisma/client';
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class AdminController {
   private readonly logger = new Logger(AdminController.name);
-  constructor(private readonly adminService: AdminService) {}
+  constructor(
+    private readonly adminService: AdminService,
+    private readonly usersService: UsersService,
+  ) {}
 
   @Get('health')
   @Roles(RoleCode.ADMIN)
   async getHealth() {
     this.logger.log('Health check endpoint called');
     return this.adminService.getHealthStatus();
+  }
+
+  /**
+   * List all users (ADMIN only)
+   * GET /admin/users?page=1&limit=20&search=query
+   */
+  @Get('users')
+  @Roles(RoleCode.ADMIN)
+  async getAllUsers(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('search') search?: string,
+  ) {
+    return this.usersService.getAllUsers({
+      page: page ? parseInt(page, 10) : 1,
+      limit: limit ? parseInt(limit, 10) : 20,
+      search,
+    });
   }
 
   /**
