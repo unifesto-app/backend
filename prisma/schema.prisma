@@ -38,7 +38,6 @@ enum RoleCode {
   CO_ORGANISER
   MEMBER
   VOLUNTEER
-  GATE
 
   @@map("role_code")
 }
