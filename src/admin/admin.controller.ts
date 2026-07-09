@@ -7,7 +7,7 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { User } from '@prisma/client';
-import { RoleCode } from '@prisma/client';
+import { RoleCode, SpaceStatus } from '@prisma/client';
 
 @Controller('admin')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -82,6 +82,44 @@ export class AdminController {
       limit: limit ? parseInt(limit, 10) : 20,
       search,
     });
+  }
+
+  /**
+   * Approve a pending space (ADMIN only)
+   * PATCH /admin/spaces/:id/approve
+   */
+  @Patch('spaces/:id/approve')
+  @Roles(RoleCode.ADMIN)
+  async approveSpace(@Param('id') id: string, @CurrentUser() user: User) {
+    return this.adminService.approveSpace(id, user.id);
+  }
+
+  /**
+   * Reject a pending space (ADMIN only)
+   * PATCH /admin/spaces/:id/reject
+   */
+  @Patch('spaces/:id/reject')
+  @Roles(RoleCode.ADMIN)
+  async rejectSpace(
+    @Param('id') id: string,
+    @CurrentUser() user: User,
+    @Body() body: { reason?: string },
+  ) {
+    return this.adminService.rejectSpace(id, user.id, body?.reason);
+  }
+
+  /**
+   * Manage a space's lifecycle state (ADMIN only)
+   * PATCH /admin/spaces/:id/status  { status: SpaceStatus }
+   */
+  @Patch('spaces/:id/status')
+  @Roles(RoleCode.ADMIN)
+  async updateSpaceStatus(
+    @Param('id') id: string,
+    @CurrentUser() user: User,
+    @Body() body: { status: SpaceStatus },
+  ) {
+    return this.adminService.updateSpaceStatus(id, body.status, user.id);
   }
 
   /**

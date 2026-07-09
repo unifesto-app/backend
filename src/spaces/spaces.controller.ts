@@ -258,7 +258,8 @@ export class SpacesController {
       try {
         const jwt = require('jsonwebtoken');
         const decoded: any = jwt.decode(auth.replace('Bearer ', ''));
-        userId = decoded?.userId;
+        // Custom JWTs carry `userId`; Cognito JWTs carry the id under `sub`.
+        userId = decoded?.userId ?? decoded?.sub;
       } catch {}
     }
     return this.spacesService.getSpaceById(id, userId);

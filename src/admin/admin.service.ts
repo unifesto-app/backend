@@ -1,4 +1,9 @@
-import { Injectable, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { execSync } from 'child_process';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
@@ -7,6 +12,7 @@ import { StorageService } from '../storage/storage.service';
 import { EmailService } from '../email/email.service';
 import { S3Client, ListObjectsV2Command } from '@aws-sdk/client-s3';
 import { getFirebaseAdmin } from '../firebase/firebase-admin.provider';
+import { SpaceStatus } from '@prisma/client';
 
 export interface ServiceStatus {
   status: 'connected' | 'disconnected';
@@ -439,10 +445,13 @@ export class AdminService {
           creator: {
             select: { id: true, fullName: true, username: true },
           },
+          parentSpace: {
+            select: { id: true, name: true, slug: true },
+          },
           userRoles: {
             select: { role: { select: { code: true } } },
           },
-          _count: { select: { userRoles: true } },
+          _count: { select: { userRoles: true, childSpaces: true } },
         },
         orderBy: { createdAt: 'desc' },
       }),
@@ -476,8 +485,14 @@ export class AdminService {
         country: space.country,
         visibility: space.visibility,
         status: space.status,
+        // SUPER (parent) or REGULAR (individual / child).
+        type: space.type,
+        parent_space_id: space.parentSpaceId,
+        parentSpace: space.parentSpace,
+        child_count: space._count.childSpaces,
         member_count: space._count.userRoles,
         roleCounts,
+        rejection_reason: space.rejectionReason,
         creator: space.creator,
         createdAt: space.createdAt,
         updatedAt: space.updatedAt,
@@ -493,6 +508,87 @@ export class AdminService {
         totalPages: Math.ceil(total / limit),
       },
     };
+  }
+
+  /**
+   * Approve a pending space (ADMIN only). Moves the space out of the review
+   * queue and makes it live.
+   */
+  async approveSpace(id: string, adminId: string) {
+    const space = await this.prisma.space.findUnique({ where: { id } });
+    if (!space) {
+      throw new NotFoundException('Space not found');
+    }
+    if (space.status === SpaceStatus.APPROVED || space.status === SpaceStatus.ACTIVE) {
+      throw new BadRequestException('Space is already approved');
+    }
+
+    const updated = await this.prisma.space.update({
+      where: { id },
+      data: {
+        status: SpaceStatus.APPROVED,
+        approvedAt: new Date(),
+        approvedBy: adminId,
+        rejectedAt: null,
+        rejectionReason: null,
+      },
+      select: { id: true, name: true, status: true, approvedAt: true, approvedBy: true },
+    });
+    this.logger.log(`Space ${id} approved by admin ${adminId}`);
+    return updated;
+  }
+
+  /**
+   * Reject a pending space (ADMIN only), recording the reason shown to the
+   * organiser.
+   */
+  async rejectSpace(id: string, adminId: string, reason?: string) {
+    const space = await this.prisma.space.findUnique({ where: { id } });
+    if (!space) {
+      throw new NotFoundException('Space not found');
+    }
+
+    const updated = await this.prisma.space.update({
+      where: { id },
+      data: {
+        status: SpaceStatus.REJECTED,
+        rejectedAt: new Date(),
+        approvedBy: adminId,
+        rejectionReason: reason?.trim() || null,
+      },
+      select: {
+        id: true,
+        name: true,
+        status: true,
+        rejectedAt: true,
+        rejectionReason: true,
+      },
+    });
+    this.logger.log(`Space ${id} rejected by admin ${adminId}`);
+    return updated;
+  }
+
+  /**
+   * Manage a space's lifecycle state (ADMIN only) — e.g. ACTIVE, INACTIVE,
+   * SUSPENDED, ARCHIVED. Approval/rejection have dedicated endpoints; this is
+   * for post-approval state management.
+   */
+  async updateSpaceStatus(id: string, status: SpaceStatus, adminId: string) {
+    const space = await this.prisma.space.findUnique({ where: { id } });
+    if (!space) {
+      throw new NotFoundException('Space not found');
+    }
+    if (!Object.values(SpaceStatus).includes(status)) {
+      throw new BadRequestException(`Invalid space status: ${status}`);
+    }
+
+    const updated = await this.prisma.space.update({
+      where: { id },
+      data: { status },
+      select: { id: true, name: true, status: true },
+    });
+    this.logger.log(`Space ${id} status set to ${status} by admin ${adminId}`);
+    return updated;
   }
 
   /**

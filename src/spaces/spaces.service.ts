@@ -236,8 +236,17 @@ export class SpacesService {
     }
     this.logger.log(`parentSpace: ${JSON.stringify((space as any).parentSpace)}`);
 
-    const userRole = userId
+    const requesterRole = userId
       ? (space.userRoles.find((ur: any) => ur.userId === userId) || null)
+      : null;
+    // Flatten to { id, code, name } so clients get the same shape as
+    // GET /users/me/spaces (the role code lives on the joined `role`).
+    const userRole = requesterRole?.role
+      ? {
+          id: requesterRole.role.id,
+          code: requesterRole.role.code,
+          name: requesterRole.role.name,
+        }
       : null;
 
     // Expose the organiser team (co-organisers + organisers) publicly so clients can
