@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Delete, Body, Query, UseGuards, Logger, Request } from '@nestjs/common';
+import { Controller, Get, Post, Delete, Body, Param, Query, UseGuards, Logger, Request } from '@nestjs/common';
 import { AdminService } from './admin.service';
 import { UsersService } from '../users/users.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -40,6 +40,16 @@ export class AdminController {
       limit: limit ? parseInt(limit, 10) : 20,
       search,
     });
+  }
+
+  /**
+   * Get a single user by ID (ADMIN only)
+   * GET /admin/users/:id
+   */
+  @Get('users/:id')
+  @Roles(RoleCode.ADMIN)
+  async getUserById(@Param('id') id: string) {
+    return this.usersService.getUserByIdAdmin(id);
   }
 
   /**
