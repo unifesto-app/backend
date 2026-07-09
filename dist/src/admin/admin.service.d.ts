@@ -70,6 +70,44 @@ export declare class AdminService {
         };
         generatedAt: string;
     }>;
+    getAllSpacesAdmin(params: {
+        page?: number;
+        limit?: number;
+        search?: string;
+    }): Promise<{
+        spaces: {
+            id: string;
+            name: string;
+            slug: string;
+            description: string | null;
+            logo_url: string | null;
+            banner_url: string | null;
+            city: string | null;
+            state: string | null;
+            country: string | null;
+            visibility: import("@prisma/client").$Enums.SpaceVisibility;
+            status: import("@prisma/client").$Enums.SpaceStatus;
+            member_count: number;
+            roleCounts: {
+                organisers: number;
+                coOrganisers: number;
+                members: number;
+            };
+            creator: {
+                id: string;
+                username: string | null;
+                fullName: string | null;
+            };
+            createdAt: Date;
+            updatedAt: Date;
+        }[];
+        pagination: {
+            page: number;
+            limit: number;
+            total: number;
+            totalPages: number;
+        };
+    }>;
     getPm2Logs(params: {
         lines: number;
         search?: string;

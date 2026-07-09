@@ -48,6 +48,13 @@ let AdminController = AdminController_1 = class AdminController {
     async updateUserById(id, dto) {
         return this.usersService.updateUserByIdAdmin(id, dto);
     }
+    async getAllSpaces(page, limit, search) {
+        return this.adminService.getAllSpacesAdmin({
+            page: page ? parseInt(page, 10) : 1,
+            limit: limit ? parseInt(limit, 10) : 20,
+            search,
+        });
+    }
     async getAnalyticsOverview() {
         return this.adminService.getAnalyticsOverview();
     }
@@ -107,6 +114,16 @@ __decorate([
     __metadata("design:paramtypes", [String, dto_1.UpdateProfileDto]),
     __metadata("design:returntype", Promise)
 ], AdminController.prototype, "updateUserById", null);
+__decorate([
+    (0, common_1.Get)('spaces'),
+    (0, roles_decorator_1.Roles)(client_1.RoleCode.ADMIN),
+    __param(0, (0, common_1.Query)('page')),
+    __param(1, (0, common_1.Query)('limit')),
+    __param(2, (0, common_1.Query)('search')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String, String]),
+    __metadata("design:returntype", Promise)
+], AdminController.prototype, "getAllSpaces", null);
 __decorate([
     (0, common_1.Get)('analytics/overview'),
     (0, roles_decorator_1.Roles)(client_1.RoleCode.ADMIN),

@@ -304,6 +304,79 @@ let AdminService = AdminService_1 = class AdminService {
             generatedAt: now.toISOString(),
         };
     }
+    async getAllSpacesAdmin(params) {
+        const { page = 1, limit = 20, search } = params;
+        const skip = (page - 1) * limit;
+        const where = {};
+        if (search) {
+            where.OR = [
+                { name: { contains: search, mode: 'insensitive' } },
+                { slug: { contains: search, mode: 'insensitive' } },
+                { description: { contains: search, mode: 'insensitive' } },
+            ];
+        }
+        const [spaces, total] = await Promise.all([
+            this.prisma.space.findMany({
+                where,
+                skip,
+                take: limit,
+                include: {
+                    creator: {
+                        select: { id: true, fullName: true, username: true },
+                    },
+                    userRoles: {
+                        select: { role: { select: { code: true } } },
+                    },
+                    _count: { select: { userRoles: true } },
+                },
+                orderBy: { createdAt: 'desc' },
+            }),
+            this.prisma.space.count({ where }),
+        ]);
+        const mapped = spaces.map((space) => {
+            const roleCounts = { organisers: 0, coOrganisers: 0, members: 0 };
+            for (const ur of space.userRoles) {
+                switch (ur.role?.code) {
+                    case 'ORGANISER':
+                        roleCounts.organisers += 1;
+                        break;
+                    case 'CO_ORGANISER':
+                        roleCounts.coOrganisers += 1;
+                        break;
+                    case 'MEMBER':
+                        roleCounts.members += 1;
+                        break;
+                }
+            }
+            return {
+                id: space.id,
+                name: space.name,
+                slug: space.slug,
+                description: space.description,
+                logo_url: space.logoUrl,
+                banner_url: space.bannerUrl,
+                city: space.city,
+                state: space.state,
+                country: space.country,
+                visibility: space.visibility,
+                status: space.status,
+                member_count: space._count.userRoles,
+                roleCounts,
+                creator: space.creator,
+                createdAt: space.createdAt,
+                updatedAt: space.updatedAt,
+            };
+        });
+        return {
+            spaces: mapped,
+            pagination: {
+                page,
+                limit,
+                total,
+                totalPages: Math.ceil(total / limit),
+            },
+        };
+    }
     async getPm2Logs(params) {
         try {
             const raw = (0, child_process_1.execSync)(`pm2 logs unifesto --lines ${params.lines} --nostream`, { encoding: 'utf8', timeout: 10000 });
