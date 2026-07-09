@@ -16,6 +16,7 @@ export interface UserRoleDetails {
   roleName: string;
   roleScope: RoleScope;
   spaceId: string | null;
+  eventId: string | null;
   assignedAt: Date;
 }
 
@@ -53,6 +54,7 @@ export class RolesService {
       roleName: ur.role.name,
       roleScope: ur.role.scope,
       spaceId: ur.spaceId,
+      eventId: ur.eventId,
       assignedAt: ur.createdAt,
     }));
   }
@@ -71,12 +73,36 @@ export class RolesService {
     }
 
     // Validate scope constraints
-    if (role.scope === RoleScope.PLATFORM && dto.spaceId) {
-      throw new BadRequestException('Platform roles cannot have a space_id');
+    if (role.scope === RoleScope.PLATFORM && (dto.spaceId || dto.eventId)) {
+      throw new BadRequestException(
+        'Platform roles cannot have a space_id or event_id',
+      );
     }
 
-    if (role.scope === RoleScope.SPACE && !dto.spaceId) {
-      throw new BadRequestException('Space roles must have a space_id');
+    if (role.scope === RoleScope.SPACE) {
+      if (!dto.spaceId) {
+        throw new BadRequestException('Space roles must have a space_id');
+      }
+      if (dto.eventId) {
+        throw new BadRequestException('Space roles cannot have an event_id');
+      }
+    }
+
+    if (role.scope === RoleScope.EVENT) {
+      if (!dto.eventId) {
+        throw new BadRequestException('Event roles must have an event_id');
+      }
+      if (dto.spaceId) {
+        throw new BadRequestException('Event roles cannot have a space_id');
+      }
+
+      const event = await this.prisma.event.findUnique({
+        where: { id: dto.eventId },
+      });
+
+      if (!event) {
+        throw new NotFoundException('Event not found');
+      }
     }
 
     // Validate space role limits
@@ -96,13 +122,6 @@ export class RolesService {
           role: { code: role.code },
         },
       });
-
-      // Super Organiser limit: 1
-      if (role.code === RoleCode.SUPER_ORGANISER && currentRoleCount >= 1) {
-        throw new BadRequestException(
-          'Space already has a Super Organiser. Only one Super Organiser is allowed per space.',
-        );
-      }
 
       // Organiser limit: 1
       if (role.code === RoleCode.ORGANISER && currentRoleCount >= 1) {
@@ -130,6 +149,7 @@ export class RolesService {
         userId: dto.userId,
         roleId: dto.roleId,
         spaceId: dto.spaceId || null,
+        eventId: dto.eventId || null,
       },
     });
 
@@ -143,6 +163,7 @@ export class RolesService {
         userId: dto.userId,
         roleId: dto.roleId,
         spaceId: dto.spaceId || undefined,
+        eventId: dto.eventId || undefined,
         assignedBy,
       },
     });
@@ -221,6 +242,7 @@ export class RolesService {
       roleName: ur.role.name,
       roleScope: ur.role.scope,
       spaceId: ur.spaceId,
+      eventId: ur.eventId,
       assignedAt: ur.createdAt,
     }));
   }

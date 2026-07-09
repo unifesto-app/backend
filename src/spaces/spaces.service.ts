@@ -243,7 +243,6 @@ export class SpacesService {
     // Expose the organiser team (co-organisers + organisers) publicly so clients can
     // display them. Only organiser-type roles are surfaced; regular members are not.
     const organiserRoleCodes = [
-      RoleCode.SUPER_ORGANISER,
       RoleCode.ORGANISER,
       RoleCode.CO_ORGANISER,
     ];

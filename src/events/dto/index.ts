@@ -157,6 +157,11 @@ export class UpdateEventDto {
   @IsEnum(EventType)
   type?: EventType;
 
+  @ApiPropertyOptional({ enum: RegistrationType })
+  @IsOptional()
+  @IsEnum(RegistrationType)
+  registrationType?: RegistrationType;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsDateString()
@@ -166,6 +171,11 @@ export class UpdateEventDto {
   @IsOptional()
   @IsDateString()
   endDateTime?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  timezone?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -185,7 +195,32 @@ export class UpdateEventDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
+  state?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  country?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsNumber()
+  latitude?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsNumber()
+  longitude?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
   onlineUrl?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  onlinePlatform?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -200,9 +235,19 @@ export class UpdateEventDto {
 
   @ApiPropertyOptional()
   @IsOptional()
+  @IsBoolean()
+  isFree?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsArray()
   @IsString({ each: true })
   tags?: string[];
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  category?: string;
 
   @ApiPropertyOptional({ enum: EventVisibility })
   @IsOptional()

@@ -10,4 +10,8 @@ export class AssignRoleDto {
   @IsOptional()
   @IsUUID()
   spaceId?: string;
+
+  @IsOptional()
+  @IsUUID()
+  eventId?: string;
 }

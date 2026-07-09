@@ -23,7 +23,6 @@ export class SpaceRoleGuard implements CanActivate {
   private static readonly ALLOWED: RoleCode[] = [
     RoleCode.ORGANISER,
     RoleCode.CO_ORGANISER,
-    RoleCode.SUPER_ORGANISER,
   ];
 
   constructor(private prisma: PrismaService) {}

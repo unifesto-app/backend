@@ -15,11 +15,6 @@ async function main() {
       scope: RoleScope.PLATFORM,
     },
     {
-      code: RoleCode.SUPER_ORGANISER,
-      name: 'Super Organiser',
-      scope: RoleScope.SPACE,
-    },
-    {
       code: RoleCode.ORGANISER,
       name: 'Organiser',
       scope: RoleScope.SPACE,
@@ -33,6 +28,11 @@ async function main() {
       code: RoleCode.MEMBER,
       name: 'Member',
       scope: RoleScope.SPACE,
+    },
+    {
+      code: RoleCode.VOLUNTEER,
+      name: 'Volunteer',
+      scope: RoleScope.EVENT,
     },
   ];
 
