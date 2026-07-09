@@ -21,7 +21,6 @@ export class UserProfileDto {
   instagramUrl: string | null;
   githubUrl: string | null;
   websiteUrl: string | null;
-  isOnboarded: boolean;
   createdAt: string;
   roles?: { role: { code: string; name: string } }[];
   hasAppliedReferral: boolean;
@@ -40,7 +39,6 @@ export class UserProfileDto {
       instagramUrl: user.instagramUrl,
       githubUrl: user.githubUrl,
       websiteUrl: user.websiteUrl,
-      isOnboarded: user.isOnboarded,
       createdAt: user.createdAt.toISOString(),
       roles: roles || [],
       hasAppliedReferral: (user as any).referredBy != null,

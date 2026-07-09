@@ -56,7 +56,6 @@ export interface SendToSegmentDto {
     hasWallet?: boolean;
     minCoins?: number;
     hasRegistrations?: boolean;
-    isOnboarded?: boolean;
   };
   scheduledAt?: Date;
 }

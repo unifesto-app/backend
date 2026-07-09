@@ -93,7 +93,6 @@ export class UsersService {
       instagramUrl: user.instagramUrl,
       githubUrl: user.githubUrl,
       websiteUrl: user.websiteUrl,
-      isOnboarded: user.isOnboarded,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
       email: user.identities.find((i) => i.email)?.email || null,
@@ -134,6 +133,13 @@ export class UsersService {
         roles: {
           include: {
             role: true,
+            space: {
+              select: {
+                id: true,
+                name: true,
+                slug: true,
+              },
+            },
             assignedByUser: {
               select: {
                 id: true,
@@ -164,7 +170,6 @@ export class UsersService {
         instagramUrl: user.instagramUrl,
         githubUrl: user.githubUrl,
         websiteUrl: user.websiteUrl,
-        isOnboarded: user.isOnboarded,
         createdAt: user.createdAt,
         updatedAt: user.updatedAt,
         email: user.identities.find((i) => i.email)?.email || null,
@@ -176,6 +181,8 @@ export class UsersService {
           name: ur.role.name,
           scope: ur.role.scope,
           spaceId: ur.spaceId,
+          spaceName: ur.space?.name ?? null,
+          spaceSlug: ur.space?.slug ?? null,
           assignedBy: ur.assignedByUser,
           assignedAt: ur.createdAt,
         })),
@@ -238,7 +245,6 @@ export class UsersService {
         instagramUrl: user.instagramUrl,
         githubUrl: user.githubUrl,
         websiteUrl: user.websiteUrl,
-        isOnboarded: user.isOnboarded,
         createdAt: user.createdAt,
         updatedAt: user.updatedAt,
         email: user.identities.find((i) => i.email)?.email || null,
@@ -305,27 +311,6 @@ export class UsersService {
     return UserProfileDto.fromUser(user, (user as any).roles);
   }
 
-  /**
-   * Mark user as onboarded
-   */
-  async completeOnboarding(userId: string, data?: { username?: string; fullName?: string; city?: string; referralCode?: string }): Promise<UserProfileDto> {
-    if (data?.username) {
-      const available = await this.isUsernameAvailable(data.username, userId);
-      if (!available) throw new ConflictException('Username is already taken');
-    }
-    if (data?.referralCode) {
-      const referrer = await this.prisma.user.findFirst({ where: { referralCode: data.referralCode } });
-      if (referrer && referrer.id !== userId) {
-        this.prisma.wallet.updateMany({ where: { userId: referrer.id }, data: { balance: { increment: 50 } } }).catch(() => {});
-      }
-    }
-    const updateData: any = { isOnboarded: true };
-    if (data?.username) updateData.username = data.username;
-    if (data?.fullName) updateData.fullName = data.fullName;
-    if (data?.city) updateData.city = data.city;
-    const user = await this.prisma.user.update({ where: { id: userId }, data: updateData });
-    return UserProfileDto.fromUser(user, (user as any).roles);
-  }
   /**
    * Get user by username
    */

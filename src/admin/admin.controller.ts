@@ -1,6 +1,7 @@
-import { Controller, Get, Post, Delete, Body, Param, Query, UseGuards, Logger, Request } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards, Logger, Request } from '@nestjs/common';
 import { AdminService } from './admin.service';
 import { UsersService } from '../users/users.service';
+import { UpdateProfileDto } from '../users/dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -50,6 +51,37 @@ export class AdminController {
   @Roles(RoleCode.ADMIN)
   async getUserById(@Param('id') id: string) {
     return this.usersService.getUserByIdAdmin(id);
+  }
+
+  /**
+   * Update a user's profile by ID (ADMIN only)
+   * PATCH /admin/users/:id
+   */
+  @Patch('users/:id')
+  @Roles(RoleCode.ADMIN)
+  async updateUserById(
+    @Param('id') id: string,
+    @Body() dto: UpdateProfileDto,
+  ) {
+    return this.usersService.updateUserByIdAdmin(id, dto);
+  }
+
+  /**
+   * List ALL spaces across the platform (ADMIN only)
+   * GET /admin/spaces?page=1&limit=20&search=query
+   */
+  @Get('spaces')
+  @Roles(RoleCode.ADMIN)
+  async getAllSpaces(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('search') search?: string,
+  ) {
+    return this.adminService.getAllSpacesAdmin({
+      page: page ? parseInt(page, 10) : 1,
+      limit: limit ? parseInt(limit, 10) : 20,
+      search,
+    });
   }
 
   /**

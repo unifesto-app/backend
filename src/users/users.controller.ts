@@ -65,19 +65,6 @@ export class UsersController {
   }
 
   /**
-   * Complete onboarding
-   * POST /users/me/onboard
-   */
-  @Post('me/onboard')
-  @UseGuards(JwtAuthGuard)
-  async completeOnboarding(
-    @CurrentUser() user: User,
-    @Body() body: { username?: string; fullName?: string; city?: string; referralCode?: string },
-  ): Promise<UserProfileDto> {
-    return this.usersService.completeOnboarding(user.id, body);
-  }
-
-  /**
    * Upload avatar
    * POST /users/me/avatar
    */

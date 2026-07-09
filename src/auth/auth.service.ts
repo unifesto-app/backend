@@ -798,7 +798,6 @@ export class AuthService {
       data: {
         mobileNumber: placeholderMobile,
         mobileVerified: false,
-        isOnboarded: false,
         identities: {
           create: {
             provider: providerEnum,

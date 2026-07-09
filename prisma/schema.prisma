@@ -211,9 +211,6 @@ model User {
   githubUrl    String? @map("github_url") @db.Text
   websiteUrl   String? @map("website_url") @db.Text
 
-  // Onboarding
-  isOnboarded Boolean @default(false) @map("is_onboarded")
-
   // Referral
   referralCode String? @unique @map("referral_code") @db.VarChar(20)
 
