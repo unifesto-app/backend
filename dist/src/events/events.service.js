@@ -66,8 +66,9 @@ let EventsService = EventsService_1 = class EventsService {
         if (!space) {
             throw new common_1.NotFoundException('Space not found');
         }
-        if (space.status !== client_1.SpaceStatus.APPROVED) {
-            throw new common_1.BadRequestException('Space must be approved to create events');
+        if (space.status !== client_1.SpaceStatus.APPROVED &&
+            space.status !== client_1.SpaceStatus.ACTIVE) {
+            throw new common_1.BadRequestException('Space must be active to create events');
         }
         const canManage = await this.canManageEvent(userId, dto.spaceId);
         if (!canManage) {

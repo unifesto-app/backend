@@ -318,6 +318,75 @@ export class WhatsAppService {
     return !!(this.phoneNumberId && this.accessToken);
   }
 
+  /**
+   * Verify Meta's webhook subscription handshake.
+   * Meta sends GET ?hub.mode=subscribe&hub.verify_token=...&hub.challenge=...
+   * We must echo back the challenge iff the token matches ours.
+   * Returns the challenge string on success, or null on failure.
+   */
+  verifyWebhookChallenge(
+    mode: string | undefined,
+    token: string | undefined,
+    challenge: string | undefined,
+  ): string | null {
+    const verifyToken = this.configService.get<string>(
+      'WHATSAPP_WEBHOOK_VERIFY_TOKEN',
+    );
+
+    if (!verifyToken) {
+      this.logger.warn('WHATSAPP_WEBHOOK_VERIFY_TOKEN not configured');
+      return null;
+    }
+
+    if (mode === 'subscribe' && token === verifyToken && challenge) {
+      this.logger.log('WhatsApp webhook verification succeeded');
+      return challenge;
+    }
+
+    this.logger.warn('WhatsApp webhook verification failed (mode/token mismatch)');
+    return null;
+  }
+
+  /**
+   * Process an inbound WhatsApp webhook payload (messages and statuses).
+   * Meta always expects a fast 200 response; heavy work should be async.
+   */
+  handleWebhookPayload(body: any): void {
+    try {
+      const entries = Array.isArray(body?.entry) ? body.entry : [];
+
+      for (const entry of entries) {
+        const changes = Array.isArray(entry?.changes) ? entry.changes : [];
+
+        for (const change of changes) {
+          const value = change?.value ?? {};
+
+          // Inbound messages from users
+          const messages = Array.isArray(value.messages) ? value.messages : [];
+          for (const message of messages) {
+            this.logger.log(
+              `Inbound WhatsApp message from ${message.from} (type=${message.type})`,
+            );
+          }
+
+          // Delivery / read status updates for messages we sent
+          const statuses = Array.isArray(value.statuses) ? value.statuses : [];
+          for (const status of statuses) {
+            this.logger.log(
+              `WhatsApp message ${status.id} status=${status.status} recipient=${status.recipient_id}`,
+            );
+          }
+        }
+      }
+    } catch (error) {
+      this.logger.error(
+        `Failed to process WhatsApp webhook payload: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
+  }
+
   // =====================================================
   // TEMPLATE-BASED NOTIFICATIONS
   // =====================================================

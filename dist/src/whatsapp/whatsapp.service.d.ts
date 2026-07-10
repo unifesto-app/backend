@@ -15,6 +15,8 @@ export declare class WhatsAppService {
     sendWelcomeMessage(phoneNumber: string, username: string): Promise<void>;
     verifyWebhookSignature(signature: string, payload: string): boolean;
     isConfigured(): boolean;
+    verifyWebhookChallenge(mode: string | undefined, token: string | undefined, challenge: string | undefined): string | null;
+    handleWebhookPayload(body: any): void;
     sendRegistrationConfirmation(mobileNumber: string, data: {
         userName: string;
         eventTitle: string;

@@ -36,6 +36,7 @@ const registrations_module_1 = require("./registrations/registrations.module");
 const checkin_module_1 = require("./checkin/checkin.module");
 const payouts_module_1 = require("./payouts/payouts.module");
 const chat_module_1 = require("./chat/chat.module");
+const whatsapp_module_1 = require("./whatsapp/whatsapp.module");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -100,6 +101,7 @@ exports.AppModule = AppModule = __decorate([
             checkin_module_1.CheckinModule,
             payouts_module_1.PayoutsModule,
             chat_module_1.ChatModule,
+            whatsapp_module_1.WhatsAppModule,
         ],
         controllers: [app_controller_1.AppController],
         providers: [

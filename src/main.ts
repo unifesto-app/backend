@@ -6,7 +6,11 @@ import { GlobalExceptionFilter } from './common/filters/global-exception.filter'
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, {
+    // Preserve the raw request body so webhook signatures (e.g. WhatsApp/Meta)
+    // can be verified against the exact bytes that were signed.
+    rawBody: true,
+  });
 
   // Remove the X-Powered-By header (avoids advertising the Express stack)
   app.getHttpAdapter().getInstance().disable('x-powered-by');
