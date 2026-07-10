@@ -75,8 +75,11 @@ export class EventsService {
       throw new NotFoundException('Space not found');
     }
 
-    if (space.status !== SpaceStatus.APPROVED) {
-      throw new BadRequestException('Space must be approved to create events');
+    if (
+      space.status !== SpaceStatus.APPROVED &&
+      space.status !== SpaceStatus.ACTIVE
+    ) {
+      throw new BadRequestException('Space must be active to create events');
     }
 
     const canManage = await this.canManageEvent(userId, dto.spaceId);
