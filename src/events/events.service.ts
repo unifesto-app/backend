@@ -650,12 +650,17 @@ export class EventsService {
     });
   }
 
-  async getSpaceEvents(spaceId: string, page = 1, limit = 20) {
+  async getSpaceEvents(spaceId: string, page = 1, limit = 20, status?: EventStatus) {
     const skip = (page - 1) * limit;
+
+    const where: Prisma.EventWhereInput = { spaceId };
+    if (status) {
+      where.status = status;
+    }
 
     const [events, total] = await Promise.all([
       this.prisma.event.findMany({
-        where: { spaceId },
+        where,
         skip,
         take: limit,
         orderBy: { createdAt: 'desc' },
@@ -672,7 +677,7 @@ export class EventsService {
           },
         },
       }),
-      this.prisma.event.count({ where: { spaceId } }),
+      this.prisma.event.count({ where }),
     ]);
 
     return {

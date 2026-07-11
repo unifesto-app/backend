@@ -62,11 +62,13 @@ export class EventsController {
     @Param('spaceId') spaceId: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
+    @Query('status') status?: string,
   ) {
     return this.eventsService.getSpaceEvents(
       spaceId,
       page ? parseInt(page, 10) : 1,
       limit ? parseInt(limit, 10) : 20,
+      status as EventStatus | undefined,
     );
   }
 
