@@ -20,6 +20,7 @@ import {
   ApiBearerAuth,
   ApiConsumes,
 } from '@nestjs/swagger';
+import { EventStatus } from '@prisma/client';
 import { EventsService } from './events.service';
 import {
   CancelEventDto,
