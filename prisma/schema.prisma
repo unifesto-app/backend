@@ -121,6 +121,36 @@ enum EventVisibility {
   @@map("event_visibility")
 }
 
+enum SupportTicketStatus {
+  OPEN // needs a staff reply
+  PENDING // waiting on the requester
+  RESOLVED // staff considers it done
+  CLOSED // archived / no further action
+
+  @@map("support_ticket_status")
+}
+
+enum SupportTicketPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+
+  @@map("support_ticket_priority")
+}
+
+enum SupportTicketCategory {
+  GENERAL
+  ACCOUNT
+  PAYMENTS
+  EVENTS
+  TICKETING
+  TECHNICAL
+  OTHER
+
+  @@map("support_ticket_category")
+}
+
 enum RegistrationType {
   RSVP
   TICKETED
@@ -244,6 +274,9 @@ model User {
   spaceStatusRequests SpaceStatusRequest[] @relation("SpaceStatusRequestUser")
   subSpaceRequests   SubSpaceRequest[]   @relation("SubSpaceRequestUser")
   notificationSettings NotificationSettings?
+  supportTicketsRaised   SupportTicket[]  @relation("SupportTicketRequester")
+  supportTicketsAssigned SupportTicket[]  @relation("SupportTicketAssignee")
+  supportMessages        SupportMessage[] @relation("SupportMessageAuthor")
 
   @@map("users")
 }
@@ -485,6 +518,7 @@ model Space {
   statusRequests SpaceStatusRequest[]
   subSpaceRequests    SubSpaceRequest[] @relation("SubSpaceRequests")
   targetSpaceRequests SubSpaceRequest[] @relation("TargetSpaceRequests")
+  supportTickets      SupportTicket[]
 
   @@index([slug])
   @@index([status])
@@ -1401,4 +1435,72 @@ model ChatModerationAction {
   createdAt      DateTime             @default(now()) @map("created_at")
 
   @@map("chat_moderation_actions")
+}
+
+// =====================================================
+// SUPPORT (ticket-based helpdesk)
+// =====================================================
+
+model SupportTicket {
+  id           String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  // Human-friendly reference, e.g. #1042
+  ticketNumber Int    @unique @default(autoincrement()) @map("ticket_number")
+
+  // Content
+  subject  String                @db.VarChar(300)
+  category SupportTicketCategory @default(GENERAL)
+  priority SupportTicketPriority @default(NORMAL)
+  status   SupportTicketStatus   @default(OPEN)
+
+  // Who raised it
+  requesterId  String  @map("requester_id") @db.Uuid
+  requester    User    @relation("SupportTicketRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  // Optional reply-to captured at creation (mobile attendees, unverified email)
+  contactEmail String? @map("contact_email") @db.VarChar(255)
+
+  // Optional space context (tickets raised from an organiser space)
+  spaceId String? @map("space_id") @db.Uuid
+  space   Space?  @relation(fields: [spaceId], references: [id], onDelete: SetNull)
+
+  // Staff assignment
+  assignedToId String? @map("assigned_to_id") @db.Uuid
+  assignedTo   User?   @relation("SupportTicketAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+
+  // Lifecycle
+  resolvedAt    DateTime? @map("resolved_at") @db.Timestamptz(6)
+  closedAt      DateTime? @map("closed_at") @db.Timestamptz(6)
+  lastMessageAt DateTime  @default(now()) @map("last_message_at") @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  messages SupportMessage[]
+
+  @@index([requesterId])
+  @@index([spaceId])
+  @@index([assignedToId])
+  @@index([status])
+  @@index([lastMessageAt])
+  @@map("support_tickets")
+}
+
+model SupportMessage {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  ticketId String        @map("ticket_id") @db.Uuid
+  ticket   SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  authorId String @map("author_id") @db.Uuid
+  author   User   @relation("SupportMessageAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+
+  // True when written by a platform admin (staff reply) vs the requester.
+  isStaffReply Boolean @default(false) @map("is_staff_reply")
+
+  body String @db.Text
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([ticketId, createdAt])
+  @@index([authorId])
+  @@map("support_messages")
 }

@@ -28,6 +28,7 @@ import { CheckinModule } from './checkin/checkin.module';
 import { PayoutsModule } from './payouts/payouts.module';
 import { ChatModule } from './chat/chat.module';
 import { WhatsAppModule } from './whatsapp/whatsapp.module';
+import { SupportModule } from './support/support.module';
 
 @Module({
   imports: [
@@ -99,6 +100,7 @@ import { WhatsAppModule } from './whatsapp/whatsapp.module';
     PayoutsModule,
     ChatModule,
     WhatsAppModule,
+    SupportModule,
   ],
   controllers: [AppController],
   providers: [
